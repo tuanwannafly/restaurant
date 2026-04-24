@@ -278,6 +278,16 @@ public class DataManager {
         userDAO.updateOwnProfile(userId, name, phone, address);
     }
 
+    /**
+     * Trả về bản ghi Employee liên kết với user đang đăng nhập.
+     * Dùng để pre-fill phone/address trong "Hồ sơ của tôi".
+     * Trả về {@code null} nếu user chưa có employee record (e.g. SUPER_ADMIN).
+     */
+    public Employee getOwnEmployeeInfo() {
+        long uid = AppSession.getInstance().getUserId();
+        return employeeDAO.findByUserId(uid).orElse(null);
+    }
+
     /** Đổi mật khẩu cá nhân. */
     public void changeOwnPassword(long userId, String oldPw, String newPw) {
         userDAO.changeOwnPassword(userId, oldPw, newPw);

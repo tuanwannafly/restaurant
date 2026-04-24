@@ -228,6 +228,37 @@ public class EmployeeDAO {
     }
 
 
+    // ─── LOOKUP BY USER_ID ────────────────────────────────────────────────────
+
+    /**
+     * Tìm bản ghi nhân viên liên kết với {@code userId} (cột user_id trong employees).
+     * Dùng để pre-fill form "Hồ sơ của tôi" (phone, address).
+     * Trả về {@code Optional.empty()} nếu user là SUPER_ADMIN hoặc chưa có employee record.
+     *
+     * @param userId user_id của người dùng hiện tại
+     * @return Optional chứa Employee nếu tìm thấy, empty nếu không
+     */
+    public Optional<Employee> findByUserId(long userId) {
+        String sql = "SELECT employee_id, name, cccd, phone, address, start_date, role"
+                   + " FROM employees WHERE user_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, userId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(map(rs));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("[EmployeeDAO] findByUserId lỗi: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
+
     // ─── ROLE ASSIGNMENT (Phase 5B) ───────────────────────────────────────────
 
     /**
