@@ -141,6 +141,66 @@ public class OrderDAO {
         return o;
     }
 
+    // ─── CREATE EMPTY ORDER (Phase 2 – Thu ngân mở bàn) ─────────────────────
+
+    /**
+     * Tạo đơn hàng rỗng khi thu ngân / admin mở bàn cho khách.
+     *
+     * <p>INSERT một dòng vào {@code orders} với:
+     * <ul>
+     *   <li>{@code status = 'PENDING'}</li>
+     *   <li>{@code total_amount = 0}</li>
+     *   <li>{@code customer_name} và {@code customer_phone} – nullable</li>
+     * </ul>
+     *
+     * @param tableId      khoá chính bàn (String → parse sang long)
+     * @param restaurantId restaurant_id của phiên hiện tại
+     * @param customerName tên khách – có thể {@code null}
+     * @param customerPhone số điện thoại khách – có thể {@code null}
+     * @return {@link Order} với {@code id} vừa được DB sinh ra
+     * @throws RuntimeException nếu lỗi SQL
+     */
+    public Order createEmptyOrder(String tableId, long restaurantId,
+                                  String customerName, String customerPhone) {
+        String sql = """
+            INSERT INTO orders (status, total_amount, table_id, restaurant_id,
+                                customer_name, customer_phone, created_at)
+            VALUES ('PENDING', 0, ?, ?, ?, ?, SYSTIMESTAMP)
+            """;
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, new String[]{"order_id"})) {
+
+            ps.setLong(1, Long.parseLong(tableId));
+            ps.setLong(2, restaurantId);
+            ps.setString(3, customerName);
+            ps.setString(4, customerPhone);
+            ps.executeUpdate();
+
+            long orderId;
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (!keys.next()) throw new SQLException("Không lấy được order_id");
+                orderId = keys.getLong(1);
+            }
+
+            Order o = new Order(
+                String.valueOf(orderId),
+                tableId,
+                null,                     // tableName – chưa cần thiết cho đơn rỗng
+                0,
+                Order.Status.PENDING,
+                "",
+                customerName,
+                customerPhone
+            );
+            o.setItems(new java.util.ArrayList<>());
+            return o;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi tạo đơn rỗng: " + e.getMessage(), e);
+        }
+    }
+
     // ─── UPDATE STATUS ────────────────────────────────────────────────────────
 
     /**
