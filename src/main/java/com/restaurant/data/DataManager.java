@@ -8,10 +8,13 @@ import javax.swing.SwingWorker;
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
+import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.TableDAO;
+import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Employee;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
+import com.restaurant.model.Restaurant;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.RbacGuard;
@@ -35,6 +38,8 @@ public class DataManager {
     private final TableDAO    tableDAO     = new TableDAO();
     private final OrderDAO    orderDAO     = new OrderDAO();
     private final EmployeeDAO employeeDAO  = new EmployeeDAO();
+    private final UserDAO       userDAO       = new UserDAO();
+    private final RestaurantDAO restaurantDAO = new RestaurantDAO();
 
     private DataManager() {}
 
@@ -225,6 +230,44 @@ public class DataManager {
             @Override protected Void doInBackground() { task.run(); return null; }
             @Override protected void done() { if (onDone != null) onDone.run(); }
         }.execute();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  RESTAURANT
+    // ═══════════════════════════════════════════════════════
+
+    /** Lấy thông tin nhà hàng của phiên hiện tại (không cần SUPER_ADMIN). */
+    public Restaurant getMyRestaurant() {
+        long rid = AppSession.getInstance().getRestaurantId();
+        if (rid == 0) return null;
+        return restaurantDAO.findByIdPublic(rid);
+    }
+
+    /** Cập nhật nhà hàng (RESTAURANT_ADMIN chỉ được sửa nhà hàng của mình). */
+    public void updateMyRestaurant(Restaurant r) {
+        checkSession();
+        restaurantDAO.updateByAdmin(r);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  USER / STAFF
+    // ═══════════════════════════════════════════════════════
+
+    /** Tạo tài khoản staff mới (chỉ RESTAURANT_ADMIN). */
+    public long registerStaff(String name, String email, String password, String roleName) {
+        checkSession();
+        return userDAO.registerStaff(name, email, password, roleName,
+                                     AppSession.getInstance().getRestaurantId());
+    }
+
+    /** Cập nhật thông tin cá nhân của userId. */
+    public void updateOwnProfile(long userId, String name, String phone, String address) {
+        userDAO.updateOwnProfile(userId, name, phone, address);
+    }
+
+    /** Đổi mật khẩu cá nhân. */
+    public void changeOwnPassword(long userId, String oldPw, String newPw) {
+        userDAO.changeOwnPassword(userId, oldPw, newPw);
     }
 
     // ═══════════════════════════════════════════════════════
