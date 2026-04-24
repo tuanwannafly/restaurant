@@ -4,14 +4,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
-import com.restaurant.session.AppSession;
+import com.restaurant.session.RbacGuard;
 
 /**
  * DAO thao tác bảng RESTAURANTS.
@@ -34,7 +33,7 @@ public class RestaurantDAO {
      * @throws SecurityException nếu không phải SUPER_ADMIN
      */
     private void requireSuperAdmin() {
-        if (!AppSession.getInstance().isSuperAdmin()) {
+        if (!RbacGuard.getInstance().isSuperAdmin()) {
             throw new SecurityException("Chỉ SUPER_ADMIN được phép thao tác nhà hàng");
         }
     }

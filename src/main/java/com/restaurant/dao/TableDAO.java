@@ -15,18 +15,30 @@ import com.restaurant.session.RbacGuard;
 /**
  * DAO thao tác bảng RESTAURANT_TABLES trong Oracle DB.
  *
- * Ánh xạ trạng thái:
- *   DB status      ↔  FE TableItem.Status
- *   AVAILABLE      ↔  RANH
- *   OCCUPIED       ↔  BAN
- *   RESERVED       ↔  DAT_TRUOC
- *   DIRTY / OUT_OF_SERVICE / CLEANING  ↔  RANH (hiển thị là rảnh)
+ * Ánh xạ trạng thái (DB → FE):
+ * <pre>
+ *   AVAILABLE        → RANH
+ *   OCCUPIED         → BAN
+ *   RESERVED         → DAT_TRUOC
+ *   DIRTY            → DIRTY
+ *   CLEANING         → CLEANING
+ *   OUT_OF_SERVICE   → DIRTY   (không phân biệt được, coi là cần dọn)
+ * </pre>
+ *
+ * Ánh xạ ngược (FE → DB):
+ * <pre>
+ *   RANH      → AVAILABLE
+ *   BAN       → OCCUPIED
+ *   DAT_TRUOC → RESERVED
+ *   DIRTY     → DIRTY
+ *   CLEANING  → CLEANING
+ * </pre>
  */
 public class TableDAO {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private long rid() { return AppSession.getInstance().getRestaurantId(); }
+    private long    rid()          { return AppSession.getInstance().getRestaurantId(); }
     private boolean isSuperAdmin() { return RbacGuard.getInstance().isSuperAdmin(); }
 
     // ─── READ ─────────────────────────────────────────────────────────────────
@@ -162,21 +174,36 @@ public class TableDAO {
         );
     }
 
+    /**
+     * FE TableItem.Status → DB string.
+     * DIRTY → "DIRTY", CLEANING → "CLEANING" (viết đúng vào DB thay vì "AVAILABLE").
+     */
     private String toDbStatus(TableItem.Status s) {
         if (s == null) return "AVAILABLE";
-        return switch (s) {
-            case BAN       -> "OCCUPIED";
-            case DAT_TRUOC -> "RESERVED";
-            default        -> "AVAILABLE";
-        };
+        switch (s) {
+            case BAN:       return "OCCUPIED";
+            case DAT_TRUOC: return "RESERVED";
+            case DIRTY:     return "DIRTY";
+            case CLEANING:  return "CLEANING";
+            case RANH:
+            default:        return "AVAILABLE";
+        }
     }
 
+    /**
+     * DB string → FE TableItem.Status.
+     * DIRTY → DIRTY, CLEANING → CLEANING, OUT_OF_SERVICE → DIRTY (phân biệt riêng biệt).
+     */
     private TableItem.Status fromDbStatus(String s) {
         if (s == null) return TableItem.Status.RANH;
-        return switch (s) {
-            case "OCCUPIED" -> TableItem.Status.BAN;
-            case "RESERVED" -> TableItem.Status.DAT_TRUOC;
-            default         -> TableItem.Status.RANH;
-        };
+        switch (s) {
+            case "OCCUPIED":        return TableItem.Status.BAN;
+            case "RESERVED":        return TableItem.Status.DAT_TRUOC;
+            case "DIRTY":           return TableItem.Status.DIRTY;
+            case "CLEANING":        return TableItem.Status.CLEANING;
+            case "OUT_OF_SERVICE":  return TableItem.Status.DIRTY;  // không phân biệt → cần dọn
+            case "AVAILABLE":
+            default:                return TableItem.Status.RANH;
+        }
     }
 }

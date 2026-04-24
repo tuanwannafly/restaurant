@@ -1,28 +1,60 @@
 package com.restaurant.dao;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Order;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.RbacGuard;
 
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * DAO thao tác bảng ORDERS + ORDER_ITEMS trong Oracle DB.
  *
- * Ánh xạ trạng thái:
- *   DB status          ↔  FE Order.Status
- *   PENDING / IN_PROGRESS / CONFIRMED / READY / SERVED  ↔  DANG_PHUC_VU
- *   COMPLETED          ↔  HOAN_THANH
- *   CANCELLED          ↔  DA_HUY
+ * Ánh xạ trạng thái (DB ↔ Order.Status):
+ * <pre>
+ *   DB value        → FE Status
+ *   ─────────────────────────────────────────────────
+ *   PENDING         → PENDING
+ *   IN_PROGRESS     → PENDING   (legacy backward-compat)
+ *   CONFIRMED       → ACCEPTED  (legacy backward-compat)
+ *   SERVED          → DELIVERED (legacy backward-compat)
+ *   ACCEPTED        → ACCEPTED
+ *   COOKING         → COOKING
+ *   READY           → READY
+ *   DELIVERING      → DELIVERING
+ *   DELIVERED       → DELIVERED
+ *   COMPLETED       → COMPLETED
+ *   CANCELLED       → CANCELLED
+ * </pre>
+ *
+ * Ánh xạ trạng thái (FE ↔ DB) khi ghi:
+ * <pre>
+ *   FE Status       → DB value
+ *   ─────────────────────────────────────────────────
+ *   PENDING         → PENDING
+ *   ACCEPTED        → ACCEPTED
+ *   COOKING         → COOKING
+ *   READY           → READY
+ *   DELIVERING      → DELIVERING
+ *   DELIVERED       → DELIVERED
+ *   COMPLETED       → COMPLETED
+ *   CANCELLED       → CANCELLED
+ *   DANG_PHUC_VU    → PENDING   (legacy)
+ *   HOAN_THANH      → COMPLETED (legacy)
+ *   DA_HUY          → CANCELLED (legacy)
+ * </pre>
  */
 public class OrderDAO {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private long rid() { return AppSession.getInstance().getRestaurantId(); }
+    private long rid()         { return AppSession.getInstance().getRestaurantId(); }
     private boolean isSuperAdmin() { return RbacGuard.getInstance().isSuperAdmin(); }
 
     // ─── READ ─────────────────────────────────────────────────────────────────
@@ -33,6 +65,7 @@ public class OrderDAO {
         String sql = isSuperAdmin()
             ? """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
+                     o.customer_name, o.customer_phone,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -40,6 +73,7 @@ public class OrderDAO {
               """
             : """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
+                     o.customer_name, o.customer_phone,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -69,8 +103,9 @@ public class OrderDAO {
 
     public Order create(Order o) {
         String sql = """
-            INSERT INTO orders (status, total_amount, table_id, restaurant_id, created_at)
-            VALUES (?, ?, ?, ?, SYSTIMESTAMP)
+            INSERT INTO orders (status, total_amount, table_id, restaurant_id,
+                                customer_name, customer_phone, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
             """;
 
         try (Connection conn = DBConnection.getInstance().getConnection()) {
@@ -80,9 +115,10 @@ public class OrderDAO {
                 try (PreparedStatement ps = conn.prepareStatement(sql, new String[]{"order_id"})) {
                     ps.setString(1, toDbStatus(o.getStatus()));
                     ps.setBigDecimal(2, java.math.BigDecimal.valueOf(o.getTotalAmount()));
-                    long tableId = parseLongOrDefault(o.getTableId(), 0);
-                    ps.setLong(3, tableId);
+                    ps.setLong(3, parseLongOrDefault(o.getTableId(), 0));
                     ps.setLong(4, rid());
+                    ps.setString(5, o.getCustomerName());
+                    ps.setString(6, o.getCustomerPhone());
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) throw new SQLException("Không lấy được order_id");
@@ -176,14 +212,12 @@ public class OrderDAO {
         try (Connection conn = DBConnection.getInstance().getConnection()) {
             conn.setAutoCommit(false);
             try {
-                // Xóa order items trước
                 try (PreparedStatement ps = conn.prepareStatement(
                         "DELETE FROM order_items WHERE order_id = ?")) {
                     ps.setLong(1, Long.parseLong(id));
                     ps.executeUpdate();
                 }
 
-                // Xóa order chính, có guard restaurant_id
                 try (PreparedStatement ps = conn.prepareStatement(deleteOrderSql)) {
                     ps.setLong(1, Long.parseLong(id));
                     if (!isSuperAdmin()) ps.setLong(2, rid());
@@ -220,6 +254,10 @@ public class OrderDAO {
             if (createdAt.length() > 16) createdAt = createdAt.substring(0, 16);
         }
 
+        // customer_name / customer_phone có thể null (cột mới, nullable)
+        String customerName  = safeGetString(rs, "customer_name");
+        String customerPhone = safeGetString(rs, "customer_phone");
+
         return new Order(
                 String.valueOf(rs.getLong("order_id")),
                 String.valueOf(rs.getLong("table_id")),
@@ -227,14 +265,22 @@ public class OrderDAO {
                 rs.getBigDecimal("total_amount") != null
                         ? rs.getBigDecimal("total_amount").doubleValue() : 0,
                 fromDbStatus(rs.getString("status")),
-                createdAt
+                createdAt,
+                customerName,
+                customerPhone
         );
     }
 
+    /**
+     * Lấy danh sách món của một đơn hàng.
+     * SELECT thêm cột {@code item_status} từ order_items và map sang
+     * {@link Order.OrderItem.ItemStatus}.
+     */
     private List<Order.OrderItem> getOrderItems(Connection conn, long orderId) throws SQLException {
         List<Order.OrderItem> items = new ArrayList<>();
         String sql = """
-            SELECT oi.quantity, oi.price, mi.name AS item_name, mi.item_id
+            SELECT oi.quantity, oi.price, oi.item_status,
+                   mi.name AS item_name, mi.item_id
             FROM order_items oi
             JOIN menu_items mi ON oi.menu_item_id = mi.item_id
             WHERE oi.order_id = ?
@@ -243,12 +289,14 @@ public class OrderDAO {
             ps.setLong(1, orderId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    items.add(new Order.OrderItem(
+                    Order.OrderItem item = new Order.OrderItem(
                             String.valueOf(rs.getLong("item_id")),
                             rs.getString("item_name"),
                             rs.getInt("quantity"),
-                            rs.getBigDecimal("price").doubleValue()
-                    ));
+                            rs.getBigDecimal("price").doubleValue(),
+                            fromDbItemStatus(safeGetString(rs, "item_status"))
+                    );
+                    items.add(item);
                 }
             }
         }
@@ -259,7 +307,7 @@ public class OrderDAO {
                                   List<Order.OrderItem> items) throws SQLException {
         if (items == null || items.isEmpty()) return;
         String sql = """
-            INSERT INTO order_items (order_id, menu_item_id, quantity, price, status)
+            INSERT INTO order_items (order_id, menu_item_id, quantity, price, item_status)
             VALUES (?, ?, ?, ?, 'PENDING')
             """;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -274,22 +322,80 @@ public class OrderDAO {
         }
     }
 
+    // ─── Status mapping ───────────────────────────────────────────────────────
+
+    /**
+     * FE Order.Status → DB string.
+     * Legacy enum values (DANG_PHUC_VU, HOAN_THANH, DA_HUY) được map về giá
+     * trị DB tương đương để không break code cũ gọi updateStatus/create.
+     */
     private String toDbStatus(Order.Status s) {
         if (s == null) return "PENDING";
-        return switch (s) {
-            case HOAN_THANH -> "COMPLETED";
-            case DA_HUY     -> "CANCELLED";
-            default         -> "IN_PROGRESS";
-        };
+        switch (s) {
+            case PENDING:      return "PENDING";
+            case ACCEPTED:     return "ACCEPTED";
+            case COOKING:      return "COOKING";
+            case READY:        return "READY";
+            case DELIVERING:   return "DELIVERING";
+            case DELIVERED:    return "DELIVERED";
+            case COMPLETED:    return "COMPLETED";
+            case CANCELLED:    return "CANCELLED";
+            // Legacy
+            case DANG_PHUC_VU: return "PENDING";
+            case HOAN_THANH:   return "COMPLETED";
+            case DA_HUY:       return "CANCELLED";
+            default:           return "PENDING";
+        }
     }
 
+    /**
+     * DB string → FE Order.Status.
+     * Backward-compat: các giá trị DB cũ (IN_PROGRESS, CONFIRMED, SERVED)
+     * được map về trạng thái new tương đương.
+     */
     private Order.Status fromDbStatus(String s) {
-        if (s == null) return Order.Status.DANG_PHUC_VU;
-        return switch (s) {
-            case "COMPLETED" -> Order.Status.HOAN_THANH;
-            case "CANCELLED" -> Order.Status.DA_HUY;
-            default          -> Order.Status.DANG_PHUC_VU;
-        };
+        if (s == null) return Order.Status.PENDING;
+        switch (s) {
+            case "PENDING":      return Order.Status.PENDING;
+            case "ACCEPTED":
+            case "CONFIRMED":    return Order.Status.ACCEPTED;   // CONFIRMED = legacy
+            case "COOKING":      return Order.Status.COOKING;
+            case "READY":        return Order.Status.READY;
+            case "DELIVERING":   return Order.Status.DELIVERING;
+            case "DELIVERED":
+            case "SERVED":       return Order.Status.DELIVERED;  // SERVED = legacy
+            case "COMPLETED":    return Order.Status.COMPLETED;
+            case "CANCELLED":    return Order.Status.CANCELLED;
+            // Legacy IN_PROGRESS → PENDING (chờ xử lý tiếp)
+            case "IN_PROGRESS":
+            default:             return Order.Status.PENDING;
+        }
+    }
+
+    // ─── ItemStatus mapping ───────────────────────────────────────────────────
+
+    private Order.OrderItem.ItemStatus fromDbItemStatus(String s) {
+        if (s == null) return Order.OrderItem.ItemStatus.PENDING;
+        switch (s) {
+            case "PENDING":    return Order.OrderItem.ItemStatus.PENDING;
+            case "ACCEPTED":   return Order.OrderItem.ItemStatus.ACCEPTED;
+            case "COOKING":    return Order.OrderItem.ItemStatus.COOKING;
+            case "READY":      return Order.OrderItem.ItemStatus.READY;
+            case "DELIVERING": return Order.OrderItem.ItemStatus.DELIVERING;
+            case "DELIVERED":  return Order.OrderItem.ItemStatus.DELIVERED;
+            default:           return Order.OrderItem.ItemStatus.PENDING;
+        }
+    }
+
+    // ─── Misc helpers ─────────────────────────────────────────────────────────
+
+    /** Đọc cột String – trả về null nếu cột không tồn tại hoặc giá trị NULL */
+    private String safeGetString(ResultSet rs, String col) {
+        try {
+            return rs.getString(col);
+        } catch (SQLException e) {
+            return null; // cột chưa có trong schema cũ
+        }
     }
 
     private long parseLongOrDefault(String s, long def) {

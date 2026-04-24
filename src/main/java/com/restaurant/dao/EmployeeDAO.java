@@ -245,7 +245,7 @@ public class EmployeeDAO {
         }
 
         // Bước 2: RESTAURANT_ADMIN không được gán role ngang / cao hơn (lớp bảo vệ ở DAO)
-        if (!AppSession.getInstance().isSuperAdmin()
+        if (!RbacGuard.getInstance().isSuperAdmin()
                 && ("RESTAURANT_ADMIN".equalsIgnoreCase(newRole)
                     || "SUPER_ADMIN".equalsIgnoreCase(newRole))) {
             throw new SecurityException("RESTAURANT_ADMIN không được gán role này");
