@@ -1,18 +1,45 @@
 package com.restaurant.ui.dialog;
 
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Point;
+import java.awt.Window;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.Timer;
+
 import com.restaurant.dao.ReportDAO;
 import com.restaurant.model.Report;
+import com.restaurant.ui.ReportPanel;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.RoundedTextField;
 import com.restaurant.ui.UIConstants;
-import com.restaurant.ui.ReportPanel;
-
-import javax.swing.*;
-import java.awt.*;
 
 public class ReportAddDialog extends JDialog {
 
+    /** null khi được nhúng (embedded mode) trong TableOrderFrame – Phase 3B. */
     private final ReportPanel parent;
+
+    /**
+     * {@code true} khi {@code parent == null}: dialog không bao giờ được show
+     * mà chỉ lấy content pane nhúng vào tab. Trong mode này "Hủy" reset form
+     * và "Gửi" không gọi dispose/loadData.
+     */
+    private final boolean embedded;
 
     private RoundedTextField  tfTitle;
     private JComboBox<String> cmbType;
@@ -20,14 +47,20 @@ public class ReportAddDialog extends JDialog {
     private JTextArea         taDescription;
     private JLabel            lblError;
 
+    // ─── Constructors ─────────────────────────────────────────────────────────
+
+    /** Constructor gốc – dùng khi mở dialog độc lập từ ReportPanel. */
     public ReportAddDialog(Window owner, ReportPanel parent) {
         super(owner, "Gửi báo cáo mới", ModalityType.APPLICATION_MODAL);
-        this.parent = parent;
+        this.parent   = parent;
+        this.embedded = (parent == null);   // Phase 3B: nhúng vào tab khi parent null
         setSize(420, 400);
         setResizable(false);
         setLocationRelativeTo(owner);
         buildUI();
     }
+
+    // ─── UI ───────────────────────────────────────────────────────────────────
 
     private void buildUI() {
         JPanel root = new JPanel();
@@ -35,7 +68,7 @@ public class ReportAddDialog extends JDialog {
         root.setBackground(UIConstants.BG_WHITE);
         root.setBorder(BorderFactory.createEmptyBorder(24, 28, 20, 28));
 
-        // ── Title ────────────────────────────────────────────────────────────
+        // ── Title ─────────────────────────────────────────────────────────────
         JLabel dlgTitle = new JLabel("Gửi báo cáo sự cố");
         dlgTitle.setFont(UIConstants.FONT_TITLE);
         dlgTitle.setForeground(UIConstants.TEXT_PRIMARY);
@@ -43,7 +76,7 @@ public class ReportAddDialog extends JDialog {
         root.add(dlgTitle);
         root.add(Box.createVerticalStrut(16));
 
-        // ── Tiêu đề ──────────────────────────────────────────────────────────
+        // ── Tiêu đề ───────────────────────────────────────────────────────────
         root.add(fieldLabel("Tiêu đề *"));
         root.add(Box.createVerticalStrut(4));
         tfTitle = new RoundedTextField("Nhập tiêu đề...");
@@ -68,7 +101,7 @@ public class ReportAddDialog extends JDialog {
             public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if ("INCIDENT".equals(value))    setText("Sự cố");
+                if      ("INCIDENT".equals(value))    setText("Sự cố");
                 else if ("MAINTENANCE".equals(value)) setText("Bảo trì");
                 else if ("FEEDBACK".equals(value))    setText("Phản hồi");
                 return this;
@@ -89,7 +122,7 @@ public class ReportAddDialog extends JDialog {
             public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if ("LOW".equals(value))      setText("Thấp");
+                if      ("LOW".equals(value))      setText("Thấp");
                 else if ("MEDIUM".equals(value))   setText("Trung bình");
                 else if ("HIGH".equals(value))     setText("Cao");
                 else if ("CRITICAL".equals(value)) setText("Nghiêm trọng");
@@ -124,13 +157,20 @@ public class ReportAddDialog extends JDialog {
         btnPanel.setAlignmentX(LEFT_ALIGNMENT);
         btnPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
-        JButton btnCancel = new JButton("Hủy");
+        JButton btnCancel = new JButton(embedded ? "Xóa form" : "Hủy");
         btnCancel.setFont(UIConstants.FONT_BODY);
         btnCancel.setForeground(UIConstants.TEXT_SECONDARY);
         btnCancel.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true));
         btnCancel.setFocusPainted(false);
-        btnCancel.setPreferredSize(new Dimension(80, UIConstants.BTN_HEIGHT));
-        btnCancel.addActionListener(e -> dispose());
+        btnCancel.setPreferredSize(new Dimension(90, UIConstants.BTN_HEIGHT));
+        btnCancel.addActionListener(e -> {
+            if (embedded) {
+                // Embedded mode: reset form thay vì đóng dialog
+                resetForm();
+            } else {
+                dispose();
+            }
+        });
 
         RoundedButton btnSubmit = new RoundedButton("Gửi");
         btnSubmit.setPreferredSize(new Dimension(80, UIConstants.BTN_HEIGHT));
@@ -142,6 +182,8 @@ public class ReportAddDialog extends JDialog {
 
         setContentPane(root);
     }
+
+    // ─── Submit ───────────────────────────────────────────────────────────────
 
     private void doSubmit() {
         String titleText = tfTitle.getText().trim();
@@ -161,21 +203,50 @@ public class ReportAddDialog extends JDialog {
 
         try {
             new ReportDAO().add(r);
-            JOptionPane.showMessageDialog(this, "Đã gửi báo cáo thành công!");
-            dispose();
-            parent.loadData();
+
+            if (embedded) {
+                // ── Embedded mode (Phase 3B): không dispose, reset form ────────
+                // Dùng getRootPane() làm parent của JOptionPane vì dialog chưa show
+                JOptionPane.showMessageDialog(
+                    getRootPane(),
+                    "✅  Đã gửi báo cáo thành công!",
+                    "Thành công",
+                    JOptionPane.INFORMATION_MESSAGE
+                );
+                resetForm();
+            } else {
+                // ── Standalone mode: đóng dialog và reload danh sách ─────────
+                JOptionPane.showMessageDialog(this, "Đã gửi báo cáo thành công!");
+                dispose();
+                if (parent != null) parent.loadData(); // null-safe guard
+            }
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Lỗi: " + ex.getMessage(),
-                "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(
+                embedded ? getRootPane() : this,
+                "Lỗi: " + ex.getMessage(),
+                "Lỗi",
+                JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 
-    /** Hiệu ứng rung nhẹ để báo lỗi validation */
+    /** Reset toàn bộ trường nhập về giá trị mặc định (dùng trong embedded mode). */
+    private void resetForm() {
+        tfTitle.setText("");
+        taDescription.setText("");
+        cmbType.setSelectedIndex(0);
+        cmbSeverity.setSelectedIndex(0);
+        lblError.setText(" ");
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Hiệu ứng rung nhẹ để báo lỗi validation. */
     private void shakeField(JComponent comp) {
         Point origin = comp.getLocation();
-        Timer timer = new Timer(30, null);
-        int[] step = {0};
-        int[] dx = {-6, 6, -5, 5, -3, 3, -1, 1, 0};
+        Timer timer  = new Timer(30, null);
+        int[] step   = {0};
+        int[] dx     = {-6, 6, -5, 5, -3, 3, -1, 1, 0};
         timer.addActionListener(e -> {
             if (step[0] < dx.length) {
                 comp.setLocation(origin.x + dx[step[0]], origin.y);
