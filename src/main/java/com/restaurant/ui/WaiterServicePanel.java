@@ -185,8 +185,18 @@ public class WaiterServicePanel extends JPanel {
 
             @Override
             protected void done() {
-                rebuildDeliveryTab(readyMap);
-                rebuildDirtyTab(dirtyList);
+                try {
+                    get(); // surface any background exception
+                    rebuildDeliveryTab(readyMap);
+                    rebuildDirtyTab(dirtyList);
+                } catch (Exception ex) {
+                    System.err.println("[WaiterServicePanel] refreshAll lỗi: " + ex.getMessage());
+                    ToastNotification.show(
+                        WaiterServicePanel.this,
+                        "Lỗi tải dữ liệu phục vụ: " + ex.getMessage(),
+                        ToastNotification.Type.ERROR
+                    );
+                }
             }
         }.execute();
     }
@@ -259,7 +269,7 @@ public class WaiterServicePanel extends JPanel {
         btnDeliv.addActionListener(e -> {
             btnDeliv.setEnabled(false);
             new SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
+                @Override protected Void doInBackground() throws Exception {
                     for (KitchenTicket t : items) {
                         if (t.itemStatus == Order.OrderItem.ItemStatus.READY) {
                             kitchenDAO.updateItemStatus(t.itemId,
@@ -268,7 +278,14 @@ public class WaiterServicePanel extends JPanel {
                     }
                     return null;
                 }
-                @Override protected void done() { refreshAll(); }
+                @Override protected void done() {
+                    try { get(); } catch (Exception ex) {
+                        ToastNotification.show(WaiterServicePanel.this,
+                            "Lỗi cập nhật trạng thái giao: " + ex.getMessage(),
+                            ToastNotification.Type.ERROR);
+                    }
+                    refreshAll();
+                }
             }.execute();
         });
 
@@ -278,7 +295,7 @@ public class WaiterServicePanel extends JPanel {
         btnDone.addActionListener(e -> {
             btnDone.setEnabled(false);
             new SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
+                @Override protected Void doInBackground() throws Exception {
                     for (KitchenTicket t : items) {
                         if (t.itemStatus != Order.OrderItem.ItemStatus.DELIVERED) {
                             kitchenDAO.updateItemStatus(t.itemId,
@@ -287,7 +304,14 @@ public class WaiterServicePanel extends JPanel {
                     }
                     return null;
                 }
-                @Override protected void done() { refreshAll(); }
+                @Override protected void done() {
+                    try { get(); } catch (Exception ex) {
+                        ToastNotification.show(WaiterServicePanel.this,
+                            "Lỗi cập nhật trạng thái đã giao: " + ex.getMessage(),
+                            ToastNotification.Type.ERROR);
+                    }
+                    refreshAll();
+                }
             }.execute();
         });
 
@@ -529,11 +553,18 @@ public class WaiterServicePanel extends JPanel {
                         : TableItem.Status.RANH;
 
                 new SwingWorker<Void, Void>() {
-                    @Override protected Void doInBackground() {
+                    @Override protected Void doInBackground() throws Exception {
                         tableDAO.updateStatus(currentItem.getId(), nextStatus);
                         return null;
                     }
-                    @Override protected void done() { onDone.run(); }
+                    @Override protected void done() {
+                        try { get(); } catch (Exception ex) {
+                            ToastNotification.show(null,
+                                "Lỗi cập nhật trạng thái bàn: " + ex.getMessage(),
+                                ToastNotification.Type.ERROR);
+                        }
+                        onDone.run();
+                    }
                 }.execute();
             });
             return btn;

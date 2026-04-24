@@ -5,6 +5,7 @@ import com.restaurant.dao.TableDAO;
 import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
 import com.restaurant.ui.RoundedButton;
+import com.restaurant.ui.ToastNotification;
 import com.restaurant.ui.UIConstants;
 
 import javax.swing.*;
@@ -363,11 +364,10 @@ public class PaymentDialog extends JDialog {
                     btnConfirm.setEnabled(!items.isEmpty());
                 } catch (InterruptedException | ExecutionException ex) {
                     System.err.println("[PaymentDialog] loadItems lỗi: " + ex.getMessage());
-                    JOptionPane.showMessageDialog(
+                    ToastNotification.show(
                         PaymentDialog.this,
                         "Không thể tải danh sách món. Vui lòng thử lại.",
-                        "Lỗi",
-                        JOptionPane.ERROR_MESSAGE
+                        ToastNotification.Type.ERROR
                     );
                 }
             }
@@ -423,21 +423,19 @@ public class PaymentDialog extends JDialog {
 
                 if (ok) {
                     paymentCompleted = true;
-                    JOptionPane.showMessageDialog(
+                    ToastNotification.show(
                         PaymentDialog.this,
-                        "✅  Thanh toán thành công! Bàn đã được đánh dấu cần dọn.",
-                        "Hoàn tất",
-                        JOptionPane.INFORMATION_MESSAGE
+                        "Thanh toán thành công! Bàn đã được đánh dấu cần dọn.",
+                        ToastNotification.Type.SUCCESS
                     );
                     dispose();
                 } else {
                     btnConfirm.setEnabled(true);
                     btnConfirm.setText("✅  Xác nhận thanh toán");
-                    JOptionPane.showMessageDialog(
+                    ToastNotification.show(
                         PaymentDialog.this,
-                        "❌  Thanh toán thất bại. Vui lòng thử lại.",
-                        "Lỗi",
-                        JOptionPane.ERROR_MESSAGE
+                        "Thanh toán thất bại. Vui lòng thử lại.",
+                        ToastNotification.Type.ERROR
                     );
                 }
             }

@@ -5,7 +5,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.session.AppSession;
@@ -141,45 +143,77 @@ public class StatsDAO {
         return items;
     }
 
-    // ── Method 3: getTableStats ───────────────────────────────────────────────
+    // ── Method 4: getDashboardStats ───────────────────────────────────────────
 
-    public TableStats getTableStats() {
-        requireManager();
-
-        long restaurantId = AppSession.getInstance().getRestaurantId();
-
+    /**
+     * Trả về Map thống kê dashboard real-time với các keys:<br>
+     * {@code tables_available}, {@code tables_occupied}, {@code tables_dirty},
+     * {@code orders_pending}, {@code orders_completed_today}.
+     *
+     * <p>Sử dụng single query với CASE WHEN thay vì 5 query riêng để giảm round-trip DB.
+     *
+     * @param restaurantId ID nhà hàng cần lấy số liệu
+     * @return Map&lt;String, Integer&gt; – không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Integer> getDashboardStats(long restaurantId) {
+        // NOTE: không gọi requireManager() – HomePanel cần hiển thị cho mọi role
         String sql =
-            "SELECT status, COUNT(*) AS cnt " +
-            "FROM restaurant_tables " +
-            "WHERE restaurant_id = ? " +
-            "GROUP BY status";
+            "SELECT " +
+            "  SUM(CASE WHEN src='T' AND status='AVAILABLE'                     THEN cnt ELSE 0 END) AS tables_available, " +
+            "  SUM(CASE WHEN src='T' AND status='OCCUPIED'                      THEN cnt ELSE 0 END) AS tables_occupied, " +
+            "  SUM(CASE WHEN src='T' AND status IN ('DIRTY','CLEANING')         THEN cnt ELSE 0 END) AS tables_dirty, " +
+            "  SUM(CASE WHEN src='O' AND status IN ('PENDING','ACCEPTED','COOKING') THEN cnt ELSE 0 END) AS orders_pending, " +
+            "  SUM(CASE WHEN src='C' AND status='COMPLETED'                     THEN cnt ELSE 0 END) AS orders_completed_today " +
+            "FROM ( " +
+            "  SELECT 'T' AS src, status, COUNT(*) AS cnt " +
+            "  FROM restaurant_tables " +
+            "  WHERE restaurant_id = ? " +
+            "  GROUP BY status " +
+            "  UNION ALL " +
+            "  SELECT 'O' AS src, item_status AS status, COUNT(*) AS cnt " +
+            "  FROM order_items oi " +
+            "  JOIN orders o ON oi.order_id = o.order_id " +
+            "  WHERE o.restaurant_id = ? " +
+            "    AND oi.item_status IN ('PENDING','ACCEPTED','COOKING') " +
+            "  GROUP BY item_status " +
+            "  UNION ALL " +
+            "  SELECT 'C' AS src, status, COUNT(*) AS cnt " +
+            "  FROM orders " +
+            "  WHERE restaurant_id = ? " +
+            "    AND status = 'COMPLETED' " +
+            "    AND TRUNC(completed_at) = TRUNC(SYSDATE) " +
+            "  GROUP BY status " +
+            ")";
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("tables_available",      0);
+        result.put("tables_occupied",       0);
+        result.put("tables_dirty",          0);
+        result.put("orders_pending",        0);
+        result.put("orders_completed_today",0);
 
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setLong(1, restaurantId);
+            ps.setLong(2, restaurantId);
+            ps.setLong(3, restaurantId);
 
-            TableStats ts = new TableStats();
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String status = rs.getString("status");
-                    int    cnt    = rs.getInt("cnt");
-                    if (status == null) continue;
-                    switch (status.toUpperCase()) {
-                        case "AVAILABLE" -> ts.available = cnt;
-                        case "OCCUPIED"  -> ts.occupied  = cnt;
-                        case "RESERVED"  -> ts.reserved  = cnt;
-                    }
+                if (rs.next()) {
+                    result.put("tables_available",       rs.getInt("tables_available"));
+                    result.put("tables_occupied",        rs.getInt("tables_occupied"));
+                    result.put("tables_dirty",           rs.getInt("tables_dirty"));
+                    result.put("orders_pending",         rs.getInt("orders_pending"));
+                    result.put("orders_completed_today", rs.getInt("orders_completed_today"));
                 }
             }
-            ts.total = ts.available + ts.occupied + ts.reserved;
-            return ts;
 
-        } catch (SecurityException e) {
-            throw e;
         } catch (Exception e) {
-            System.err.println("[StatsDAO] getTableStats lỗi: " + e.getMessage());
-            throw new RuntimeException("[StatsDAO] Không thể tải trạng thái bàn: " + e.getMessage(), e);
+            System.err.println("[StatsDAO] getDashboardStats lỗi: " + e.getMessage());
         }
+
+        return result;
     }
 }
+

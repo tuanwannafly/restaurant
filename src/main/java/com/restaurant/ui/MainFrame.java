@@ -142,29 +142,35 @@ public class MainFrame extends JFrame implements SessionListener {
 
     /** Ẩn/hiện tab dựa trên quyền người dùng. */
     private void applyRoleFilter() {
+        AppSession session = AppSession.getInstance();
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
 
         for (int i = 0; i < navPages.length; i++) {
             switch (navPages[i]) {
                 case "thongke":
-                    // Chỉ Manager trở lên mới xem Thống kê
-                    navButtons[i].setVisible(guard.isManagerOrAbove());
+                    // Dùng Permission.VIEW_STATS thay vì isManagerOrAbove()
+                    navButtons[i].setVisible(
+                            session.hasPermission(
+                                    com.restaurant.session.Permission.VIEW_STATS));
                     break;
                 case "nhahangs":
                     // Chỉ SUPER_ADMIN mới thấy tab Nhà hàng
                     navButtons[i].setVisible(guard.isSuperAdmin());
                     break;
                 case "bep":
-                    // Chỉ CHEF / ADMIN mới thấy tab Bếp
                     navButtons[i].setVisible(
-                            AppSession.getInstance().hasPermission(
+                            session.hasPermission(
                                     com.restaurant.session.Permission.VIEW_KITCHEN));
                     break;
                 case "phucvu":
-                    // Phase 5: chỉ WAITER (và ADMIN / SUPER_ADMIN) thấy tab Phục vụ
                     navButtons[i].setVisible(
-                            AppSession.getInstance().hasPermission(
+                            session.hasPermission(
                                     com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
+                    break;
+                case "nhanvien":
+                    navButtons[i].setVisible(
+                            session.hasPermission(
+                                    com.restaurant.session.Permission.VIEW_EMPLOYEE));
                     break;
                 default:
                     break;
