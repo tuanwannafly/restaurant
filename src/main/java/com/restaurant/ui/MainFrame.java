@@ -78,6 +78,9 @@ public class MainFrame extends JFrame implements SessionListener {
     @Override
     public void onLogout() {
         SwingUtilities.invokeLater(() -> {
+            // Phase 7A: dừng toàn bộ polling timer trước khi đóng frame.
+            // Gọi trước dispose() để tránh timer tiếp tục bắn event sau logout.
+            PollManager.getInstance().stopAll();
             this.dispose();
             LoginDialog loginDialog = new LoginDialog(null);
             loginDialog.setVisible(true);

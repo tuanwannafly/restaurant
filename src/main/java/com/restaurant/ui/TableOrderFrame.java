@@ -73,9 +73,6 @@ public class TableOrderFrame extends JFrame {
     private JPanel   statusListPanel;
     private JLabel   lblStatusHint;
 
-    // Auto-refresh timer (5s) – khởi động khi frame hiện, dừng khi đóng
-    private javax.swing.Timer refreshTimer;
-
     // Cart state
     private final List<CartItem> cartItems = new ArrayList<>();
 
@@ -148,22 +145,30 @@ public class TableOrderFrame extends JFrame {
         setVisible(true);
     }
 
-    // ── Window lifecycle: start/stop refresh timer ────────────────────────────
+    // ── Window lifecycle: start/stop refresh timer via PollManager ───────────
 
     private void setupWindowLifecycle() {
-        // Timer 5s cho tab Trạng thái
-        refreshTimer = new javax.swing.Timer(5000, e -> refreshStatus());
-        refreshTimer.setInitialDelay(5000);
+        final String timerKey = "tableorder_" + tableId;
 
         addWindowListener(new WindowAdapter() {
+            /**
+             * Frame được hiển thị → đăng ký polling vào PollManager.
+             * Tải ngay lập tức, sau đó polling mỗi 5s.
+             */
             @Override
             public void windowOpened(WindowEvent e) {
-                refreshTimer.start();
+                refreshStatus();   // tải ngay khi mở
+                PollManager.getInstance().register(timerKey,
+                        TableOrderFrame.this::refreshStatus, 5000);
             }
 
+            /**
+             * Frame đóng → huỷ đăng ký khỏi PollManager.
+             * Đảm bảo không còn background polling sau khi bàn đã đóng.
+             */
             @Override
             public void windowClosing(WindowEvent e) {
-                refreshTimer.stop();
+                PollManager.getInstance().unregister(timerKey);
             }
         });
     }
@@ -442,8 +447,8 @@ public class TableOrderFrame extends JFrame {
         dlg.setVisible(true);   // blocks – APPLICATION_MODAL
 
         if (dlg.isPaymentCompleted()) {
-            // Dừng timer và đóng frame tablet
-            if (refreshTimer != null) refreshTimer.stop();
+            // Phase 7A: huỷ đăng ký polling qua PollManager trước khi đóng frame.
+            PollManager.getInstance().unregister("tableorder_" + tableId);
             dispose();
         }
     }
@@ -755,7 +760,7 @@ public class TableOrderFrame extends JFrame {
 
     /**
      * Kéo danh sách món kèm trạng thái từ DB (SwingWorker) rồi cập nhật UI
-     * trên EDT. Được gọi bởi {@link #refreshTimer} mỗi 5 giây và ngay sau
+     * trên EDT. Được gọi bởi {@link PollManager} mỗi 5 giây và ngay sau
      * khi gửi order.
      */
     private void refreshStatus() {

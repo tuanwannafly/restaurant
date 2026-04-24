@@ -51,7 +51,6 @@ public class KitchenPanel extends JPanel {
 
     private JPanel  cardsContainer;
     private JLabel  lastUpdateLabel;
-    private Timer   kitchenTimer;
 
     private final DateTimeFormatter timeFmt =
             DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -72,7 +71,6 @@ public class KitchenPanel extends JPanel {
         }
 
         buildUI();
-        setupTimer();
         setupAncestorListener();
     }
 
@@ -306,22 +304,26 @@ public class KitchenPanel extends JPanel {
         return row;
     }
 
-    // ─── Timer ────────────────────────────────────────────────────────────────
-
-    private void setupTimer() {
-        kitchenTimer = new Timer(REFRESH_MS, e -> loadData());
-        kitchenTimer.setInitialDelay(0);
-    }
+    // ─── AncestorListener — delegate lifecycle to PollManager ─────────────────
 
     private void setupAncestorListener() {
         addAncestorListener(new AncestorListener() {
-            @Override public void ancestorAdded(AncestorEvent e) {
-                if (kitchenTimer != null) kitchenTimer.start();
+            /** Panel được thêm vào container → bắt đầu polling. */
+            @Override
+            public void ancestorAdded(AncestorEvent e) {
+                // Tải dữ liệu ngay lập tức, sau đó polling định kỳ qua PollManager.
+                loadData();
+                PollManager.getInstance().register("kitchen", KitchenPanel.this::loadData, REFRESH_MS);
             }
-            @Override public void ancestorRemoved(AncestorEvent e) {
-                if (kitchenTimer != null) kitchenTimer.stop();
+
+            /** Panel bị remove khỏi container → dừng polling, giải phóng timer. */
+            @Override
+            public void ancestorRemoved(AncestorEvent e) {
+                PollManager.getInstance().unregister("kitchen");
             }
-            @Override public void ancestorMoved(AncestorEvent e) {}
+
+            @Override
+            public void ancestorMoved(AncestorEvent e) {}
         });
     }
 
