@@ -43,7 +43,33 @@ public enum Permission {
 
     // ── System-level ──────────────────────────────────────────────────────────
     MANAGE_RESTAURANT,
-    ASSIGN_ROLE;
+    ASSIGN_ROLE,
+
+    // ── Phase 1 additions ─────────────────────────────────────────────────────
+
+    /**
+     * Cho phép mở bàn (chuyển trạng thái bàn từ RANH/DIRTY sang BAN).
+     * Cần thiết cho luồng waiter / cashier khi nhận khách.
+     */
+    OPEN_TABLE,
+
+    /**
+     * Cho phép cập nhật trạng thái từng món trong đơn hàng
+     * (OrderItem.ItemStatus: PENDING → ACCEPTED → COOKING → READY → DELIVERING → DELIVERED).
+     */
+    UPDATE_ITEM_STATUS,
+
+    /**
+     * Cho phép truy cập màn hình Kitchen (bếp) – hiển thị danh sách
+     * món đang chờ nấu và cần phục vụ.
+     */
+    VIEW_KITCHEN,
+
+    /**
+     * Cho phép truy cập màn hình Waiter Service – phục vụ bàn,
+     * xem danh sách bàn cần phục vụ và giao món.
+     */
+    VIEW_WAITER_SERVICE;
 
     // ── Role → Permission mapping ─────────────────────────────────────────────
 
@@ -52,27 +78,33 @@ public enum Permission {
 
     private static final Set<Permission> RESTAURANT_ADMIN_PERMS =
             Collections.unmodifiableSet(EnumSet.of(
-                    VIEW_EMPLOYEE, ADD_EMPLOYEE, EDIT_EMPLOYEE, DELETE_EMPLOYEE,
-                    VIEW_ORDER,    ADD_ORDER,    UPDATE_ORDER_STATUS, DELETE_ORDER,
-                    VIEW_MENU,     ADD_MENU,     EDIT_MENU,           DELETE_MENU,
-                    VIEW_TABLE,    ADD_TABLE,    EDIT_TABLE,          DELETE_TABLE,
-                    VIEW_STATS,    VIEW_REPORT,  ADD_REPORT
+                    VIEW_EMPLOYEE,  ADD_EMPLOYEE,    EDIT_EMPLOYEE,       DELETE_EMPLOYEE,
+                    VIEW_ORDER,     ADD_ORDER,        UPDATE_ORDER_STATUS, DELETE_ORDER,
+                    VIEW_MENU,      ADD_MENU,         EDIT_MENU,           DELETE_MENU,
+                    VIEW_TABLE,     ADD_TABLE,        EDIT_TABLE,          DELETE_TABLE,
+                    VIEW_STATS,     VIEW_REPORT,      ADD_REPORT,
+                    // Phase 1
+                    OPEN_TABLE, UPDATE_ITEM_STATUS, VIEW_KITCHEN, VIEW_WAITER_SERVICE
                     // MANAGE_RESTAURANT và ASSIGN_ROLE bị loại trừ theo đặc tả
             ));
 
     private static final Set<Permission> WAITER_PERMS =
             Collections.unmodifiableSet(EnumSet.of(
-                    VIEW_ORDER, ADD_ORDER, UPDATE_ORDER_STATUS,
+                    VIEW_ORDER,  ADD_ORDER, UPDATE_ORDER_STATUS,
                     VIEW_TABLE,
                     VIEW_MENU,
-                    ADD_REPORT
+                    ADD_REPORT,
+                    // Phase 1
+                    VIEW_WAITER_SERVICE, UPDATE_ITEM_STATUS
             ));
 
     private static final Set<Permission> CHEF_PERMS =
             Collections.unmodifiableSet(EnumSet.of(
                     VIEW_ORDER, UPDATE_ORDER_STATUS,
                     VIEW_MENU,
-                    ADD_REPORT
+                    ADD_REPORT,
+                    // Phase 1
+                    VIEW_KITCHEN, UPDATE_ITEM_STATUS
             ));
 
     private static final Set<Permission> CASHIER_PERMS =
@@ -80,7 +112,9 @@ public enum Permission {
                     VIEW_ORDER, UPDATE_ORDER_STATUS,
                     VIEW_TABLE, EDIT_TABLE,
                     VIEW_STATS,
-                    ADD_REPORT
+                    ADD_REPORT,
+                    // Phase 1
+                    OPEN_TABLE
             ));
 
     private static final Set<Permission> EMPTY_PERMS =

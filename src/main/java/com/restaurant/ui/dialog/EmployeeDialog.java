@@ -5,6 +5,7 @@ import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
+import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.*;
 
 import javax.swing.*;
@@ -52,7 +53,7 @@ public class EmployeeDialog extends JDialog {
         this.canAssignRole = AppSession.getInstance().hasPermission(Permission.ASSIGN_ROLE);
 
         if (canAssignRole) {
-            if (AppSession.getInstance().isSuperAdmin()) {
+            if (RbacGuard.getInstance().isSuperAdmin()) {
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER", "RESTAURANT_ADMIN", "SUPER_ADMIN");
             } else if (AppSession.getInstance().isRestaurantAdmin()) {
                 // RESTAURANT_ADMIN không thể gán RESTAURANT_ADMIN / SUPER_ADMIN (lớp bảo vệ ở UI)
