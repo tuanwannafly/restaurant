@@ -45,16 +45,19 @@ public class MainFrame extends JFrame implements SessionListener {
     private KitchenPanel        kitchenPanel;
     // Phase 5: WaiterServicePanel
     private WaiterServicePanel  waiterServicePanel;
+    // F3: MyRestaurantInfoPanel — chỉ cho RESTAURANT_ADMIN
+    private MyRestaurantInfoPanel myRestaurantPanel;
 
     private JButton[] navButtons;
     // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
     private String[]  navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
-        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu"
+        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant"
     };
     private String[]  navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
-        "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ"
+        "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
+        "🏪 Nhà hàng của tôi"
     };
 
     public MainFrame() {
@@ -119,6 +122,10 @@ public class MainFrame extends JFrame implements SessionListener {
         kitchenPanel       = new KitchenPanel();
         // Phase 5: khởi tạo WaiterServicePanel
         waiterServicePanel = new WaiterServicePanel();
+        // F3: khởi tạo MyRestaurantInfoPanel chỉ khi RESTAURANT_ADMIN
+        if (_guard.isRestaurantAdmin()) {
+            myRestaurantPanel = new MyRestaurantInfoPanel();
+        }
 
         contentArea.add(homePanel,          "home");
         contentArea.add(menuPanel,          "menu");
@@ -132,6 +139,9 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(kitchenPanel,       "bep");
         // Phase 5: đăng ký WaiterServicePanel vào CardLayout
         contentArea.add(waiterServicePanel, "phucvu");
+        // F3: đăng ký MyRestaurantInfoPanel vào CardLayout
+        contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
+                : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -160,6 +170,10 @@ public class MainFrame extends JFrame implements SessionListener {
                 case "nhahangs":
                     // Chỉ SUPER_ADMIN mới thấy tab Nhà hàng
                     navButtons[i].setVisible(guard.isSuperAdmin());
+                    break;
+                case "myrestaurant":
+                    // Chỉ RESTAURANT_ADMIN thấy "Nhà hàng của tôi"
+                    navButtons[i].setVisible(guard.isRestaurantAdmin());
                     break;
                 case "bep":
                     navButtons[i].setVisible(
@@ -205,11 +219,41 @@ public class MainFrame extends JFrame implements SessionListener {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
         AppSession session = AppSession.getInstance();
-        JLabel userLbl = new JLabel("👤 " + session.getUserName()
-                + "  [" + session.getRoleLabel() + "]");
-        userLbl.setFont(UIConstants.FONT_BODY);
-        userLbl.setForeground(UIConstants.TEXT_SECONDARY);
-        right.add(userLbl);
+
+        // F1: Nút "Hồ sơ của tôi" — hiển thị khi có quyền EDIT_OWN_PROFILE
+        if (session.hasPermission(com.restaurant.session.Permission.EDIT_OWN_PROFILE)) {
+            JButton btnProfile = new JButton(session.getUserName() + " ▾");
+            btnProfile.setFont(UIConstants.FONT_BODY);
+            btnProfile.setForeground(UIConstants.TEXT_PRIMARY);
+            btnProfile.setBorderPainted(false);
+            btnProfile.setContentAreaFilled(false);
+            btnProfile.setFocusPainted(false);
+            btnProfile.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btnProfile.setToolTipText("Hồ sơ của tôi");
+            btnProfile.addActionListener(e -> {
+                com.restaurant.ui.dialog.MyProfileDialog dlg =
+                        new com.restaurant.ui.dialog.MyProfileDialog(this);
+                dlg.setVisible(true);
+            });
+            right.add(btnProfile);
+        }
+
+        JLabel roleLbl = new JLabel("[" + session.getRoleLabel() + "]");
+        roleLbl.setFont(UIConstants.FONT_BODY);
+        roleLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        right.add(roleLbl);
+
+        // G3: tên nhà hàng trong header — load từ cache (nhanh, SELECT by PK)
+        if (session.getRestaurantId() != 0) {
+            com.restaurant.model.Restaurant r =
+                    com.restaurant.data.DataManager.getInstance().getMyRestaurant();
+            if (r != null && r.getName() != null) {
+                JLabel lblRestaurant = new JLabel("·  " + r.getName());
+                lblRestaurant.setFont(UIConstants.FONT_SMALL);
+                lblRestaurant.setForeground(UIConstants.TEXT_SECONDARY);
+                right.add(lblRestaurant);
+            }
+        }
 
         header.add(left,  BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
@@ -299,8 +343,11 @@ public class MainFrame extends JFrame implements SessionListener {
             case "thongke":   statsPanel.loadAll();             break;
             case "nhahangs":  restaurantPanel.loadData();       break;
             case "bep":       kitchenPanel.loadData();          break;
-            // Phase 5: trigger load khi điều hướng đến tab Phục vụ
             case "phucvu":    waiterServicePanel.loadData();    break;
+            // F3: load dữ liệu khi điều hướng đến tab "Nhà hàng của tôi"
+            case "myrestaurant":
+                if (myRestaurantPanel != null) myRestaurantPanel.loadData();
+                break;
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);

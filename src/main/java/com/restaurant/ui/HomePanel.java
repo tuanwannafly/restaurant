@@ -22,6 +22,8 @@ import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 
 import com.restaurant.dao.StatsDAO;
+import com.restaurant.data.DataManager;
+import com.restaurant.model.Restaurant;
 import com.restaurant.session.AppSession;
 
 public class HomePanel extends JPanel {
@@ -33,6 +35,9 @@ public class HomePanel extends JPanel {
     private JLabel lblDirty;
     private JLabel lblPending;
     private JLabel lblCompletedToday;
+
+    /** G2: hiển thị tên nhà hàng đang đăng nhập. */
+    private JLabel lblRestaurantName;
 
     private static final String POLL_KEY = "home_stats";
 
@@ -75,6 +80,14 @@ public class HomePanel extends JPanel {
         title.setForeground(UIConstants.TEXT_PRIMARY);
         title.setAlignmentX(CENTER_ALIGNMENT);
         content.add(title);
+
+        // G2: tên nhà hàng đang đăng nhập (refreshed cùng poll 15s)
+        lblRestaurantName = new JLabel(" ");
+        lblRestaurantName.setFont(UIConstants.FONT_BODY);
+        lblRestaurantName.setForeground(UIConstants.TEXT_SECONDARY);
+        lblRestaurantName.setAlignmentX(CENTER_ALIGNMENT);
+        content.add(lblRestaurantName);
+
         content.add(Box.createVerticalStrut(20));
 
         // ── Section: Trạng thái bàn ──
@@ -131,8 +144,14 @@ public class HomePanel extends JPanel {
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
         new SwingWorker<Map<String, Integer>, Void>() {
+            private String restaurantName;
+
             @Override
             protected Map<String, Integer> doInBackground() {
+                // G2: piggybacked onto the existing poll — DataManager cache absorbs cost
+                Restaurant r = DataManager.getInstance().getMyRestaurant();
+                restaurantName = (r != null && r.getName() != null)
+                        ? "🏪 " + r.getName() : "";
                 return new StatsDAO().getDashboardStats(restaurantId);
             }
 
@@ -145,6 +164,10 @@ public class HomePanel extends JPanel {
                     lblDirty         .setText(String.valueOf(s.get("tables_dirty")));
                     lblPending       .setText(String.valueOf(s.get("orders_pending")));
                     lblCompletedToday.setText(String.valueOf(s.get("orders_completed_today")));
+                    // G2: update restaurant name label on EDT
+                    if (lblRestaurantName != null) {
+                        lblRestaurantName.setText(restaurantName);
+                    }
                 } catch (InterruptedException | ExecutionException ex) {
                     System.err.println("[HomePanel] refreshStats lỗi: " + ex.getMessage());
                 }

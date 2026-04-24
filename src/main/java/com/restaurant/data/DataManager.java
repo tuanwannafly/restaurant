@@ -8,10 +8,13 @@ import javax.swing.SwingWorker;
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
+import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.TableDAO;
+import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Employee;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
+import com.restaurant.model.Restaurant;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.RbacGuard;
@@ -35,6 +38,8 @@ public class DataManager {
     private final TableDAO    tableDAO     = new TableDAO();
     private final OrderDAO    orderDAO     = new OrderDAO();
     private final EmployeeDAO employeeDAO  = new EmployeeDAO();
+    private final UserDAO       userDAO       = new UserDAO();
+    private final RestaurantDAO restaurantDAO = new RestaurantDAO();
 
     private DataManager() {}
 
@@ -153,6 +158,19 @@ public class DataManager {
         }
     }
 
+    /**
+     * Như {@link #getEmployees()} nhưng kèm trạng thái tài khoản cho mỗi nhân viên.
+     * Dùng một query có CASE WHEN để tránh N+1.
+     * Gọi khi cần hiển thị cột "Tài khoản" (RESTAURANT_ADMIN).
+     */
+    public List<Employee> getEmployeesWithAccountStatus() {
+        try { return employeeDAO.findAllWithAccountStatus(); }
+        catch (Exception e) {
+            System.err.println("[DataManager] getEmployeesWithAccountStatus lỗi: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
     public Employee addEmployee(Employee emp) {
         checkSession();
         try { return employeeDAO.add(emp); }
@@ -225,6 +243,83 @@ public class DataManager {
             @Override protected Void doInBackground() { task.run(); return null; }
             @Override protected void done() { if (onDone != null) onDone.run(); }
         }.execute();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  RESTAURANT  (G1: in-memory cache với TTL 30s)
+    // ═══════════════════════════════════════════════════════
+
+    /** Cache nhà hàng hiện tại — tránh query DB mỗi lần poll. */
+    private volatile Restaurant cachedRestaurant    = null;
+    private volatile long       restaurantCacheTime = 0;
+    private static final long   CACHE_TTL_MS        = 30_000; // 30 giây
+
+    /**
+     * Lấy thông tin nhà hàng của phiên hiện tại.
+     * Kết quả được cache tối đa {@link #CACHE_TTL_MS} ms để tránh query DB
+     * liên tục khi nhiều panel/poll cùng gọi trong thời gian ngắn.
+     * Cache tự động bị invalidate sau khi admin lưu thay đổi.
+     */
+    public Restaurant getMyRestaurant() {
+        long rid = AppSession.getInstance().getRestaurantId();
+        if (rid == 0) return null;
+        long now = System.currentTimeMillis();
+        if (cachedRestaurant == null || now - restaurantCacheTime > CACHE_TTL_MS) {
+            cachedRestaurant    = restaurantDAO.findByIdPublic(rid);
+            restaurantCacheTime = now;
+        }
+        return cachedRestaurant;
+    }
+
+    /**
+     * Xóa cache nhà hàng — gọi ngay sau khi admin update thành công.
+     * Lần gọi {@link #getMyRestaurant()} tiếp theo sẽ fetch lại từ DB,
+     * đảm bảo mọi staff trong cùng session thấy thông tin mới khi refresh.
+     */
+    public void invalidateRestaurantCache() {
+        cachedRestaurant    = null;
+        restaurantCacheTime = 0;
+    }
+
+    /**
+     * Cập nhật nhà hàng (RESTAURANT_ADMIN chỉ được sửa nhà hàng của mình).
+     * Tự động invalidate cache sau khi lưu thành công.
+     */
+    public void updateMyRestaurant(Restaurant r) {
+        checkSession();
+        restaurantDAO.updateByAdmin(r); // throws on auth violation
+        invalidateRestaurantCache();    // G1: force re-fetch cho mọi panel/poll tiếp theo
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  USER / STAFF
+    // ═══════════════════════════════════════════════════════
+
+    /** Tạo tài khoản staff mới (chỉ RESTAURANT_ADMIN). */
+    public long registerStaff(String name, String email, String password, String roleName) {
+        checkSession();
+        return userDAO.registerStaff(name, email, password, roleName,
+                                     AppSession.getInstance().getRestaurantId());
+    }
+
+    /** Cập nhật thông tin cá nhân của userId. */
+    public void updateOwnProfile(long userId, String name, String phone, String address) {
+        userDAO.updateOwnProfile(userId, name, phone, address);
+    }
+
+    /**
+     * Trả về bản ghi Employee liên kết với user đang đăng nhập.
+     * Dùng để pre-fill phone/address trong "Hồ sơ của tôi".
+     * Trả về {@code null} nếu user chưa có employee record (e.g. SUPER_ADMIN).
+     */
+    public Employee getOwnEmployeeInfo() {
+        long uid = AppSession.getInstance().getUserId();
+        return employeeDAO.findByUserId(uid).orElse(null);
+    }
+
+    /** Đổi mật khẩu cá nhân. */
+    public void changeOwnPassword(long userId, String oldPw, String newPw) {
+        userDAO.changeOwnPassword(userId, oldPw, newPw);
     }
 
     // ═══════════════════════════════════════════════════════

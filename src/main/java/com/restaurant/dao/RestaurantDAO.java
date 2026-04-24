@@ -10,6 +10,7 @@ import java.util.List;
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
+import com.restaurant.session.AppSession;
 import com.restaurant.session.RbacGuard;
 
 /**
@@ -92,6 +93,79 @@ public class RestaurantDAO {
             System.err.println("[RestaurantDAO] findById lỗi: " + e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Lấy thông tin nhà hàng theo ID — dành cho RESTAURANT_ADMIN xem nhà hàng của mình.
+     * KHÔNG kiểm tra SUPER_ADMIN. Caller có trách nhiệm đảm bảo chỉ truyền vào
+     * restaurantId mà người dùng hiện tại được phép xem (thường lấy từ AppSession).
+     *
+     * @param id restaurant_id cần tìm
+     * @return Restaurant nếu tìm thấy, null nếu không có
+     */
+    public Restaurant findByIdPublic(long id) {
+        String sql = "SELECT restaurant_id, name, address, phone, email, status, created_at"
+                   + " FROM restaurants WHERE restaurant_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return map(rs);
+            }
+
+        } catch (Exception e) {
+            System.err.println("[RestaurantDAO] findByIdPublic lỗi: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Cập nhật thông tin nhà hàng — dành cho RESTAURANT_ADMIN cập nhật nhà hàng của mình.
+     * Guard: kiểm tra r.getRestaurantId() == AppSession.getRestaurantId()
+     * hoặc SUPER_ADMIN. Throw SecurityException nếu vi phạm.
+     *
+     * @param r nhà hàng cần cập nhật
+     * @throws SecurityException nếu cố sửa nhà hàng không thuộc quyền quản lý
+     */
+    public void updateByAdmin(Restaurant r) {
+        RbacGuard guard = RbacGuard.getInstance();
+        if (guard.isSuperAdmin()) {
+            // SUPER_ADMIN: cho phép mọi restaurantId
+        } else if (guard.isRestaurantAdmin()) {
+            long myRestaurantId = AppSession.getInstance().getRestaurantId();
+            if (r.getRestaurantId() != myRestaurantId) {
+                throw new SecurityException("Không có quyền cập nhật nhà hàng không thuộc quyền quản lý");
+            }
+        } else {
+            throw new SecurityException("Không có quyền cập nhật nhà hàng");
+        }
+
+        String sql = "UPDATE restaurants"
+                   + " SET name = ?, address = ?, phone = ?, email = ?, status = ?"
+                   + " WHERE restaurant_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, nvl(r.getName()));
+            ps.setString(2, nvl(r.getAddress()));
+            ps.setString(3, nvl(r.getPhone()));
+            ps.setString(4, nvl(r.getEmail()));
+            ps.setString(5, r.getStatus() != null ? r.getStatus().name() : Status.ACTIVE.name());
+            ps.setLong  (6, r.getRestaurantId());
+
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new RuntimeException("Không tìm thấy nhà hàng để cập nhật (id=" + r.getRestaurantId() + ")");
+            }
+
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException("[RestaurantDAO] Lỗi cập nhật nhà hàng: " + e.getMessage(), e);
+        }
     }
 
     // ── CREATE ────────────────────────────────────────────────────────────────
