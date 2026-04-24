@@ -243,6 +243,18 @@ public class MainFrame extends JFrame implements SessionListener {
         roleLbl.setForeground(UIConstants.TEXT_SECONDARY);
         right.add(roleLbl);
 
+        // G3: tên nhà hàng trong header — load từ cache (nhanh, SELECT by PK)
+        if (session.getRestaurantId() != 0) {
+            com.restaurant.model.Restaurant r =
+                    com.restaurant.data.DataManager.getInstance().getMyRestaurant();
+            if (r != null && r.getName() != null) {
+                JLabel lblRestaurant = new JLabel("·  " + r.getName());
+                lblRestaurant.setFont(UIConstants.FONT_SMALL);
+                lblRestaurant.setForeground(UIConstants.TEXT_SECONDARY);
+                right.add(lblRestaurant);
+            }
+        }
+
         header.add(left,  BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
         return header;

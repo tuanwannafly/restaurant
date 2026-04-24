@@ -246,20 +246,49 @@ public class DataManager {
     }
 
     // ═══════════════════════════════════════════════════════
-    //  RESTAURANT
+    //  RESTAURANT  (G1: in-memory cache với TTL 30s)
     // ═══════════════════════════════════════════════════════
 
-    /** Lấy thông tin nhà hàng của phiên hiện tại (không cần SUPER_ADMIN). */
+    /** Cache nhà hàng hiện tại — tránh query DB mỗi lần poll. */
+    private volatile Restaurant cachedRestaurant    = null;
+    private volatile long       restaurantCacheTime = 0;
+    private static final long   CACHE_TTL_MS        = 30_000; // 30 giây
+
+    /**
+     * Lấy thông tin nhà hàng của phiên hiện tại.
+     * Kết quả được cache tối đa {@link #CACHE_TTL_MS} ms để tránh query DB
+     * liên tục khi nhiều panel/poll cùng gọi trong thời gian ngắn.
+     * Cache tự động bị invalidate sau khi admin lưu thay đổi.
+     */
     public Restaurant getMyRestaurant() {
         long rid = AppSession.getInstance().getRestaurantId();
         if (rid == 0) return null;
-        return restaurantDAO.findByIdPublic(rid);
+        long now = System.currentTimeMillis();
+        if (cachedRestaurant == null || now - restaurantCacheTime > CACHE_TTL_MS) {
+            cachedRestaurant    = restaurantDAO.findByIdPublic(rid);
+            restaurantCacheTime = now;
+        }
+        return cachedRestaurant;
     }
 
-    /** Cập nhật nhà hàng (RESTAURANT_ADMIN chỉ được sửa nhà hàng của mình). */
+    /**
+     * Xóa cache nhà hàng — gọi ngay sau khi admin update thành công.
+     * Lần gọi {@link #getMyRestaurant()} tiếp theo sẽ fetch lại từ DB,
+     * đảm bảo mọi staff trong cùng session thấy thông tin mới khi refresh.
+     */
+    public void invalidateRestaurantCache() {
+        cachedRestaurant    = null;
+        restaurantCacheTime = 0;
+    }
+
+    /**
+     * Cập nhật nhà hàng (RESTAURANT_ADMIN chỉ được sửa nhà hàng của mình).
+     * Tự động invalidate cache sau khi lưu thành công.
+     */
     public void updateMyRestaurant(Restaurant r) {
         checkSession();
-        restaurantDAO.updateByAdmin(r);
+        restaurantDAO.updateByAdmin(r); // throws on auth violation
+        invalidateRestaurantCache();    // G1: force re-fetch cho mọi panel/poll tiếp theo
     }
 
     // ═══════════════════════════════════════════════════════

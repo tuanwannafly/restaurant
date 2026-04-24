@@ -13,6 +13,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Restaurant;
@@ -46,6 +48,7 @@ public class MyRestaurantInfoPanel extends JPanel {
     /** Bản ghi nhà hàng đang hiển thị — dùng để lấy restaurantId khi update. */
     private Restaurant currentRestaurant;
 
+    private static final String   POLL_KEY = "my_restaurant";
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -56,6 +59,18 @@ public class MyRestaurantInfoPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(32, 64, 32, 64));
         buildUI();
+
+        // G4: poll 60s để sync với DB — unregister khi panel bị ẩn, re-register khi hiện lại
+        addAncestorListener(new AncestorListener() {
+            @Override public void ancestorAdded(AncestorEvent e) {
+                PollManager.getInstance().register(POLL_KEY,
+                        MyRestaurantInfoPanel.this::loadData, 60_000);
+            }
+            @Override public void ancestorRemoved(AncestorEvent e) {
+                PollManager.getInstance().unregister(POLL_KEY);
+            }
+            @Override public void ancestorMoved(AncestorEvent e) {}
+        });
     }
 
     // ── UI ────────────────────────────────────────────────────────────────────
