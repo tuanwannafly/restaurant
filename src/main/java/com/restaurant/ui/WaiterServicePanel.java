@@ -1,5 +1,39 @@
 package com.restaurant.ui;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.util.List;
+import java.util.Map;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultCellEditor;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.SwingConstants;
+import javax.swing.SwingWorker;
+import javax.swing.border.AbstractBorder;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
+
 import com.restaurant.dao.KitchenDAO;
 import com.restaurant.dao.KitchenDAO.KitchenTicket;
 import com.restaurant.dao.TableDAO;
@@ -7,14 +41,6 @@ import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
-
-import javax.swing.*;
-import javax.swing.border.AbstractBorder;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
-import java.awt.*;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Màn hình phục vụ bàn dành cho role WAITER.
@@ -62,7 +88,6 @@ public class WaiterServicePanel extends JPanel {
     private JPanel      deliveryCardsPanel;
     private JPanel      dirtyTablePanel;
     private JTabbedPane tabbedPane;
-    private Timer       refreshTimer;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -80,7 +105,6 @@ public class WaiterServicePanel extends JPanel {
         }
 
         buildUI();
-        setupTimer();
         setupAncestorListener();
     }
 
@@ -390,36 +414,26 @@ public class WaiterServicePanel extends JPanel {
         return scroll;
     }
 
-    // ─── Timer & AncestorListener ─────────────────────────────────────────────
-
-    private void setupTimer() {
-        refreshTimer = new Timer(REFRESH_MS, e -> {
-            new SwingWorker<Void, Void>() {
-                Map<String, List<KitchenTicket>> rm;
-                List<TableItem>                  dl;
-                @Override protected Void doInBackground() {
-                    long rid = AppSession.getInstance().getRestaurantId();
-                    rm = kitchenDAO.getReadyByTable(rid);
-                    dl = kitchenDAO.getDirtyTables(rid);
-                    return null;
-                }
-                @Override protected void done() {
-                    rebuildDeliveryTab(rm);
-                    rebuildDirtyTab(dl);
-                }
-            }.execute();
-        });
-    }
+    // ─── AncestorListener — delegate lifecycle to PollManager ─────────────────
 
     private void setupAncestorListener() {
         addAncestorListener(new AncestorListener() {
-            @Override public void ancestorAdded(AncestorEvent e) {
-                if (refreshTimer != null) refreshTimer.start();
+            /** Panel được thêm vào container → bắt đầu polling. */
+            @Override
+            public void ancestorAdded(AncestorEvent e) {
+                // Load ngay lập tức khi panel hiển thị, sau đó PollManager tiếp quản.
+                loadData();
+                PollManager.getInstance().register("waiter", WaiterServicePanel.this::loadData, REFRESH_MS);
             }
-            @Override public void ancestorRemoved(AncestorEvent e) {
-                if (refreshTimer != null) refreshTimer.stop();
+
+            /** Panel bị remove → dừng polling, giải phóng timer. */
+            @Override
+            public void ancestorRemoved(AncestorEvent e) {
+                PollManager.getInstance().unregister("waiter");
             }
-            @Override public void ancestorMoved(AncestorEvent e) {}
+
+            @Override
+            public void ancestorMoved(AncestorEvent e) {}
         });
     }
 
