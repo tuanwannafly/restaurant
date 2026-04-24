@@ -137,6 +137,46 @@ public class TableDAO {
         return t;
     }
 
+    // ─── UPDATE STATUS (Phase 2 – Thu ngân mở bàn) ───────────────────────────
+
+    /**
+     * Cập nhật trạng thái bàn theo {@code tableId}.
+     *
+     * <p>SUPER_ADMIN bỏ qua điều kiện {@code restaurant_id}; các role khác
+     * chỉ cập nhật được bàn thuộc nhà hàng của phiên hiện tại.
+     *
+     * @param tableId   khoá chính bàn
+     * @param newStatus trạng thái mới
+     * @return {@code true} nếu cập nhật thành công (affected row > 0)
+     * @throws RuntimeException nếu lỗi SQL hoặc bàn không thuộc nhà hàng này
+     */
+    public boolean updateStatus(String tableId, TableItem.Status newStatus) {
+        String sql = isSuperAdmin()
+            ? "UPDATE restaurant_tables SET status = ? WHERE table_id = ?"
+            : "UPDATE restaurant_tables SET status = ? WHERE table_id = ? AND restaurant_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, toDbStatus(newStatus));
+            ps.setLong(2, Long.parseLong(tableId));
+            if (!isSuperAdmin()) ps.setLong(3, rid());
+
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SecurityException(
+                    "[TableDAO] updateStatus từ chối: table_id=" + tableId +
+                    " không thuộc restaurant_id=" + rid());
+            }
+            return true;
+
+        } catch (SecurityException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi cập nhật trạng thái bàn: " + e.getMessage(), e);
+        }
+    }
+
     // ─── DELETE ───────────────────────────────────────────────────────────────
 
     public void delete(String id) {

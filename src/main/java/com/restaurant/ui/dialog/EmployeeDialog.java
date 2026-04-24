@@ -1,17 +1,33 @@
 package com.restaurant.ui.dialog;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.Window;
+import java.util.List;
+import java.util.function.Consumer;
+
+import javax.swing.BorderFactory;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
-import com.restaurant.ui.*;
-
-import javax.swing.*;
-import java.awt.*;
-import java.util.List;
-import java.util.function.Consumer;
+import com.restaurant.ui.RoundedButton;
+import com.restaurant.ui.UIConstants;
 
 /**
  * Dialog thêm / cập nhật thông tin nhân viên.
@@ -55,7 +71,7 @@ public class EmployeeDialog extends JDialog {
         if (canAssignRole) {
             if (RbacGuard.getInstance().isSuperAdmin()) {
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER", "RESTAURANT_ADMIN", "SUPER_ADMIN");
-            } else if (AppSession.getInstance().isRestaurantAdmin()) {
+            } else if (RbacGuard.getInstance().isRestaurantAdmin()) {
                 // RESTAURANT_ADMIN không thể gán RESTAURANT_ADMIN / SUPER_ADMIN (lớp bảo vệ ở UI)
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER");
             } else {

@@ -36,6 +36,9 @@ import javax.swing.table.DefaultTableModel;
 
 import com.restaurant.data.DataManager;
 import com.restaurant.model.TableItem;
+import com.restaurant.session.Permission;
+import com.restaurant.session.RbacGuard;
+import com.restaurant.ui.dialog.OpenTableDialog;
 import com.restaurant.ui.dialog.TableDialog;
 
 public class TablePanel extends JPanel {
@@ -69,10 +72,13 @@ public class TablePanel extends JPanel {
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         btnPanel.setOpaque(false);
-        RoundedButton btnAdd = new RoundedButton("+ Thêm bàn");
-        btnAdd.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
-        btnAdd.addActionListener(e -> openAddDialog());
-        btnPanel.add(btnAdd);
+        // RBAC: chỉ ADMIN/RESTAURANT_ADMIN mới có ADD_TABLE
+        if (RbacGuard.getInstance().can(Permission.ADD_TABLE)) {
+            RoundedButton btnAdd = new RoundedButton("+ Thêm bàn");
+            btnAdd.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
+            btnAdd.addActionListener(e -> openAddDialog());
+            btnPanel.add(btnAdd);
+        }
 
         topBar.add(title, BorderLayout.WEST);
         topBar.add(btnPanel, BorderLayout.EAST);
@@ -125,9 +131,21 @@ public class TablePanel extends JPanel {
 
         table.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
-                int col = table.columnAtPoint(e.getPoint());
                 int row = table.rowAtPoint(e.getPoint());
-                if (col == 4 && row >= 0) handleAction(e, row);
+                if (row < 0) return;
+
+                // Double-click trên bất kỳ cột nào: mở bàn nếu RANH + có quyền
+                if (e.getClickCount() == 2) {
+                    TableItem item = displayedItems.get(row);
+                    if (item.getStatus() == TableItem.Status.RANH
+                            && RbacGuard.getInstance().can(Permission.OPEN_TABLE)) {
+                        openTableForGuest(item);
+                    }
+                    return;
+                }
+
+                int col = table.columnAtPoint(e.getPoint());
+                if (col == 4) handleAction(e, row);
             }
         });
 
@@ -189,6 +207,20 @@ public class TablePanel extends JPanel {
                 @Override protected void done() { loadData(); }
             }.execute();
         }).setVisible(true);
+    }
+
+    /**
+     * Mở bàn cho khách (Phase 2).
+     * Chỉ được gọi khi {@code item.status == RANH} và user có {@link Permission#OPEN_TABLE}.
+     */
+    private void openTableForGuest(TableItem item) {
+        OpenTableDialog dlg = new OpenTableDialog(
+            SwingUtilities.getWindowAncestor(this),
+            item.getId(),
+            item.getName()
+        );
+        dlg.setVisible(true);   // blocks vì APPLICATION_MODAL
+        if (dlg.isConfirmed()) loadData();
     }
 
     private void handleAction(MouseEvent e, int row) {
@@ -254,16 +286,26 @@ public class TablePanel extends JPanel {
     }
 
     private static class StatusRenderer extends DefaultTableCellRenderer {
+        // Màu theo spec Phase 2
+        private static final Color COLOR_RANH     = new Color(0x2ECC71); // xanh lá
+        private static final Color COLOR_BAN      = new Color(0xE74C3C); // đỏ
+        private static final Color COLOR_DAT_TRUOC= new Color(0x3498DB); // xanh dương
+        private static final Color COLOR_DIRTY    = new Color(0xE67E22); // cam
+        private static final Color COLOR_CLEANING = new Color(0xF1C40F); // vàng
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                 boolean isSelected, boolean hasFocus, int row, int col) {
-            JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+            JLabel lbl = (JLabel) super.getTableCellRendererComponent(
+                table, value, isSelected, hasFocus, row, col);
             String status = value == null ? "" : value.toString();
             switch (status) {
-                case "Rảnh":      lbl.setForeground(UIConstants.SUCCESS); break;
-                case "Bận":       lbl.setForeground(UIConstants.DANGER); break;
-                case "Đặt trước": lbl.setForeground(UIConstants.WARNING); break;
-                default:          lbl.setForeground(UIConstants.TEXT_PRIMARY);
+                case "Rảnh":     lbl.setForeground(COLOR_RANH);      break;
+                case "Bận":      lbl.setForeground(COLOR_BAN);       break;
+                case "Đặt trước":lbl.setForeground(COLOR_DAT_TRUOC); break;
+                case "Cần dọn":  lbl.setForeground(COLOR_DIRTY);     break;
+                case "Đang dọn": lbl.setForeground(COLOR_CLEANING);  break;
+                default:         lbl.setForeground(UIConstants.TEXT_PRIMARY);
             }
             lbl.setFont(UIConstants.FONT_BOLD);
             setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 10));

@@ -1,15 +1,32 @@
 package com.restaurant.ui.dialog;
 
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Window;
+import java.time.format.DateTimeFormatter;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTextArea;
+
 import com.restaurant.dao.ReportDAO;
 import com.restaurant.model.Report;
 import com.restaurant.session.RbacGuard;
+import com.restaurant.ui.ReportPanel;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.UIConstants;
-import com.restaurant.ui.ReportPanel;
-
-import javax.swing.*;
-import java.awt.*;
-import java.time.format.DateTimeFormatter;
 
 public class ReportDetailDialog extends JDialog {
 
@@ -161,7 +178,7 @@ public class ReportDetailDialog extends JDialog {
                     JOptionPane.showMessageDialog(this, "Đã cập nhật!");
                     dispose();
                     parent.loadData();
-                } catch (SecurityException | RuntimeException ex) {
+                } catch (RuntimeException ex) {
                     JOptionPane.showMessageDialog(this, "Lỗi: " + ex.getMessage(),
                         "Lỗi", JOptionPane.ERROR_MESSAGE);
                 }
