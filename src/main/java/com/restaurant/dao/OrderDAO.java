@@ -326,6 +326,99 @@ public class OrderDAO {
         return list;
     }
 
+    // ─── Phase 6: GET ACTIVE ORDER BY TABLE ──────────────────────────────────
+
+    /**
+     * Lấy đơn hàng đang hoạt động (chưa COMPLETED / CANCELLED) của một bàn.
+     *
+     * <p>SQL dùng {@code FETCH FIRST 1 ROWS ONLY} (Oracle syntax) để lấy đơn mới nhất.
+     *
+     * @param tableId ID bàn (String → parse sang long)
+     * @return {@link Order} nếu tìm thấy; {@code null} nếu không có hoặc lỗi
+     */
+    public Order getActiveOrderByTable(String tableId) {
+        String sql = isSuperAdmin()
+            ? """
+              SELECT o.order_id, o.status, o.total_amount, o.created_at,
+                     o.customer_name, o.customer_phone,
+                     t.table_number, t.table_id
+              FROM orders o
+              JOIN restaurant_tables t ON o.table_id = t.table_id
+              WHERE o.table_id = ?
+                AND o.status NOT IN ('COMPLETED', 'CANCELLED')
+              ORDER BY o.created_at DESC
+              FETCH FIRST 1 ROWS ONLY
+              """
+            : """
+              SELECT o.order_id, o.status, o.total_amount, o.created_at,
+                     o.customer_name, o.customer_phone,
+                     t.table_number, t.table_id
+              FROM orders o
+              JOIN restaurant_tables t ON o.table_id = t.table_id
+              WHERE o.table_id = ?
+                AND o.restaurant_id = ?
+                AND o.status NOT IN ('COMPLETED', 'CANCELLED')
+              ORDER BY o.created_at DESC
+              FETCH FIRST 1 ROWS ONLY
+              """;
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, parseLongOrDefault(tableId, 0));
+            if (!isSuperAdmin()) ps.setLong(2, rid());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Order o = mapOrder(rs);
+                    o.setItems(getOrderItems(conn, rs.getLong("order_id")));
+                    return o;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] getActiveOrderByTable lỗi: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // ─── Phase 6: COMPLETE ORDER ──────────────────────────────────────────────
+
+    /**
+     * Đánh dấu đơn hàng là COMPLETED và ghi nhận thời điểm hoàn thành.
+     *
+     * <p>SQL: {@code UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP WHERE order_id=?}
+     *
+     * <p><b>Lưu ý:</b> Cột {@code completed_at} phải tồn tại trong bảng {@code orders}.
+     * Nếu chưa có, chạy: {@code ALTER TABLE orders ADD completed_at TIMESTAMP;}
+     *
+     * @param orderId ID đơn hàng cần hoàn tất
+     * @return {@code true} nếu UPDATE thành công (rowsAffected &gt; 0)
+     */
+    public boolean completeOrder(String orderId) {
+        String sql = isSuperAdmin()
+            ? "UPDATE orders SET status = 'COMPLETED', completed_at = SYSTIMESTAMP WHERE order_id = ?"
+            : "UPDATE orders SET status = 'COMPLETED', completed_at = SYSTIMESTAMP WHERE order_id = ? AND restaurant_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, parseLongOrDefault(orderId, 0));
+            if (!isSuperAdmin()) ps.setLong(2, rid());
+
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                System.err.println("[OrderDAO] completeOrder: order_id=" + orderId +
+                    " không tìm thấy hoặc không thuộc restaurant_id=" + rid());
+                return false;
+            }
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] completeOrder lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
     // ─── UPDATE STATUS ────────────────────────────────────────────────────────
 
     /**
