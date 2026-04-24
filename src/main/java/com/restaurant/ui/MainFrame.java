@@ -34,19 +34,28 @@ public class MainFrame extends JFrame implements SessionListener {
     private CardLayout cardLayout;
     private JPanel contentArea;
 
-    private HomePanel       homePanel;
-    private MenuPanel       menuPanel;
-    private TablePanel      tablePanel;
-    private EmployeePanel   employeePanel;
-    private OrderPanel      orderPanel;
-    private ReportPanel     reportPanel;
-    private StatsPanel      statsPanel;
-    private RestaurantPanel restaurantPanel;
-    private KitchenPanel    kitchenPanel;
+    private HomePanel           homePanel;
+    private MenuPanel           menuPanel;
+    private TablePanel          tablePanel;
+    private EmployeePanel       employeePanel;
+    private OrderPanel          orderPanel;
+    private ReportPanel         reportPanel;
+    private StatsPanel          statsPanel;
+    private RestaurantPanel     restaurantPanel;
+    private KitchenPanel        kitchenPanel;
+    // Phase 5: WaiterServicePanel
+    private WaiterServicePanel  waiterServicePanel;
 
     private JButton[] navButtons;
-    private String[]  navPages  = {"home", "menu", "ban", "nhanvien", "donhang", "chedomlamviec", "baocao", "thongke", "nhahangs", "bep"};
-    private String[]  navLabels = {"🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng", "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp"};
+    // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
+    private String[]  navPages  = {
+        "home", "menu", "ban", "nhanvien", "donhang",
+        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu"
+    };
+    private String[]  navLabels = {
+        "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
+        "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ"
+    };
 
     public MainFrame() {
         super("Hệ thống Quản lý Nhà hàng");
@@ -92,26 +101,30 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea = new JPanel(cardLayout);
         contentArea.setBackground(UIConstants.BG_PAGE);
 
-        homePanel       = new HomePanel();
-        menuPanel       = new MenuPanel();
-        tablePanel      = new TablePanel();
-        employeePanel   = new EmployeePanel();
-        orderPanel      = new OrderPanel();
-        reportPanel     = new ReportPanel();
-        statsPanel      = new StatsPanel();
-        restaurantPanel = new RestaurantPanel();
-        kitchenPanel    = new KitchenPanel();
+        homePanel          = new HomePanel();
+        menuPanel          = new MenuPanel();
+        tablePanel         = new TablePanel();
+        employeePanel      = new EmployeePanel();
+        orderPanel         = new OrderPanel();
+        reportPanel        = new ReportPanel();
+        statsPanel         = new StatsPanel();
+        restaurantPanel    = new RestaurantPanel();
+        kitchenPanel       = new KitchenPanel();
+        // Phase 5: khởi tạo WaiterServicePanel
+        waiterServicePanel = new WaiterServicePanel();
 
-        contentArea.add(homePanel,       "home");
-        contentArea.add(menuPanel,       "menu");
-        contentArea.add(tablePanel,      "ban");
-        contentArea.add(employeePanel,   "nhanvien");
-        contentArea.add(orderPanel,      "donhang");
+        contentArea.add(homePanel,          "home");
+        contentArea.add(menuPanel,          "menu");
+        contentArea.add(tablePanel,         "ban");
+        contentArea.add(employeePanel,      "nhanvien");
+        contentArea.add(orderPanel,         "donhang");
         contentArea.add(buildPlaceholder("Che do lam viec"), "chedomlamviec");
-        contentArea.add(reportPanel,     "baocao");
-        contentArea.add(statsPanel,      "thongke");
-        contentArea.add(restaurantPanel, "nhahangs");
-        contentArea.add(kitchenPanel,    "bep");
+        contentArea.add(reportPanel,        "baocao");
+        contentArea.add(statsPanel,         "thongke");
+        contentArea.add(restaurantPanel,    "nhahangs");
+        contentArea.add(kitchenPanel,       "bep");
+        // Phase 5: đăng ký WaiterServicePanel vào CardLayout
+        contentArea.add(waiterServicePanel, "phucvu");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -143,6 +156,12 @@ public class MainFrame extends JFrame implements SessionListener {
                     navButtons[i].setVisible(
                             AppSession.getInstance().hasPermission(
                                     com.restaurant.session.Permission.VIEW_KITCHEN));
+                    break;
+                case "phucvu":
+                    // Phase 5: chỉ WAITER (và ADMIN / SUPER_ADMIN) thấy tab Phục vụ
+                    navButtons[i].setVisible(
+                            AppSession.getInstance().hasPermission(
+                                    com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
                     break;
                 default:
                     break;
@@ -258,15 +277,17 @@ public class MainFrame extends JFrame implements SessionListener {
     public void navigateTo(String page) {
         cardLayout.show(contentArea, page);
         switch (page) {
-            case "home":      homePanel.refresh();           break;
-            case "menu":      menuPanel.loadData();          break;
-            case "ban":       tablePanel.loadData();         break;
-            case "nhanvien":  employeePanel.loadData();      break;
-            case "donhang":   orderPanel.loadData();         break;
-            case "baocao":    reportPanel.loadData();        break;
-            case "thongke":   statsPanel.loadAll();          break;
-            case "nhahangs":  restaurantPanel.loadData();    break;
-            case "bep":       kitchenPanel.loadData();       break;
+            case "home":      homePanel.refresh();              break;
+            case "menu":      menuPanel.loadData();             break;
+            case "ban":       tablePanel.loadData();            break;
+            case "nhanvien":  employeePanel.loadData();         break;
+            case "donhang":   orderPanel.loadData();            break;
+            case "baocao":    reportPanel.loadData();           break;
+            case "thongke":   statsPanel.loadAll();             break;
+            case "nhahangs":  restaurantPanel.loadData();       break;
+            case "bep":       kitchenPanel.loadData();          break;
+            // Phase 5: trigger load khi điều hướng đến tab Phục vụ
+            case "phucvu":    waiterServicePanel.loadData();    break;
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);
