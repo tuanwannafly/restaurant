@@ -10,6 +10,8 @@ public class Employee {
     private String address;
     private String startDate;
     private Role role;
+    /** true nếu nhân viên đã được liên kết với một tài khoản đăng nhập. */
+    private boolean hasAccount;
 
     public Employee(String id, String name, String cccd, String phone, String address, String startDate, Role role) {
         this.id = id;
@@ -19,6 +21,7 @@ public class Employee {
         this.address = address;
         this.startDate = startDate;
         this.role = role;
+        this.hasAccount = false;
     }
 
     public String getId() { return id; }
@@ -35,6 +38,9 @@ public class Employee {
     public void setStartDate(String startDate) { this.startDate = startDate; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+
+    public boolean isHasAccount() { return hasAccount; }
+    public void setHasAccount(boolean hasAccount) { this.hasAccount = hasAccount; }
 
     public String getRoleDisplay() {
         switch (role) {

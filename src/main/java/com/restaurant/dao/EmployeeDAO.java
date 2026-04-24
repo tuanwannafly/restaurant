@@ -78,6 +78,45 @@ public class EmployeeDAO {
         return list;
     }
 
+    // ─── READ (with account status) ──────────────────────────────────────────
+
+    /**
+     * Lấy danh sách nhân viên kèm trạng thái tài khoản, dùng một query duy nhất
+     * để tránh N+1. Chỉ scope theo restaurant_id hiện tại (SUPER_ADMIN không cần
+     * dùng method này vì không hiển thị cột Tài khoản).
+     *
+     * <p>Kiểm tra {@code user_id IS NOT NULL} trực tiếp trên bảng {@code employees}
+     * (user_id là FK sang bảng users, được gán khi tạo tài khoản bằng RegisterStaffDialog).
+     *
+     * @return danh sách Employee với {@link Employee#isHasAccount()} đã được set đúng
+     */
+    public List<Employee> findAllWithAccountStatus() {
+        List<Employee> list = new ArrayList<>();
+        String sql = "SELECT employee_id, name, cccd, phone, address, start_date, role,"
+                   + " CASE WHEN user_id IS NOT NULL THEN 'Y' ELSE 'N' END AS has_account"
+                   + " FROM employees"
+                   + " WHERE restaurant_id = ?"
+                   + " ORDER BY name";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, rid());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Employee e = map(rs);
+                    e.setHasAccount("Y".equals(rs.getString("has_account")));
+                    list.add(e);
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("[EmployeeDAO] findAllWithAccountStatus lỗi: " + e.getMessage());
+        }
+        return list;
+    }
+
     // ─── CREATE ───────────────────────────────────────────────────────────────
 
     /**

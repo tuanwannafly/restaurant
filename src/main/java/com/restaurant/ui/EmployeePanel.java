@@ -6,6 +6,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.Rectangle;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -30,8 +32,11 @@ import javax.swing.table.DefaultTableModel;
 
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
+import com.restaurant.session.AppSession;
+import com.restaurant.session.Permission;
 import com.restaurant.ui.dialog.EmployeeDetailDialog;
 import com.restaurant.ui.dialog.EmployeeDialog;
+import com.restaurant.ui.dialog.RegisterStaffDialog;
 
 public class EmployeePanel extends JPanel {
 
@@ -42,9 +47,28 @@ public class EmployeePanel extends JPanel {
     private List<Employee> displayedItems = new ArrayList<>();
     private List<Employee> allItems = new ArrayList<>();
 
-    private static final String[] COLUMNS = {"ID", "Tên", "Vai trò", "SDT", "Ngày vào làm", "Hành động"};
+    /**
+     * true khi người dùng hiện tại là RESTAURANT_ADMIN (có quyền REGISTER_STAFF).
+     * Dùng để quyết định có hiển thị cột "Tài khoản" và nút "Tạo tài khoản" hay không.
+     */
+    private final boolean showAccountCol;
+
+    /**
+     * Index cột "Hành động" — phụ thuộc vào showAccountCol:
+     * 6 khi có cột Tài khoản, 5 khi không.
+     */
+    private final int ACTION_COL;
+
+    /** Danh sách tên cột xây dựng động theo quyền của user hiện tại. */
+    private final String[] COLUMNS;
 
     public EmployeePanel() {
+        showAccountCol = AppSession.getInstance().hasPermission(Permission.REGISTER_STAFF);
+        ACTION_COL     = showAccountCol ? 6 : 5;
+        COLUMNS        = showAccountCol
+                ? new String[]{"ID", "Tên", "Vai trò", "SDT", "Ngày vào làm", "Tài khoản", "Hành động"}
+                : new String[]{"ID", "Tên", "Vai trò", "SDT", "Ngày vào làm", "Hành động"};
+
         setBackground(UIConstants.BG_PAGE);
         setLayout(new BorderLayout(0, 0));
         setBorder(BorderFactory.createEmptyBorder(24, 48, 24, 48));
@@ -63,9 +87,20 @@ public class EmployeePanel extends JPanel {
 
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         btnPanel.setOpaque(false);
+
+        // Nút "Tạo tài khoản" — chỉ hiển thị khi có quyền REGISTER_STAFF (RESTAURANT_ADMIN)
+        if (AppSession.getInstance().hasPermission(Permission.REGISTER_STAFF)) {
+            RoundedButton btnRegister = RoundedButton.outline("👤 Tạo tài khoản");
+            btnRegister.setPreferredSize(new Dimension(140, UIConstants.BTN_HEIGHT));
+            btnRegister.addActionListener(e -> openRegisterDialog());
+            btnPanel.add(Box.createHorizontalStrut(8));
+            btnPanel.add(btnRegister);
+        }
+
         RoundedButton btnAdd = new RoundedButton("+ Thêm nhân viên");
         btnAdd.setPreferredSize(new Dimension(155, UIConstants.BTN_HEIGHT));
         btnAdd.addActionListener(e -> openAddDialog());
+        btnPanel.add(Box.createHorizontalStrut(8));
         btnPanel.add(btnAdd);
 
         topBar.add(title, BorderLayout.WEST);
@@ -109,19 +144,26 @@ public class EmployeePanel extends JPanel {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         table = new StyledTable(tableModel);
-        table.getColumnModel().getColumn(0).setPreferredWidth(70);
-        table.getColumnModel().getColumn(1).setPreferredWidth(160);
-        table.getColumnModel().getColumn(2).setPreferredWidth(100);
-        table.getColumnModel().getColumn(3).setPreferredWidth(120);
-        table.getColumnModel().getColumn(4).setPreferredWidth(120);
-        table.getColumnModel().getColumn(5).setPreferredWidth(260);
-        table.getColumnModel().getColumn(5).setCellRenderer(new ActionRenderer());
+        table.getColumnModel().getColumn(0).setPreferredWidth(70);   // ID
+        table.getColumnModel().getColumn(1).setPreferredWidth(160);  // Tên
+        table.getColumnModel().getColumn(2).setPreferredWidth(100);  // Vai trò
+        table.getColumnModel().getColumn(3).setPreferredWidth(120);  // SDT
+        table.getColumnModel().getColumn(4).setPreferredWidth(120);  // Ngày vào làm
+        if (showAccountCol) {
+            table.getColumnModel().getColumn(5).setPreferredWidth(130);  // Tài khoản
+            table.getColumnModel().getColumn(5).setCellRenderer(new AccountStatusRenderer());
+            table.getColumnModel().getColumn(6).setPreferredWidth(260);  // Hành động
+            table.getColumnModel().getColumn(6).setCellRenderer(new ActionRenderer());
+        } else {
+            table.getColumnModel().getColumn(5).setPreferredWidth(260);  // Hành động
+            table.getColumnModel().getColumn(5).setCellRenderer(new ActionRenderer());
+        }
 
         table.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 int col = table.columnAtPoint(e.getPoint());
                 int row = table.rowAtPoint(e.getPoint());
-                if (col == 5 && row >= 0) handleAction(e, row);
+                if (col == ACTION_COL && row >= 0) handleAction(e, row);
             }
         });
 
@@ -140,7 +182,10 @@ public class EmployeePanel extends JPanel {
         new SwingWorker<List<Employee>, Void>() {
             @Override
             protected List<Employee> doInBackground() {
-                return DataManager.getInstance().getEmployees();
+                // Khi hiển thị cột Tài khoản, dùng query có CASE WHEN để tránh N+1
+                return showAccountCol
+                        ? DataManager.getInstance().getEmployeesWithAccountStatus()
+                        : DataManager.getInstance().getEmployees();
             }
             @Override
             protected void done() {
@@ -167,12 +212,21 @@ public class EmployeePanel extends JPanel {
 
         tableModel.setRowCount(0);
         for (Employee emp : displayedItems) {
-            tableModel.addRow(new Object[]{emp.getId(), emp.getName(), emp.getRoleDisplay(), emp.getPhone(), emp.getStartDate(), ""});
+            if (showAccountCol) {
+                String accountStatus = emp.isHasAccount() ? "✅ Có tài khoản" : "⬜ Chưa có";
+                tableModel.addRow(new Object[]{
+                    emp.getId(), emp.getName(), emp.getRoleDisplay(),
+                    emp.getPhone(), emp.getStartDate(), accountStatus, ""});
+            } else {
+                tableModel.addRow(new Object[]{
+                    emp.getId(), emp.getName(), emp.getRoleDisplay(),
+                    emp.getPhone(), emp.getStartDate(), ""});
+            }
         }
     }
 
     private void handleAction(MouseEvent e, int row) {
-        Rectangle cellRect = table.getCellRect(row, 5, false);
+        Rectangle cellRect = table.getCellRect(row, ACTION_COL, false);
         int x = e.getX() - cellRect.x;
         Employee item = displayedItems.get(row);
 
@@ -213,6 +267,36 @@ public class EmployeePanel extends JPanel {
                 @Override protected void done() { loadData(); }
             }.execute();
         }).setVisible(true);
+    }
+
+    private void openRegisterDialog() {
+        RegisterStaffDialog dlg = new RegisterStaffDialog(
+            (Frame) SwingUtilities.getWindowAncestor(this));
+        dlg.setVisible(true);
+        if (dlg.isSuccess()) {
+            loadData(); // reload danh sách nhân viên
+            ToastNotification.show(
+                SwingUtilities.getWindowAncestor(this),
+                "Tạo tài khoản thành công!", ToastNotification.Type.SUCCESS);
+        }
+    }
+
+    /** Renderer cho cột "Tài khoản" — căn giữa và tô màu theo trạng thái. */
+    private static class AccountStatusRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int col) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setFont(UIConstants.FONT_BODY);
+            String text = value != null ? value.toString() : "";
+            if (text.startsWith("✅")) {
+                setForeground(new Color(0x16A34A));   // xanh lá
+            } else {
+                setForeground(new Color(0x9CA3AF));   // xám nhạt
+            }
+            return this;
+        }
     }
 
     private static class ActionRenderer extends DefaultTableCellRenderer {

@@ -158,6 +158,19 @@ public class DataManager {
         }
     }
 
+    /**
+     * Như {@link #getEmployees()} nhưng kèm trạng thái tài khoản cho mỗi nhân viên.
+     * Dùng một query có CASE WHEN để tránh N+1.
+     * Gọi khi cần hiển thị cột "Tài khoản" (RESTAURANT_ADMIN).
+     */
+    public List<Employee> getEmployeesWithAccountStatus() {
+        try { return employeeDAO.findAllWithAccountStatus(); }
+        catch (Exception e) {
+            System.err.println("[DataManager] getEmployeesWithAccountStatus lỗi: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
     public Employee addEmployee(Employee emp) {
         checkSession();
         try { return employeeDAO.add(emp); }
