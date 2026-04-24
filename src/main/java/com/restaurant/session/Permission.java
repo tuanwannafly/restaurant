@@ -69,7 +69,51 @@ public enum Permission {
      * Cho phép truy cập màn hình Waiter Service – phục vụ bàn,
      * xem danh sách bàn cần phục vụ và giao món.
      */
-    VIEW_WAITER_SERVICE;
+    VIEW_WAITER_SERVICE,
+
+    // ── Phase 2 additions ─────────────────────────────────────────────────────
+
+    /**
+     * Cho phép RESTAURANT_ADMIN tạo tài khoản đăng nhập cho staff của nhà hàng mình.
+     * <p>
+     * Tách riêng khỏi {@code ADD_EMPLOYEE} vì tạo <em>tài khoản hệ thống</em> (credentials +
+     * role assignment) là hành động nhạy cảm hơn việc thêm thông tin nhân viên vào danh sách.
+     * RESTAURANT_ADMIN chỉ được tạo tài khoản cho nhà hàng của chính mình;
+     * không thể cấp role vượt quá quyền hạn hiện tại (không thể tạo SUPER_ADMIN).
+     */
+    REGISTER_STAFF,
+
+    /**
+     * Cho phép mọi user đã đăng nhập chỉnh sửa thông tin cá nhân của chính mình
+     * (tên hiển thị, số điện thoại, địa chỉ, mật khẩu).
+     * <p>
+     * <strong>Phạm vi giới hạn:</strong> KHÔNG bao gồm thay đổi role hoặc restaurant.
+     * Các trường nhạy cảm đó chỉ được chỉnh sửa qua {@code ASSIGN_ROLE} /
+     * {@code MANAGE_RESTAURANT} bởi admin cấp cao hơn.
+     * Tách riêng khỏi {@code EDIT_EMPLOYEE} để đảm bảo một staff bình thường
+     * không vô tình (hoặc cố ý) chỉnh sửa thông tin của người khác.
+     */
+    EDIT_OWN_PROFILE,
+
+    /**
+     * Cho phép RESTAURANT_ADMIN xem thông tin chi tiết của nhà hàng mà mình đang quản lý.
+     * <p>
+     * Tách riêng khỏi {@code MANAGE_RESTAURANT} (chỉ SUPER_ADMIN) vì:
+     * MANAGE_RESTAURANT cho phép thao tác trên <em>mọi</em> nhà hàng trong hệ thống
+     * (thêm, xóa, xem tất cả), trong khi permission này chỉ áp dụng cho đúng nhà hàng
+     * mà admin đang thuộc về. Nguyên tắc least-privilege đòi hỏi phân tách rõ ràng này.
+     */
+    VIEW_OWN_RESTAURANT,
+
+    /**
+     * Cho phép RESTAURANT_ADMIN cập nhật thông tin của nhà hàng mà mình đang quản lý
+     * (tên, địa chỉ, số điện thoại, giờ hoạt động, v.v.).
+     * <p>
+     * Tách riêng khỏi {@code VIEW_OWN_RESTAURANT} theo nguyên tắc read/write separation,
+     * và tách riêng khỏi {@code MANAGE_RESTAURANT} (SUPER_ADMIN) để đảm bảo RESTAURANT_ADMIN
+     * không thể can thiệp vào dữ liệu của nhà hàng khác trong cùng hệ thống.
+     */
+    EDIT_OWN_RESTAURANT;
 
     // ── Role → Permission mapping ─────────────────────────────────────────────
 
@@ -84,7 +128,9 @@ public enum Permission {
                     VIEW_TABLE,     ADD_TABLE,        EDIT_TABLE,          DELETE_TABLE,
                     VIEW_STATS,     VIEW_REPORT,      ADD_REPORT,
                     // Phase 1
-                    OPEN_TABLE, UPDATE_ITEM_STATUS, VIEW_KITCHEN, VIEW_WAITER_SERVICE
+                    OPEN_TABLE, UPDATE_ITEM_STATUS, VIEW_KITCHEN, VIEW_WAITER_SERVICE,
+                    // Phase 2
+                    REGISTER_STAFF, EDIT_OWN_PROFILE, VIEW_OWN_RESTAURANT, EDIT_OWN_RESTAURANT
                     // MANAGE_RESTAURANT và ASSIGN_ROLE bị loại trừ theo đặc tả
             ));
 
@@ -95,7 +141,9 @@ public enum Permission {
                     VIEW_MENU,
                     ADD_REPORT,
                     // Phase 1
-                    VIEW_WAITER_SERVICE, UPDATE_ITEM_STATUS
+                    VIEW_WAITER_SERVICE, UPDATE_ITEM_STATUS,
+                    // Phase 2
+                    EDIT_OWN_PROFILE
             ));
 
     private static final Set<Permission> CHEF_PERMS =
@@ -104,7 +152,9 @@ public enum Permission {
                     VIEW_MENU,
                     ADD_REPORT,
                     // Phase 1
-                    VIEW_KITCHEN, UPDATE_ITEM_STATUS
+                    VIEW_KITCHEN, UPDATE_ITEM_STATUS,
+                    // Phase 2
+                    EDIT_OWN_PROFILE
             ));
 
     private static final Set<Permission> CASHIER_PERMS =
@@ -114,7 +164,9 @@ public enum Permission {
                     VIEW_STATS,
                     ADD_REPORT,
                     // Phase 1
-                    OPEN_TABLE
+                    OPEN_TABLE,
+                    // Phase 2
+                    EDIT_OWN_PROFILE
             ));
 
     private static final Set<Permission> EMPTY_PERMS =
