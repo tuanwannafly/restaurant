@@ -38,8 +38,13 @@ import com.restaurant.data.DataManager;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
+import com.restaurant.dao.OrderDAO;
+import com.restaurant.model.Order;
 import com.restaurant.ui.dialog.OpenTableDialog;
+import com.restaurant.ui.dialog.PaymentDialog;
 import com.restaurant.ui.dialog.TableDialog;
+
+import java.awt.Window;
 
 public class TablePanel extends JPanel {
 
@@ -134,12 +139,19 @@ public class TablePanel extends JPanel {
                 int row = table.rowAtPoint(e.getPoint());
                 if (row < 0) return;
 
-                // Double-click trên bất kỳ cột nào: mở bàn nếu RANH + có quyền
+                // Double-click trên bất kỳ cột nào
                 if (e.getClickCount() == 2) {
                     TableItem item = displayedItems.get(row);
+
                     if (item.getStatus() == TableItem.Status.RANH
                             && RbacGuard.getInstance().can(Permission.OPEN_TABLE)) {
+                        // Bàn rảnh → mở bàn cho khách
                         openTableForGuest(item);
+
+                    } else if (item.getStatus() == TableItem.Status.BAN
+                            && RbacGuard.getInstance().can(Permission.UPDATE_ORDER_STATUS)) {
+                        // Bàn đang bận → mở dialog thanh toán
+                        openPaymentDialog(item);
                     }
                     return;
                 }
@@ -221,6 +233,62 @@ public class TablePanel extends JPanel {
         );
         dlg.setVisible(true);   // blocks vì APPLICATION_MODAL
         if (dlg.isConfirmed()) loadData();
+    }
+
+    /**
+     * Mở dialog thanh toán (Phase 6).
+     * Chỉ được gọi khi {@code item.status == BAN} và user có
+     * {@link Permission#UPDATE_ORDER_STATUS}.
+     *
+     * <p>Tìm đơn hàng đang hoạt động của bàn qua
+     * {@link OrderDAO#getActiveOrderByTable(String)} trên SwingWorker, rồi mở
+     * {@link PaymentDialog}. Sau khi thanh toán xong, reload danh sách bàn.
+     */
+    private void openPaymentDialog(TableItem item) {
+        new SwingWorker<Order, Void>() {
+            @Override
+            protected Order doInBackground() {
+                return new OrderDAO().getActiveOrderByTable(item.getId());
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Order activeOrder = get();
+                    if (activeOrder == null) {
+                        JOptionPane.showMessageDialog(
+                            TablePanel.this,
+                            "Không tìm thấy đơn hàng đang hoạt động cho bàn " + item.getName() + ".",
+                            "Thông báo",
+                            JOptionPane.WARNING_MESSAGE
+                        );
+                        return;
+                    }
+
+                    Window ancestor = SwingUtilities.getWindowAncestor(TablePanel.this);
+                    Frame parent = (ancestor instanceof Frame) ? (Frame) ancestor : null;
+
+                    PaymentDialog dlg = new PaymentDialog(
+                        parent,
+                        item.getId(),
+                        item.getName(),
+                        activeOrder.getId()
+                    );
+                    dlg.setVisible(true);   // blocks — APPLICATION_MODAL
+
+                    if (dlg.isPaymentCompleted()) loadData();
+
+                } catch (Exception ex) {
+                    System.err.println("[TablePanel] openPaymentDialog lỗi: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(
+                        TablePanel.this,
+                        "Lỗi khi mở dialog thanh toán: " + ex.getMessage(),
+                        "Lỗi",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
     }
 
     private void handleAction(MouseEvent e, int row) {

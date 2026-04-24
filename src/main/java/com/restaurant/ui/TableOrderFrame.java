@@ -4,6 +4,7 @@ import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
+import com.restaurant.ui.dialog.PaymentDialog;
 import com.restaurant.ui.dialog.ReportAddDialog;
 
 import javax.swing.*;
@@ -65,6 +66,7 @@ public class TableOrderFrame extends JFrame {
     private JPanel      cartListPanel;
     private JLabel      lblTotal;
     private RoundedButton btnSend;
+    private RoundedButton btnPayment;
     private JScrollPane cartScroll;
 
     // UI – tab Trạng thái
@@ -403,18 +405,47 @@ public class TableOrderFrame extends JFrame {
         lblTotal.setForeground(UIConstants.TEXT_PRIMARY);
         footer.add(lblTotal, BorderLayout.WEST);
 
+        // "Gửi order" button
         btnSend = new RoundedButton("🛒  Gửi order");
         btnSend.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btnSend.setPreferredSize(new Dimension(160, UIConstants.BTN_HEIGHT + 4));
         btnSend.setEnabled(false);
         btnSend.addActionListener(this::onSendOrder);
 
-        JPanel btnWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        // "Thanh toán" button
+        btnPayment = new RoundedButton("💳  Thanh toán");
+        btnPayment.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btnPayment.setPreferredSize(new Dimension(160, UIConstants.BTN_HEIGHT + 4));
+        btnPayment.setBackground(new Color(0x10B981));   // SUCCESS green
+        btnPayment.addActionListener(e -> openPaymentDialog());
+
+        JPanel btnWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         btnWrap.setBackground(UIConstants.BG_WHITE);
         btnWrap.add(btnSend);
+        btnWrap.add(btnPayment);
         footer.add(btnWrap, BorderLayout.EAST);
 
         return footer;
+    }
+
+    /**
+     * Mở {@link PaymentDialog} cho bàn hiện tại.
+     * Frame sẽ dispose sau khi thanh toán hoàn tất.
+     */
+    private void openPaymentDialog() {
+        PaymentDialog dlg = new PaymentDialog(
+            null,       // parent Frame – TableOrderFrame là JFrame, dùng null để tạo dialog độc lập
+            tableId,
+            tableName,
+            orderId
+        );
+        dlg.setVisible(true);   // blocks – APPLICATION_MODAL
+
+        if (dlg.isPaymentCompleted()) {
+            // Dừng timer và đóng frame tablet
+            if (refreshTimer != null) refreshTimer.stop();
+            dispose();
+        }
     }
 
     // ─── Load menu via SwingWorker ────────────────────────────────────────────
