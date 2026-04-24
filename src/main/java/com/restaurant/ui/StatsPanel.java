@@ -1,13 +1,28 @@
 package com.restaurant.ui;
 
-import com.restaurant.dao.StatsDAO;
-
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridLayout;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingWorker;
+import javax.swing.table.DefaultTableModel;
+
+import com.restaurant.dao.StatsDAO;
 
 /**
  * Panel thống kê doanh thu & trạng thái bàn — chỉ RESTAURANT_ADMIN+ thấy.
@@ -181,7 +196,7 @@ public class StatsPanel extends JPanel {
         JLabel lbl = new JLabel(text);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
         lbl.setForeground(UIConstants.TEXT_PRIMARY);
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        lbl.setAlignmentX(LEFT_ALIGNMENT);
         return lbl;
     }
 
@@ -191,7 +206,7 @@ public class StatsPanel extends JPanel {
         JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
         row.setOpaque(false);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setAlignmentX(LEFT_ALIGNMENT);
 
         lblRevenue    = new JLabel("0 đ");
         lblOrderCount = new JLabel("0 đơn");
@@ -209,7 +224,7 @@ public class StatsPanel extends JPanel {
     private JPanel buildTopItemsTable() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.setAlignmentX(LEFT_ALIGNMENT);
         wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
 
         topItemsModel = new DefaultTableModel(
@@ -235,7 +250,7 @@ public class StatsPanel extends JPanel {
         JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
         row.setOpaque(false);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setAlignmentX(LEFT_ALIGNMENT);
 
         lblAvailable = new JLabel("0");
         lblOccupied  = new JLabel("0");
@@ -252,7 +267,7 @@ public class StatsPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(8, 0));
         panel.setOpaque(false);
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
 
         JLabel lbl = new JLabel("Tỷ lệ sử dụng bàn:");
         lbl.setFont(UIConstants.FONT_BODY);
@@ -284,11 +299,11 @@ public class StatsPanel extends JPanel {
         JLabel lblTitle = new JLabel(title);
         lblTitle.setFont(UIConstants.FONT_BODY);
         lblTitle.setForeground(UIConstants.TEXT_SECONDARY);
-        lblTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        lblTitle.setAlignmentX(LEFT_ALIGNMENT);
 
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         valueLabel.setForeground(UIConstants.PRIMARY);
-        valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        valueLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         card.add(lblTitle);
         card.add(Box.createVerticalStrut(8));
@@ -328,7 +343,12 @@ public class StatsPanel extends JPanel {
                     updateRevenueUI(bundle.revenue);
                     updateTopItemsUI(bundle.topItems);
                     updateTableStatsUI(bundle.tables);
-                } catch (Exception e) {
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    JOptionPane.showMessageDialog(StatsPanel.this,
+                        "Tải thống kê bị gián đoạn",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                } catch (java.util.concurrent.ExecutionException e) {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     JOptionPane.showMessageDialog(StatsPanel.this,
                         "Lỗi tải thống kê: " + cause.getMessage(),
