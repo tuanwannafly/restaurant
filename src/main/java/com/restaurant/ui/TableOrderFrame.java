@@ -1,51 +1,104 @@
 package com.restaurant.ui;
 
 import com.restaurant.dao.MenuItemDAO;
+import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.MenuItem;
+import com.restaurant.model.Order;
+import com.restaurant.ui.dialog.ReportAddDialog;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.text.NumberFormat;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
- * TableOrderFrame — Phase 3A (UI only)
+ * TableOrderFrame — Phase 3B (full logic)
  *
  * <p>JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
- * Hiển thị menu theo category (JTabbedPane + grid card),
- * giỏ hàng với add/remove/số lượng, tổng tiền và nút "Gửi order".
+ * CENTER là JTabbedPane 3 tab:
+ * <ol>
+ *   <li>"Đặt món"     — JSplitPane menu + cart (Phase 3A)</li>
+ *   <li>"Trạng thái"  — list item_status với badge màu, auto-refresh 5s</li>
+ *   <li>"Báo cáo"     — form ReportAddDialog nhúng trực tiếp</li>
+ * </ol>
  *
- * <p>Chưa gọi DB gửi order — sẽ implement ở Phase 3B.
+ * <p>Nút "Gửi order" gọi {@link OrderDAO#addOrderItems} với round hiện tại,
+ * xoá giỏ hàng, tăng {@link #currentRound} và chuyển sang tab Trạng thái.
  */
 public class TableOrderFrame extends JFrame {
 
+    // ─── Index hằng số tab ────────────────────────────────────────────────────
+    private static final int TAB_ORDER  = 0;
+    private static final int TAB_STATUS = 1;
+    private static final int TAB_REPORT = 2;
+
     // ─── Fields ───────────────────────────────────────────────────────────────
 
-    private final String tableId;
-    private final String orderId;
-    private final String tableName;
+    private final String   tableId;
+    private final String   orderId;
+    private final String   tableName;
 
-    // UI components
+    /** Số thứ tự lượt gọi món (tăng sau mỗi lần nhấn "Gửi order"). */
+    private int currentRound = 1;
+
+    // DAO
+    private final OrderDAO orderDAO = new OrderDAO();
+
+    // Outer tabs (Đặt món / Trạng thái / Báo cáo)
+    private JTabbedPane mainTabs;
+
+    // UI – header
     private JLabel lblTime;
-    private JTabbedPane tabbedMenu;
-    private JPanel cartListPanel;
-    private JLabel lblTotal;
+
+    // UI – tab Đặt món
+    private JTabbedPane tabbedMenu;   // tabs theo category
+    private JPanel      cartListPanel;
+    private JLabel      lblTotal;
     private RoundedButton btnSend;
     private JScrollPane cartScroll;
+
+    // UI – tab Trạng thái
+    private JPanel   statusListPanel;
+    private JLabel   lblStatusHint;
+
+    // Auto-refresh timer (5s) – khởi động khi frame hiện, dừng khi đóng
+    private javax.swing.Timer refreshTimer;
 
     // Cart state
     private final List<CartItem> cartItems = new ArrayList<>();
 
     // Formatting
-    private static final NumberFormat PRICE_FMT = NumberFormat.getInstance(Locale.of("vi", "VN"));
+    private static final NumberFormat    PRICE_FMT = NumberFormat.getInstance(Locale.of("vi", "VN"));
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    // Badge màu theo ItemStatus
+    private static final Map<Order.OrderItem.ItemStatus, Color> BADGE_COLOR = new EnumMap<>(Order.OrderItem.ItemStatus.class);
+    private static final Map<Order.OrderItem.ItemStatus, String> BADGE_LABEL = new EnumMap<>(Order.OrderItem.ItemStatus.class);
+    static {
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.PENDING,    new Color(0x95A5A6));
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.ACCEPTED,   new Color(0x3498DB));
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.COOKING,    new Color(0xE67E22));
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.READY,      new Color(0x2ECC71));
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.DELIVERING, new Color(0x9B59B6));
+        BADGE_COLOR.put(Order.OrderItem.ItemStatus.DELIVERED,  new Color(0x1ABC9C));
+
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.PENDING,    "Đang chờ");
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.ACCEPTED,   "Đã tiếp nhận");
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.COOKING,    "Đang nấu");
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.READY,      "Sẵn sàng");
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.DELIVERING, "Đang mang lên");
+        BADGE_LABEL.put(Order.OrderItem.ItemStatus.DELIVERED,  "Đã giao");
+    }
 
     // ─── Inner class: CartItem ────────────────────────────────────────────────
 
@@ -84,12 +137,33 @@ public class TableOrderFrame extends JFrame {
         getContentPane().setBackground(UIConstants.BG_PAGE);
         setLayout(new BorderLayout(0, 0));
 
-        add(buildHeader(),  BorderLayout.NORTH);
-        add(buildCenter(),  BorderLayout.CENTER);
-        add(buildFooter(),  BorderLayout.SOUTH);
+        add(buildHeader(),   BorderLayout.NORTH);
+        add(buildMainTabs(), BorderLayout.CENTER);
+        add(buildFooter(),   BorderLayout.SOUTH);
 
         startClock();
+        setupWindowLifecycle();
         setVisible(true);
+    }
+
+    // ── Window lifecycle: start/stop refresh timer ────────────────────────────
+
+    private void setupWindowLifecycle() {
+        // Timer 5s cho tab Trạng thái
+        refreshTimer = new javax.swing.Timer(5000, e -> refreshStatus());
+        refreshTimer.setInitialDelay(5000);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowOpened(WindowEvent e) {
+                refreshTimer.start();
+            }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                refreshTimer.stop();
+            }
+        });
     }
 
     // ── NORTH: Header bar ─────────────────────────────────────────────────────
@@ -119,18 +193,37 @@ public class TableOrderFrame extends JFrame {
     }
 
     private void startClock() {
-        // Update immediately then every second
         Runnable tick = () -> {
-            if (lblTime != null)
-                lblTime.setText(LocalTime.now().format(TIME_FMT));
+            if (lblTime != null) lblTime.setText(LocalTime.now().format(TIME_FMT));
         };
         tick.run();
         new javax.swing.Timer(1000, e -> tick.run()).start();
     }
 
-    // ── CENTER: SplitPane ─────────────────────────────────────────────────────
+    // ── CENTER: Main tabs (Đặt món / Trạng thái / Báo cáo) ───────────────────
 
-    private JSplitPane buildCenter() {
+    private JTabbedPane buildMainTabs() {
+        mainTabs = new JTabbedPane(JTabbedPane.TOP);
+        mainTabs.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        mainTabs.setBackground(UIConstants.BG_PAGE);
+
+        mainTabs.addTab("🍽  Đặt món",    buildOrderSplit());
+        mainTabs.addTab("📋  Trạng thái", buildStatusPanel());
+        mainTabs.addTab("📝  Báo cáo",    buildReportTab());
+
+        // Khi chuyển sang tab Trạng thái, trigger refresh ngay
+        mainTabs.addChangeListener(e -> {
+            if (mainTabs.getSelectedIndex() == TAB_STATUS) {
+                refreshStatus();
+            }
+        });
+
+        return mainTabs;
+    }
+
+    // ── Tab 1: Đặt món — JSplitPane menu + cart ───────────────────────────────
+
+    private JSplitPane buildOrderSplit() {
         JSplitPane split = new JSplitPane(
             JSplitPane.HORIZONTAL_SPLIT,
             buildMenuPanel(),
@@ -139,14 +232,12 @@ public class TableOrderFrame extends JFrame {
         split.setBorder(null);
         split.setDividerSize(1);
         split.setBackground(UIConstants.BORDER_COLOR);
+        split.setResizeWeight(0.60);
 
-        // Set divider at 60 % after frame is visible
         SwingUtilities.invokeLater(() -> {
             int total = split.getWidth();
             if (total > 0) split.setDividerLocation((int)(total * 0.60));
-            else           split.setResizeWeight(0.60);
         });
-        split.setResizeWeight(0.60);
         return split;
     }
 
@@ -160,7 +251,6 @@ public class TableOrderFrame extends JFrame {
         tabbedMenu.setFont(UIConstants.FONT_BOLD);
         tabbedMenu.setBackground(UIConstants.BG_PAGE);
 
-        // Placeholder tab shown while SwingWorker loads
         JPanel loading = new JPanel(new BorderLayout());
         loading.setBackground(UIConstants.BG_PAGE);
         JLabel lbl = new JLabel("Đang tải thực đơn…", SwingConstants.CENTER);
@@ -179,7 +269,6 @@ public class TableOrderFrame extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_WHITE);
 
-        // Header
         JPanel cartHeader = new JPanel(new BorderLayout());
         cartHeader.setBackground(UIConstants.BG_WHITE);
         cartHeader.setBorder(BorderFactory.createCompoundBorder(
@@ -192,7 +281,6 @@ public class TableOrderFrame extends JFrame {
         cartHeader.add(lblCart, BorderLayout.WEST);
         panel.add(cartHeader, BorderLayout.NORTH);
 
-        // Scrollable list of cart rows
         cartListPanel = new JPanel();
         cartListPanel.setLayout(new BoxLayout(cartListPanel, BoxLayout.Y_AXIS));
         cartListPanel.setBackground(UIConstants.BG_WHITE);
@@ -206,6 +294,99 @@ public class TableOrderFrame extends JFrame {
         return panel;
     }
 
+    // ── Tab 2: Trạng thái món ─────────────────────────────────────────────────
+
+    private JPanel buildStatusPanel() {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(UIConstants.BG_PAGE);
+
+        // Header của tab
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(UIConstants.BG_WHITE);
+        header.setBorder(BorderFactory.createCompoundBorder(
+            new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+            new EmptyBorder(12, 20, 12, 20)
+        ));
+
+        JLabel lblTitle = new JLabel("Trạng thái các món đã gọi");
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        lblTitle.setForeground(UIConstants.TEXT_PRIMARY);
+        header.add(lblTitle, BorderLayout.WEST);
+
+        // Nút refresh thủ công
+        JButton btnRefresh = new JButton("↻  Làm mới");
+        btnRefresh.setFont(UIConstants.FONT_BODY);
+        btnRefresh.setForeground(UIConstants.PRIMARY);
+        btnRefresh.setBackground(UIConstants.PRIMARY_LIGHT);
+        btnRefresh.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
+        btnRefresh.setFocusPainted(false);
+        btnRefresh.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btnRefresh.addActionListener(e -> refreshStatus());
+        header.add(btnRefresh, BorderLayout.EAST);
+        wrapper.add(header, BorderLayout.NORTH);
+
+        // Hint "tự động cập nhật mỗi 5 giây"
+        lblStatusHint = new JLabel("  Tự động cập nhật mỗi 5 giây", SwingConstants.LEFT);
+        lblStatusHint.setFont(UIConstants.FONT_SMALL);
+        lblStatusHint.setForeground(UIConstants.TEXT_SECONDARY);
+        lblStatusHint.setBorder(new EmptyBorder(4, 20, 4, 0));
+        lblStatusHint.setBackground(UIConstants.BG_PAGE);
+        lblStatusHint.setOpaque(true);
+        wrapper.add(lblStatusHint, BorderLayout.SOUTH);
+
+        // Scrollable list
+        statusListPanel = new JPanel();
+        statusListPanel.setLayout(new BoxLayout(statusListPanel, BoxLayout.Y_AXIS));
+        statusListPanel.setBackground(UIConstants.BG_PAGE);
+
+        JScrollPane scroll = new JScrollPane(statusListPanel);
+        scroll.setBorder(null);
+        scroll.setBackground(UIConstants.BG_PAGE);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        wrapper.add(scroll, BorderLayout.CENTER);
+
+        // Placeholder ban đầu
+        showStatusPlaceholder("Nhấn 'Đặt món' và gửi order để xem trạng thái.");
+
+        return wrapper;
+    }
+
+    /** Hiển thị placeholder khi chưa có món hoặc đang tải. */
+    private void showStatusPlaceholder(String msg) {
+        statusListPanel.removeAll();
+        JLabel lbl = new JLabel(msg, SwingConstants.CENTER);
+        lbl.setFont(UIConstants.FONT_BODY);
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        statusListPanel.add(Box.createVerticalStrut(40));
+        statusListPanel.add(lbl);
+        statusListPanel.revalidate();
+        statusListPanel.repaint();
+    }
+
+    // ── Tab 3: Báo cáo — nhúng ReportAddDialog ───────────────────────────────
+
+    private JPanel buildReportTab() {
+        // Tạo dialog với parent = null (embedded mode, không show)
+        // ReportAddDialog đã được sửa null-safe với parent
+        ReportAddDialog dialog = new ReportAddDialog(this, null);
+
+        // Lấy content pane và wrap vào JPanel có scroll
+        JPanel content = (JPanel) dialog.getContentPane();
+        content.setBackground(UIConstants.BG_WHITE);
+
+        JScrollPane scroll = new JScrollPane(content);
+        scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(UIConstants.BG_WHITE);
+        wrapper.add(scroll, BorderLayout.CENTER);
+        return wrapper;
+    }
+
     // ── SOUTH: Footer ─────────────────────────────────────────────────────────
 
     private JPanel buildFooter() {
@@ -217,13 +398,11 @@ public class TableOrderFrame extends JFrame {
         ));
         footer.setPreferredSize(new Dimension(0, 64));
 
-        // Total label (left)
         lblTotal = new JLabel("Tổng: 0 ₫");
         lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lblTotal.setForeground(UIConstants.TEXT_PRIMARY);
         footer.add(lblTotal, BorderLayout.WEST);
 
-        // Send button (right) — disabled until cart has items
         btnSend = new RoundedButton("🛒  Gửi order");
         btnSend.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btnSend.setPreferredSize(new Dimension(160, UIConstants.BTN_HEIGHT + 4));
@@ -241,7 +420,7 @@ public class TableOrderFrame extends JFrame {
     // ─── Load menu via SwingWorker ────────────────────────────────────────────
 
     private void loadMenu() {
-        SwingWorker<List<MenuItem>, Void> worker = new SwingWorker<>() {
+        new SwingWorker<List<MenuItem>, Void>() {
             @Override
             protected List<MenuItem> doInBackground() {
                 return new MenuItemDAO().getAll();
@@ -250,8 +429,7 @@ public class TableOrderFrame extends JFrame {
             @Override
             protected void done() {
                 try {
-                    List<MenuItem> items = get();
-                    populateMenu(items);
+                    populateMenu(get());
                 } catch (Exception ex) {
                     System.err.println("[TableOrderFrame] loadMenu lỗi: " + ex.getMessage());
                     tabbedMenu.removeAll();
@@ -261,15 +439,12 @@ public class TableOrderFrame extends JFrame {
                     tabbedMenu.addTab("Lỗi", err);
                 }
             }
-        };
-        worker.execute();
+        }.execute();
     }
 
-    /** Nhóm items theo category rồi tạo tab cho mỗi nhóm. */
     private void populateMenu(List<MenuItem> items) {
         tabbedMenu.removeAll();
 
-        // Group by category, preserve insertion order
         LinkedHashMap<String, List<MenuItem>> byCategory = new LinkedHashMap<>();
         for (MenuItem item : items) {
             String cat = item.getCategory() != null ? item.getCategory() : "Khác";
@@ -285,20 +460,15 @@ public class TableOrderFrame extends JFrame {
         }
 
         for (Map.Entry<String, List<MenuItem>> entry : byCategory.entrySet()) {
-            JScrollPane tabScroll = buildCategoryTab(entry.getValue());
-            tabbedMenu.addTab("  " + entry.getKey() + "  ", tabScroll);
+            tabbedMenu.addTab("  " + entry.getKey() + "  ", buildCategoryTab(entry.getValue()));
         }
     }
 
-    /** Tạo JScrollPane chứa grid 3 cột các card món ăn cho 1 category. */
     private JScrollPane buildCategoryTab(List<MenuItem> items) {
         JPanel grid = new JPanel(new GridLayout(0, 3, 12, 12));
         grid.setBackground(UIConstants.BG_PAGE);
         grid.setBorder(new EmptyBorder(16, 16, 16, 16));
-
-        for (MenuItem item : items) {
-            grid.add(buildMenuCard(item));
-        }
+        for (MenuItem item : items) grid.add(buildMenuCard(item));
 
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setBorder(null);
@@ -308,7 +478,6 @@ public class TableOrderFrame extends JFrame {
         return scroll;
     }
 
-    /** Card đơn: tên món, giá, nút "+". */
     private JPanel buildMenuCard(MenuItem item) {
         JPanel card = new JPanel() {
             @Override
@@ -318,7 +487,7 @@ public class TableOrderFrame extends JFrame {
                 g2.setColor(UIConstants.BG_WHITE);
                 g2.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 12, 12));
                 g2.setColor(UIConstants.BORDER_COLOR);
-                g2.draw(new RoundRectangle2D.Double(0.5, 0.5, getWidth() - 1, getHeight() - 1, 12, 12));
+                g2.draw(new RoundRectangle2D.Double(0.5, 0.5, getWidth()-1, getHeight()-1, 12, 12));
                 g2.dispose();
                 super.paintComponent(g);
             }
@@ -328,7 +497,6 @@ public class TableOrderFrame extends JFrame {
         card.setBorder(new EmptyBorder(14, 14, 14, 14));
         card.setPreferredSize(new Dimension(0, 110));
 
-        // Top: name + price
         JPanel info = new JPanel();
         info.setOpaque(false);
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
@@ -348,10 +516,8 @@ public class TableOrderFrame extends JFrame {
         info.add(lblPrice);
         card.add(info, BorderLayout.CENTER);
 
-        // Bottom-right: "+" button
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         btnRow.setOpaque(false);
-
         RoundedButton btnAdd = new RoundedButton("+");
         btnAdd.setFont(new Font("Segoe UI", Font.BOLD, 16));
         btnAdd.setPreferredSize(new Dimension(40, 34));
@@ -366,15 +532,13 @@ public class TableOrderFrame extends JFrame {
     // ─── Cart operations ──────────────────────────────────────────────────────
 
     private void addToCart(MenuItem item) {
-        Optional<CartItem> existing = cartItems.stream()
+        cartItems.stream()
             .filter(c -> c.menuItemId.equals(item.getId()))
-            .findFirst();
-
-        if (existing.isPresent()) {
-            existing.get().quantity++;
-        } else {
-            cartItems.add(new CartItem(item.getId(), item.getName(), item.getPrice()));
-        }
+            .findFirst()
+            .ifPresentOrElse(
+                c -> c.quantity++,
+                () -> cartItems.add(new CartItem(item.getId(), item.getName(), item.getPrice()))
+            );
         updateCart();
     }
 
@@ -389,7 +553,6 @@ public class TableOrderFrame extends JFrame {
         updateCart();
     }
 
-    /** Xây lại toàn bộ danh sách cart và cập nhật tổng tiền + trạng thái nút. */
     private void updateCart() {
         cartListPanel.removeAll();
 
@@ -406,35 +569,27 @@ public class TableOrderFrame extends JFrame {
                 cartListPanel.add(buildDivider());
             }
         }
-
-        // Trailing spacer
         cartListPanel.add(Box.createVerticalGlue());
 
-        // Update total
         double total = cartItems.stream().mapToDouble(CartItem::subtotal).sum();
         lblTotal.setText("Tổng: " + formatPrice(total) + " ₫");
-
-        // Enable/disable send button
         btnSend.setEnabled(!cartItems.isEmpty());
 
         cartListPanel.revalidate();
         cartListPanel.repaint();
     }
 
-    /** Một dòng trong giỏ hàng: tên | [-] qty [+] | subtotal | [X]. */
     private JPanel buildCartRow(CartItem ci) {
         JPanel row = new JPanel(new BorderLayout(8, 0));
         row.setBackground(UIConstants.BG_WHITE);
         row.setBorder(new EmptyBorder(10, 20, 10, 16));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 54));
 
-        // Name
         JLabel lblName = new JLabel(ci.name);
         lblName.setFont(UIConstants.FONT_BODY);
         lblName.setForeground(UIConstants.TEXT_PRIMARY);
         row.add(lblName, BorderLayout.WEST);
 
-        // Center: qty controls + subtotal
         JPanel center = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         center.setBackground(UIConstants.BG_WHITE);
 
@@ -460,7 +615,6 @@ public class TableOrderFrame extends JFrame {
         center.add(lblSub);
         row.add(center, BorderLayout.CENTER);
 
-        // X remove button
         JButton btnRemove = new JButton("✕");
         btnRemove.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         btnRemove.setForeground(UIConstants.DANGER);
@@ -474,7 +628,6 @@ public class TableOrderFrame extends JFrame {
         return row;
     }
 
-    /** Nút nhỏ "-" / "+" dùng trong cart row. */
     private JButton smallQtyBtn(String label) {
         JButton btn = new JButton(label);
         btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -494,18 +647,176 @@ public class TableOrderFrame extends JFrame {
         return sep;
     }
 
-    // ─── Send order ───────────────────────────────────────────────────────────
+    // ─── Send order (Phase 3B) ────────────────────────────────────────────────
 
+    /**
+     * Gửi lượt order hiện tại xuống DB.
+     * <ol>
+     *   <li>Chuyển cartItems → List&lt;Order.OrderItem&gt;</li>
+     *   <li>Gọi {@link OrderDAO#addOrderItems} với {@link #currentRound}</li>
+     *   <li>Xoá giỏ hàng, tăng round, chuyển sang tab Trạng thái</li>
+     * </ol>
+     */
     private void onSendOrder(ActionEvent e) {
-        // TODO Phase 3B: gọi OrderDAO để lưu cart xuống DB
-        System.out.println("[TableOrderFrame] TODO: gửi order");
-        System.out.println("  tableId  = " + tableId);
-        System.out.println("  orderId  = " + orderId);
-        System.out.println("  Cart items:");
+        if (cartItems.isEmpty()) return;
+
+        // Snapshot cart → OrderItem list trước khi clear
+        List<Order.OrderItem> orderItems = new ArrayList<>();
         for (CartItem ci : cartItems) {
-            System.out.printf("    [%s] %s × %d = %.0f₫%n",
-                ci.menuItemId, ci.name, ci.quantity, ci.subtotal());
+            orderItems.add(new Order.OrderItem(
+                ci.menuItemId,
+                ci.name,
+                ci.quantity,
+                ci.unitPrice
+            ));
         }
+        final int round = currentRound;
+
+        // Disable nút để tránh double-click
+        btnSend.setEnabled(false);
+        btnSend.setText("⏳  Đang gửi…");
+
+        // Gọi DB trên worker thread
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                return orderDAO.addOrderItems(orderId, orderItems, round);
+            }
+
+            @Override
+            protected void done() {
+                boolean ok = false;
+                try { ok = get(); } catch (InterruptedException | ExecutionException ex) {
+                    System.err.println("[TableOrderFrame] onSendOrder lỗi: " + ex.getMessage());
+                }
+
+                btnSend.setText("🛒  Gửi order");
+
+                if (ok) {
+                    currentRound++;          // tăng round cho lượt tiếp theo
+                    cartItems.clear();
+                    updateCart();            // reset giỏ + disable btnSend
+
+                    JOptionPane.showMessageDialog(
+                        TableOrderFrame.this,
+                        "✅  Đã gửi order! Nhà bếp sẽ sớm xử lý.",
+                        "Gửi thành công",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    // Chuyển sang tab Trạng thái để khách theo dõi
+                    mainTabs.setSelectedIndex(TAB_STATUS);
+                    refreshStatus();         // load ngay, không đợi timer
+                } else {
+                    btnSend.setEnabled(true);
+                    JOptionPane.showMessageDialog(
+                        TableOrderFrame.this,
+                        "❌  Gửi order thất bại, vui lòng thử lại!",
+                        "Lỗi",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    // ─── Refresh status (polling) ─────────────────────────────────────────────
+
+    /**
+     * Kéo danh sách món kèm trạng thái từ DB (SwingWorker) rồi cập nhật UI
+     * trên EDT. Được gọi bởi {@link #refreshTimer} mỗi 5 giây và ngay sau
+     * khi gửi order.
+     */
+    private void refreshStatus() {
+        new SwingWorker<List<Order.OrderItem>, Void>() {
+            @Override
+            protected List<Order.OrderItem> doInBackground() {
+                return orderDAO.getItemsWithStatus(orderId);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    updateStatusPanel(get());
+                } catch (InterruptedException | ExecutionException ex) {
+                    System.err.println("[TableOrderFrame] refreshStatus lỗi: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    /** Dựng lại danh sách trạng thái món trên EDT. */
+    private void updateStatusPanel(List<Order.OrderItem> items) {
+        statusListPanel.removeAll();
+
+        if (items.isEmpty()) {
+            showStatusPlaceholder("Chưa có món nào được gọi.");
+            return;
+        }
+
+        // Hiển thị tuần tự — sắp xếp theo round_number + created_at đã được DB xử lý
+        for (Order.OrderItem item : items) {
+            statusListPanel.add(buildStatusRow(item));
+            statusListPanel.add(buildDivider());
+        }
+
+        statusListPanel.add(Box.createVerticalGlue());
+        statusListPanel.revalidate();
+        statusListPanel.repaint();
+    }
+
+    /** Một dòng trạng thái: tên món | số lượng | badge màu. */
+    private JPanel buildStatusRow(Order.OrderItem item) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setBackground(UIConstants.BG_WHITE);
+        row.setBorder(new EmptyBorder(12, 20, 12, 20));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+
+        // Tên món
+        JLabel lblName = new JLabel(item.getMenuItemName());
+        lblName.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblName.setForeground(UIConstants.TEXT_PRIMARY);
+        row.add(lblName, BorderLayout.WEST);
+
+        // Center: số lượng
+        JLabel lblQty = new JLabel("× " + item.getQuantity());
+        lblQty.setFont(UIConstants.FONT_BODY);
+        lblQty.setForeground(UIConstants.TEXT_SECONDARY);
+        row.add(lblQty, BorderLayout.CENTER);
+
+        // Badge trạng thái
+        row.add(buildBadge(item.getItemStatus()), BorderLayout.EAST);
+
+        return row;
+    }
+
+    /** Pill badge màu theo ItemStatus. */
+    private JLabel buildBadge(Order.OrderItem.ItemStatus status) {
+        Color  bgColor = BADGE_COLOR.getOrDefault(status, new Color(0x95A5A6));
+        String text    = BADGE_LABEL.getOrDefault(status, "Không rõ");
+
+        JLabel badge = new JLabel(text, SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(bgColor);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        badge.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        badge.setForeground(Color.WHITE);
+        badge.setOpaque(false);
+        badge.setBorder(new EmptyBorder(4, 12, 4, 12));
+
+        // Tính preferred size dựa trên text
+        FontMetrics fm = badge.getFontMetrics(badge.getFont());
+        int w = fm.stringWidth(text) + 28;
+        badge.setPreferredSize(new Dimension(w, 26));
+
+        return badge;
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
