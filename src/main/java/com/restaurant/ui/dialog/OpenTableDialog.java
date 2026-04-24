@@ -11,7 +11,6 @@ import java.awt.Window;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import com.restaurant.dao.OrderDAO;
@@ -20,6 +19,7 @@ import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.RoundedTextField;
+import com.restaurant.ui.ToastNotification;
 import com.restaurant.ui.UIConstants;
 
 /**
@@ -149,11 +149,10 @@ public class OpenTableDialog extends javax.swing.JDialog {
             dispose();
 
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(
+            ToastNotification.show(
                 this,
                 "Lỗi mở bàn: " + ex.getMessage(),
-                "Lỗi",
-                JOptionPane.ERROR_MESSAGE
+                ToastNotification.Type.ERROR
             );
         }
     }

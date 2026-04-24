@@ -155,6 +155,11 @@ public class KitchenPanel extends JPanel {
                                     LocalTime.now().format(timeFmt));
                         } catch (Exception ex) {
                             System.err.println("[KitchenPanel] loadData error: " + ex.getMessage());
+                            ToastNotification.show(
+                                KitchenPanel.this,
+                                "Lỗi tải dữ liệu bếp: " + ex.getMessage(),
+                                ToastNotification.Type.ERROR
+                            );
                         }
                     }
                 };
@@ -242,7 +247,7 @@ public class KitchenPanel extends JPanel {
             btnAccept.setEnabled(false);
             // PENDING → ACCEPTED → COOKING in sequence
             SwingWorker<Void, Void> w = new SwingWorker<>() {
-                @Override protected Void doInBackground() {
+                @Override protected Void doInBackground() throws Exception {
                     for (KitchenTicket t : items) {
                         if (t.itemStatus == Order.OrderItem.ItemStatus.PENDING) {
                             dao.updateItemStatus(t.itemId,
@@ -253,7 +258,14 @@ public class KitchenPanel extends JPanel {
                     }
                     return null;
                 }
-                @Override protected void done() { loadData(); }
+                @Override protected void done() {
+                    try { get(); } catch (Exception ex) {
+                        ToastNotification.show(KitchenPanel.this,
+                            "Lỗi cập nhật trạng thái: " + ex.getMessage(),
+                            ToastNotification.Type.ERROR);
+                    }
+                    loadData();
+                }
             };
             w.execute();
         });
@@ -286,12 +298,19 @@ public class KitchenPanel extends JPanel {
             btnDone.addActionListener(e -> {
                 btnDone.setEnabled(false);
                 SwingWorker<Void, Void> w = new SwingWorker<>() {
-                    @Override protected Void doInBackground() {
+                    @Override protected Void doInBackground() throws Exception {
                         dao.updateItemStatus(t.itemId,
                                 Order.OrderItem.ItemStatus.READY);
                         return null;
                     }
-                    @Override protected void done() { loadData(); }
+                    @Override protected void done() {
+                        try { get(); } catch (Exception ex) {
+                            ToastNotification.show(KitchenPanel.this,
+                                "Lỗi cập nhật trạng thái: " + ex.getMessage(),
+                                ToastNotification.Type.ERROR);
+                        }
+                        loadData();
+                    }
                 };
                 w.execute();
             });
