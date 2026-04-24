@@ -111,7 +111,11 @@ public class MainFrame extends JFrame implements SessionListener {
         orderPanel         = new OrderPanel();
         reportPanel        = new ReportPanel();
         statsPanel         = new StatsPanel();
-        restaurantPanel    = new RestaurantPanel();
+        // Chỉ khởi tạo RestaurantPanel khi SUPER_ADMIN — tránh SecurityException khi load dữ liệu
+        com.restaurant.session.RbacGuard _guard = com.restaurant.session.RbacGuard.getInstance();
+        if (_guard.isSuperAdmin()) {
+            restaurantPanel = new RestaurantPanel();
+        }
         kitchenPanel       = new KitchenPanel();
         // Phase 5: khởi tạo WaiterServicePanel
         waiterServicePanel = new WaiterServicePanel();
@@ -124,7 +128,7 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(buildPlaceholder("Che do lam viec"), "chedomlamviec");
         contentArea.add(reportPanel,        "baocao");
         contentArea.add(statsPanel,         "thongke");
-        contentArea.add(restaurantPanel,    "nhahangs");
+        contentArea.add(restaurantPanel != null ? restaurantPanel : buildPlaceholder("Nha hang"), "nhahangs");
         contentArea.add(kitchenPanel,       "bep");
         // Phase 5: đăng ký WaiterServicePanel vào CardLayout
         contentArea.add(waiterServicePanel, "phucvu");
