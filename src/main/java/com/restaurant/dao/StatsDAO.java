@@ -143,6 +143,51 @@ public class StatsDAO {
         return items;
     }
 
+    // ── Method 3: getTableStats ───────────────────────────────────────────────
+
+    /**
+     * Trả về trạng thái hiện tại của các bàn trong nhà hàng.
+     *
+     * @return {@link TableStats} – không bao giờ null
+     */
+    public TableStats getTableStats() {
+        requireManager();
+
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+
+        String sql =
+            "SELECT " +
+            "  SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) AS available, " +
+            "  SUM(CASE WHEN status = 'OCCUPIED'  THEN 1 ELSE 0 END) AS occupied,  " +
+            "  SUM(CASE WHEN status = 'RESERVED'  THEN 1 ELSE 0 END) AS reserved,  " +
+            "  COUNT(*) AS total " +
+            "FROM restaurant_tables " +
+            "WHERE restaurant_id = ?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, restaurantId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                TableStats ts = new TableStats();
+                if (rs.next()) {
+                    ts.available = rs.getInt("available");
+                    ts.occupied  = rs.getInt("occupied");
+                    ts.reserved  = rs.getInt("reserved");
+                    ts.total     = rs.getInt("total");
+                }
+                return ts;
+            }
+
+        } catch (SecurityException e) {
+            throw e;
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getTableStats lỗi: " + e.getMessage());
+            throw new RuntimeException("[StatsDAO] Không thể tải trạng thái bàn: " + e.getMessage(), e);
+        }
+    }
+
     // ── Method 4: getDashboardStats ───────────────────────────────────────────
 
     /**
@@ -216,4 +261,3 @@ public class StatsDAO {
         return result;
     }
 }
-
