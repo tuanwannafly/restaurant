@@ -1,10 +1,33 @@
 package com.restaurant.ui;
 
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.Point;
+import java.awt.RenderingHints;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JSplitPane;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
-
-import javax.swing.*;
-import java.awt.*;
 
 public class MainFrame extends JFrame implements SessionListener {
 
@@ -19,10 +42,11 @@ public class MainFrame extends JFrame implements SessionListener {
     private ReportPanel     reportPanel;
     private StatsPanel      statsPanel;
     private RestaurantPanel restaurantPanel;
+    private KitchenPanel    kitchenPanel;
 
     private JButton[] navButtons;
-    private String[]  navPages  = {"home", "menu", "ban", "nhanvien", "donhang", "chedomlamviec", "baocao", "thongke", "nhahangs"};
-    private String[]  navLabels = {"🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng", "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng"};
+    private String[]  navPages  = {"home", "menu", "ban", "nhanvien", "donhang", "chedomlamviec", "baocao", "thongke", "nhahangs", "bep"};
+    private String[]  navLabels = {"🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng", "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp"};
 
     public MainFrame() {
         super("Hệ thống Quản lý Nhà hàng");
@@ -76,6 +100,7 @@ public class MainFrame extends JFrame implements SessionListener {
         reportPanel     = new ReportPanel();
         statsPanel      = new StatsPanel();
         restaurantPanel = new RestaurantPanel();
+        kitchenPanel    = new KitchenPanel();
 
         contentArea.add(homePanel,       "home");
         contentArea.add(menuPanel,       "menu");
@@ -86,6 +111,7 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(reportPanel,     "baocao");
         contentArea.add(statsPanel,      "thongke");
         contentArea.add(restaurantPanel, "nhahangs");
+        contentArea.add(kitchenPanel,    "bep");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -111,6 +137,12 @@ public class MainFrame extends JFrame implements SessionListener {
                 case "nhahangs":
                     // Chỉ SUPER_ADMIN mới thấy tab Nhà hàng
                     navButtons[i].setVisible(guard.isSuperAdmin());
+                    break;
+                case "bep":
+                    // Chỉ CHEF / ADMIN mới thấy tab Bếp
+                    navButtons[i].setVisible(
+                            AppSession.getInstance().hasPermission(
+                                    com.restaurant.session.Permission.VIEW_KITCHEN));
                     break;
                 default:
                     break;
@@ -234,6 +266,7 @@ public class MainFrame extends JFrame implements SessionListener {
             case "baocao":    reportPanel.loadData();        break;
             case "thongke":   statsPanel.loadAll();          break;
             case "nhahangs":  restaurantPanel.loadData();    break;
+            case "bep":       kitchenPanel.loadData();       break;
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);
