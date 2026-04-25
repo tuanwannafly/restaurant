@@ -1,10 +1,13 @@
 package com.restaurant;
 
+import java.awt.Font;
+
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+
+import com.restaurant.data.DataManager;
 import com.restaurant.ui.LoginDialog;
 import com.restaurant.ui.MainFrame;
-
-import javax.swing.*;
-import java.awt.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -31,6 +34,11 @@ public class Main {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+
+            // Dọn dẹp token hết hạn/đã dùng từ phiên trước
+            try {
+                DataManager.getInstance().cleanupExpiredResetTokens();
+            } catch (Exception ignored) { /* Không block khởi động nếu DB chưa sẵn sàng */ }
 
             // Bước 1: Hiện dialog đăng nhập
             LoginDialog loginDialog = new LoginDialog(null);
