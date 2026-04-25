@@ -29,7 +29,6 @@ import javax.swing.UIManager;
 
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
-import com.restaurant.session.SessionExpiredException;
 import com.restaurant.session.TokenService;
 
 public class MainFrame extends JFrame implements SessionListener {
@@ -131,7 +130,7 @@ public class MainFrame extends JFrame implements SessionListener {
 
             // Dọn dẹp token hết hạn trong DB (thực hiện ở background để không block EDT)
             new Thread(() -> TokenService.getInstance().cleanExpiredTokens(),
-                       token-cleanup).start();
+                       "token-cleanup").start();
 
             if (!valid) {
                 JOptionPane.showMessageDialog(
