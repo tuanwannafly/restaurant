@@ -321,4 +321,60 @@ public class StatsDAO {
 
         return result;
     }
+
+// ── Method 6: getSuperAdminStats ──────────────────────────────────────────
+
+    /**
+     * Thống kê toàn hệ thống dành cho {@code AdminStatsPanel} (SUPER_ADMIN).<br>
+     * Trả về Map với các keys:
+     * <ul>
+     *   <li>{@code total_restaurants} – số nhà hàng đang ACTIVE (không phụ thuộc date range)</li>
+     *   <li>{@code total_revenue}     – tổng doanh thu các đơn COMPLETED trong khoảng [from, to]</li>
+     *   <li>{@code total_orders}      – số đơn COMPLETED trong khoảng [from, to]</li>
+     * </ul>
+     *
+     * @param from ngày bắt đầu (inclusive)
+     * @param to   ngày kết thúc (inclusive)
+     * @return Map&lt;String, Long&gt; — không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Long> getSuperAdminStats(LocalDate from, LocalDate to) {
+        // Scalar subquery cho restaurants ACTIVE (không lọc theo ngày),
+        // aggregate trực tiếp cho revenue và orders trong khoảng from–to.
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE status = 'ACTIVE')             AS total_restaurants, " +
+            "  NVL(SUM(o.total_amount), 0)            AS total_revenue, " +
+            "  COUNT(o.order_id)                      AS total_orders " +
+            "FROM orders o " +
+            "WHERE o.status = 'COMPLETED' " +
+            "  AND TRUNC(o.created_at) >= ? " +
+            "  AND TRUNC(o.created_at) <= ?";
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("total_restaurants", 0L);
+        result.put("total_revenue",     0L);
+        result.put("total_orders",      0L);
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setDate(1, java.sql.Date.valueOf(from));
+            ps.setDate(2, java.sql.Date.valueOf(to));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    result.put("total_restaurants", rs.getLong("total_restaurants"));
+                    result.put("total_revenue",     rs.getLong("total_revenue"));
+                    result.put("total_orders",      rs.getLong("total_orders"));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getSuperAdminStats lỗi: " + e.getMessage());
+        }
+
+        return result;
+    }
 }
