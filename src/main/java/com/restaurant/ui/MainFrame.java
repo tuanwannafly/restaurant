@@ -30,6 +30,7 @@ import javax.swing.UIManager;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
 import com.restaurant.session.TokenService;
+import com.restaurant.model.Restaurant;
 
 public class MainFrame extends JFrame implements SessionListener {
 
@@ -51,6 +52,8 @@ public class MainFrame extends JFrame implements SessionListener {
     private MyRestaurantInfoPanel myRestaurantPanel;
     // Phase 5 Audit: AuditLogPanel — chỉ cho SUPER_ADMIN
     private AuditLogPanel         auditLogPanel;
+    // Phase 3: RestaurantDetailPanel — chỉ cho SUPER_ADMIN
+    private RestaurantDetailPanel restaurantDetailPanel;
 
     private JButton[] navButtons;
     // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
@@ -176,7 +179,8 @@ public class MainFrame extends JFrame implements SessionListener {
         // Chỉ khởi tạo RestaurantPanel khi SUPER_ADMIN — tránh SecurityException khi load dữ liệu
         com.restaurant.session.RbacGuard _guard = com.restaurant.session.RbacGuard.getInstance();
         if (_guard.isSuperAdmin()) {
-            restaurantPanel = new RestaurantPanel();
+            restaurantPanel       = new RestaurantPanel();
+            restaurantDetailPanel = new RestaurantDetailPanel(() -> navigateTo("nhahangs"));
         }
         kitchenPanel       = new KitchenPanel();
         // Phase 5: khởi tạo WaiterServicePanel
@@ -199,6 +203,7 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(reportPanel,        "baocao");
         contentArea.add(statsPanel,         "thongke");
         contentArea.add(restaurantPanel != null ? restaurantPanel : buildPlaceholder("Nha hang"), "nhahangs");
+        contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
         contentArea.add(kitchenPanel,       "bep");
         // Phase 5: đăng ký WaiterServicePanel vào CardLayout
         contentArea.add(waiterServicePanel, "phucvu");
@@ -441,6 +446,26 @@ public class MainFrame extends JFrame implements SessionListener {
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);
+            navButtons[i].putClientProperty("active", active);
+            navButtons[i].setForeground(active ? UIConstants.PRIMARY : UIConstants.TEXT_PRIMARY);
+            navButtons[i].setFont(active ? UIConstants.FONT_BOLD : UIConstants.FONT_NAV);
+            navButtons[i].repaint();
+        }
+    }
+
+    /**
+     * Phase 3: Điều hướng sang màn hình Chi tiết nhà hàng.
+     * Gọi từ RestaurantPanel khi người dùng click "👁 Xem chi tiết".
+     *
+     * @param r nhà hàng cần hiển thị chi tiết
+     */
+    public void showRestaurantDetail(Restaurant r) {
+        if (restaurantDetailPanel == null) return;
+        restaurantDetailPanel.populate(r);
+        cardLayout.show(contentArea, "restaurant_detail");
+        // Bỏ highlight nav button — đây là sub-view của "nhahangs"
+        for (int i = 0; i < navPages.length; i++) {
+            boolean active = "nhahangs".equals(navPages[i]);
             navButtons[i].putClientProperty("active", active);
             navButtons[i].setForeground(active ? UIConstants.PRIMARY : UIConstants.TEXT_PRIMARY);
             navButtons[i].setFont(active ? UIConstants.FONT_BOLD : UIConstants.FONT_NAV);

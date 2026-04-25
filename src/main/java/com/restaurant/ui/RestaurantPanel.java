@@ -433,14 +433,11 @@ public class RestaurantPanel extends JPanel {
     }
 
     /**
-     * Xem chi tiết nhà hàng — placeholder cho Phase 3.
-     * Phase 3 sẽ thay bằng điều hướng sang RestaurantDetailPanel.
+     * Phase 3: Điều hướng sang RestaurantDetailPanel thông qua CardLayout của MainFrame.
      */
     private void openDetailView(Restaurant item) {
-        // TODO Phase 3: điều hướng sang màn hình chi tiết nhà hàng
-        JOptionPane.showMessageDialog(this,
-            "Chi tiết nhà hàng: " + item.getName() + " (sẽ implement ở Phase 3)",
-            "Xem chi tiết", JOptionPane.INFORMATION_MESSAGE);
+        MainFrame frame = (MainFrame) SwingUtilities.getWindowAncestor(this);
+        frame.showRestaurantDetail(item);
     }
 
     /**
