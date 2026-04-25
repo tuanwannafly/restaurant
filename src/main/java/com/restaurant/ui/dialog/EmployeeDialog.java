@@ -24,6 +24,7 @@ import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.OperationType;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.RoundedButton;
@@ -40,6 +41,10 @@ import com.restaurant.ui.UIConstants;
  *   <li>RESTAURANT_ADMIN → WAITER / CHEF / CASHIER</li>
  *   <li>Không có quyền → cmbRole ẩn hoàn toàn</li>
  * </ul>
+ *
+ * <p><b>Giai đoạn 3 — Operation Token:</b><br>
+ * Khi thực hiện thay đổi role của nhân viên khác, dialog yêu cầu xác nhận
+ * bằng {@link ConfirmOperationDialog} trước khi gọi DAO.
  *
  * <p>Khi dialog ở chế độ <em>thêm mới</em> (chưa có employeeId),
  * cmbRole hiện nhưng bị disable với tooltip hướng dẫn.
@@ -72,7 +77,6 @@ public class EmployeeDialog extends JDialog {
             if (RbacGuard.getInstance().isSuperAdmin()) {
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER", "RESTAURANT_ADMIN", "SUPER_ADMIN");
             } else if (RbacGuard.getInstance().isRestaurantAdmin()) {
-                // RESTAURANT_ADMIN không thể gán RESTAURANT_ADMIN / SUPER_ADMIN (lớp bảo vệ ở UI)
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER");
             } else {
                 allowedRoles = List.of();
@@ -114,7 +118,6 @@ public class EmployeeDialog extends JDialog {
         tfAddress   = field();
         tfStartDate = field();
 
-        // Auto-generate ID cho nhân viên mới
         if (item == null) {
             tfId.setText(DataManager.getInstance().generateEmployeeId());
             tfId.setEditable(false);
@@ -133,7 +136,6 @@ public class EmployeeDialog extends JDialog {
             cmbRole = new JComboBox<>(allowedRoles.toArray(new String[0]));
             cmbRole.setFont(UIConstants.FONT_BODY);
 
-            // Chế độ "thêm mới": hiện nhưng disable, tooltip hướng dẫn
             if (item == null) {
                 cmbRole.setEnabled(false);
                 cmbRole.setToolTipText("Gán role sau khi tạo nhân viên");
@@ -141,7 +143,6 @@ public class EmployeeDialog extends JDialog {
 
             addRow(form, gbc, 6, "Role:", cmbRole);
         }
-        // Nếu không có quyền → không addRow → ẩn hoàn toàn
 
         root.add(form, BorderLayout.CENTER);
 
@@ -174,7 +175,6 @@ public class EmployeeDialog extends JDialog {
         tfAddress.setText(item.getAddress());
         tfStartDate.setText(item.getStartDate());
 
-        // Chọn sẵn role hiện tại trong cmbRole (nếu đang hiện)
         if (cmbRole != null && item.getRole() != null) {
             String systemRole = toSystemRole(item.getRole());
             for (int i = 0; i < cmbRole.getItemCount(); i++) {
@@ -206,10 +206,23 @@ public class EmployeeDialog extends JDialog {
         onSave.accept(new Employee(id, name, cccd, phone, address, startDate,
                 item != null ? item.getRole() : Employee.Role.PHUC_VU));
 
-        // ── Phase 5B: gán role nếu user có quyền và đang ở chế độ cập nhật ──
+        // ── Phase 5B + Giai đoạn 3: gán role với Operation Token ──────────
         if (cmbRole != null && cmbRole.isEnabled() && item != null) {
             String selectedRole = (String) cmbRole.getSelectedItem();
             if (selectedRole != null && !selectedRole.isBlank()) {
+
+                // Xác định targetId = user_id liên kết với nhân viên
+                long targetId = resolveTargetUserId(id);
+
+                // ── Operation Token: yêu cầu xác nhận trước khi đổi role ──
+                boolean confirmed = ConfirmOperationDialog.show(
+                    this, OperationType.CHANGE_ROLE, targetId);
+                if (!confirmed) {
+                    // Người dùng huỷ → đóng dialog mà không thay đổi role
+                    dispose();
+                    return;
+                }
+
                 try {
                     employeeDAO.updateUserRole(id, selectedRole);
                     JOptionPane.showMessageDialog(this,
@@ -246,8 +259,20 @@ public class EmployeeDialog extends JDialog {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     /**
+     * Lấy user_id liên kết với employeeId để dùng làm targetId cho Operation Token.
+     * Nếu nhân viên chưa có tài khoản, trả về 0 (token vẫn hợp lệ — type đủ để nhận diện).
+     */
+    private long resolveTargetUserId(String employeeId) {
+        try {
+            var opt = employeeDAO.findUserIdByEmployeeId(employeeId);
+            return opt.isPresent() ? opt.get() : 0L;
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
+    /**
      * Chuyển {@link Employee.Role} sang tên role hệ thống (khớp với bảng roles trong DB).
-     * Dùng khi cần chọn sẵn item trong cmbRole lúc fillData().
      */
     private String toSystemRole(Employee.Role role) {
         if (role == null) return "WAITER";

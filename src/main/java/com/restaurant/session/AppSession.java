@@ -13,6 +13,11 @@ import java.util.List;
  * để dùng {@link Permission#forRole(String)} thay vì so sánh string thô.
  * <p>
  * Phase 5C: Thêm {@link SessionListener} với WeakReference để tránh memory leak.
+ * <p>
+ * Phase 6 (Session Token): Thêm field {@link #sessionToken} — được gán bởi
+ * {@link com.restaurant.dao.UserDAO#login} sau khi BCrypt xác thực thành công,
+ * và được thu hồi tự động khi {@link #logout()} được gọi qua
+ * {@link TokenService#revokeToken(String)}.
  */
 public class AppSession {
 
@@ -39,6 +44,15 @@ public class AppSession {
     private long    restaurantId;
     private boolean loggedIn = false;
 
+    /**
+     * Session token hiện tại — được gán bởi {@code UserDAO.login()} ngay sau khi
+     * xác thực BCrypt thành công.  Null khi chưa đăng nhập hoặc sau khi logout.
+     *
+     * @see TokenService#generateSessionToken(long)
+     * @see TokenService#revokeToken(String)
+     */
+    private String sessionToken;
+
     /** Danh sách listener dùng WeakReference để tránh memory leak. */
     private final List<WeakReference<SessionListener>> listeners = new ArrayList<>();
 
@@ -58,6 +72,27 @@ public class AppSession {
         this.userRole     = role;
         this.restaurantId = restaurantId;
         this.loggedIn     = true;
+        // sessionToken được gán riêng qua setSessionToken() từ UserDAO.login()
+        // sau khi TokenService.generateSessionToken() thành công.
+    }
+
+    /**
+     * Gán session token vừa được tạo bởi {@link TokenService#generateSessionToken(long)}.
+     * Được gọi từ {@code UserDAO.login()} ngay sau {@link #login}.
+     *
+     * @param token UUID token 36 ký tự; null được chấp nhận nhưng sẽ khiến
+     *              {@link RbacGuard#can} từ chối mọi quyền.
+     */
+    public void setSessionToken(String token) {
+        this.sessionToken = token;
+    }
+
+    /**
+     * Trả về session token hiện tại.
+     * Null nếu chưa đăng nhập hoặc token chưa được gán.
+     */
+    public String getSessionToken() {
+        return sessionToken;
     }
 
     /**
@@ -83,17 +118,34 @@ public class AppSession {
     }
 
     /**
-     * Đăng xuất: reset tất cả fields về giá trị mặc định rồi notify listeners.
-     * Gọi 2 lần liên tiếp an toàn — chỉ notify 1 lần (lần đầu tiên).
+     * Đăng xuất: thu hồi session token, reset tất cả fields về giá trị mặc định
+     * rồi notify listeners.
+     * <p>
+     * Gọi 2 lần liên tiếp an toàn — chỉ thu hồi token và notify 1 lần (lần đầu tiên).
      */
     public void logout() {
         if (!loggedIn) return;   // idempotent: không notify lần 2
+
+        // Phase 5: Ghi audit log trước khi xoá session data
+        try {
+            com.restaurant.session.AuditLogger.getInstance().logLogout();
+        } catch (Exception ignore) {}
+
+        // Thu hồi session token trong DB
+        TokenService.getInstance().revokeToken(this.sessionToken);
+
+        // Xoá refresh token khỏi disk (thiết bị hiện tại)
+        // Không revoke DB record — đó là việc của RefreshTokenService khi cần
+        TokenStorage.getInstance().clearSavedToken();
+
         this.userId       = 0L;
         this.userName     = null;
         this.userEmail    = null;
         this.userRole     = null;
         this.restaurantId = 0L;
         this.loggedIn     = false;
+        this.sessionToken = null;
+
         notifyLogout();
     }
 
@@ -114,6 +166,7 @@ public class AppSession {
      *
      * @param p permission cần kiểm tra
      * @return {@code true} nếu role hiện tại được phép
+     * @throws SessionExpiredException nếu session token không còn hợp lệ
      */
     public boolean hasPermission(Permission p) {
         return RbacGuard.getInstance().can(p);

@@ -322,6 +322,26 @@ public class DataManager {
         userDAO.changeOwnPassword(userId, oldPw, newPw);
     }
 
+    /** Tạo token đặt lại mật khẩu (hết hạn 15 phút). Trả null nếu email không tồn tại. */
+    public String generatePasswordResetToken(String email) {
+        return userDAO.generatePasswordResetToken(email);
+    }
+
+    /** Kiểm tra token hợp lệ (tồn tại, chưa dùng, chưa hết hạn). */
+    public boolean validateResetToken(String token) {
+        return userDAO.validateResetToken(token);
+    }
+
+    /** Đặt lại mật khẩu bằng token một lần. Trả false nếu token không hợp lệ. */
+    public boolean resetPasswordWithToken(String token, String newPassword) {
+        return userDAO.resetPasswordWithToken(token, newPassword);
+    }
+
+    /** Dọn dẹp token hết hạn — gọi khi khởi động ứng dụng. */
+    public void cleanupExpiredResetTokens() {
+        userDAO.cleanupExpiredResetTokens();
+    }
+
     // ═══════════════════════════════════════════════════════
     //  DASHBOARD STATS
     // ═══════════════════════════════════════════════════════

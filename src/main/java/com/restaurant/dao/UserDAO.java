@@ -1,5 +1,6 @@
 package com.restaurant.dao;
 
+import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -10,8 +11,10 @@ import org.mindrot.jbcrypt.BCrypt;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
+import com.restaurant.session.TokenService;
 
 /**
  * DAO xử lý xác thực và quản lý user.
@@ -68,6 +71,14 @@ public class UserDAO {
      * Trả về true và ghi vào AppSession nếu thành công.
      */
     public boolean login(String email, String password) {
+        AuditLogger audit = AuditLogger.getInstance();
+
+        // Phase 5 — Brute-force: kiểm tra khoá trước khi truy vấn DB
+        if (audit.isAccountLocked(email.trim())) {
+            System.err.println("[UserDAO] Tài khoản bị khoá tạm thời: " + email);
+            return false;
+        }
+
         String sql = """
             SELECT u.user_id, u.name, u.email, u.password,
                    r.name  AS role_name,
@@ -83,21 +94,98 @@ public class UserDAO {
 
             ps.setString(1, email.trim());
             try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return false;
-
-                String hash = rs.getString("password");
-                if (hash == null || !BCrypt.checkpw(password, hash)) return false;
+                if (!rs.next()) {
+                    // Email không tồn tại → ghi FAIL, không lộ thông tin
+                    audit.logLogin(email.trim(), 0L, false);
+                    return false;
+                }
 
                 long   userId       = rs.getLong("user_id");
                 String name         = rs.getString("name");
                 String roleName     = rs.getString("role_name");
                 long   restaurantId = rs.getLong("restaurant_id");
+                String hash         = rs.getString("password");
 
+                if (hash == null || !BCrypt.checkpw(password, hash)) {
+                    // Mật khẩu sai → ghi FAIL và kiểm tra ngưỡng brute-force
+                    audit.logLogin(email.trim(), userId, false);
+
+                    int failures = audit.countRecentLoginFailures(email.trim());
+                    if (failures >= 5) {
+                        audit.logAccountLocked(email.trim(), userId);
+                        System.err.println("[UserDAO] Khoá tài khoản 15 phút: " + email);
+                    }
+                    return false;
+                }
+
+                // Đăng nhập thành công → ghi vào AppSession
                 AppSession.getInstance().login(userId, name, email.trim(), roleName, restaurantId);
+
+                // Phase 6: Sinh session token và lưu vào AppSession
+                try {
+                    String token = TokenService.getInstance().generateSessionToken(userId);
+                    AppSession.getInstance().setSessionToken(token);
+                } catch (Exception tokenEx) {
+                    System.err.println("[UserDAO] Cảnh báo: không tạo được session token: "
+                            + tokenEx.getMessage());
+                }
+
+                // Ghi audit log LOGIN SUCCESS (sau khi có session)
+                audit.logLogin(email.trim(), userId, true);
                 return true;
             }
         } catch (Exception e) {
             System.err.println("[UserDAO] login lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đăng nhập theo user_id — dùng cho silent re-auth sau khi refresh token hợp lệ.
+     * Truy vấn DB lấy thông tin user rồi load vào {@link com.restaurant.session.AppSession}.
+     *
+     * @param userId user_id của user cần load session
+     * @return {@code true} nếu user tồn tại và ACTIVE; {@code false} nếu không tìm thấy
+     */
+    public boolean loginByUserId(long userId) {
+        String sql = """
+            SELECT u.user_id, u.name, u.email,
+                   r.name AS role_name,
+                   u.restaurant_id
+            FROM   users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE  u.user_id = ?
+              AND  u.status  = 'ACTIVE'
+            """;
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return false;
+
+                String name         = rs.getString("name");
+                String email        = rs.getString("email");
+                String roleName     = rs.getString("role_name");
+                long   restaurantId = rs.getLong("restaurant_id");
+
+                com.restaurant.session.AppSession.getInstance()
+                        .login(userId, name, email, roleName, restaurantId);
+
+                // Sinh session token mới cho phiên vừa restore
+                try {
+                    String token = com.restaurant.session.TokenService
+                            .getInstance().generateSessionToken(userId);
+                    com.restaurant.session.AppSession.getInstance().setSessionToken(token);
+                } catch (Exception tokenEx) {
+                    System.err.println("[UserDAO] Cảnh báo: không tạo session token khi silent login: "
+                            + tokenEx.getMessage());
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("[UserDAO] loginByUserId lỗi: " + e.getMessage());
             return false;
         }
     }
@@ -457,8 +545,219 @@ public class UserDAO {
             ps.setString(1, newHash);
             ps.setLong  (2, userId);
             ps.executeUpdate();
+            // Phase 5: Ghi audit log đổi mật khẩu
+            AuditLogger.getInstance().logPasswordChange(userId);
         } catch (Exception e) {
             throw new RuntimeException("[UserDAO] Lỗi cập nhật mật khẩu: " + e.getMessage(), e);
+        }
+    }
+
+    // ── Password Reset Token ──────────────────────────────────────────────────
+
+    /**
+     * Tạo token đặt lại mật khẩu một lần, hết hạn sau 15 phút.
+     *
+     * <p>Sinh 32 byte ngẫu nhiên → hex-64 ký tự, INSERT vào bảng
+     * {@code PASSWORD_RESET_TOKENS} với {@code expires_at = SYSTIMESTAMP + 15 phút}.
+     *
+     * @param email email của user cần đặt lại mật khẩu
+     * @return token hex-64 ký tự, hoặc {@code null} nếu email không tồn tại
+     * @throws RuntimeException nếu xảy ra lỗi DB
+     */
+    public String generatePasswordResetToken(String email) {
+        // 1. Lấy user_id theo email
+        String lookupSql = "SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND status = 'ACTIVE'";
+        long userId;
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(lookupSql)) {
+            ps.setString(1, email.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;   // email không tồn tại / bị khoá
+                userId = rs.getLong("user_id");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi tìm user theo email: " + e.getMessage(), e);
+        }
+
+        // 2. Sinh token hex-64
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        StringBuilder sb = new StringBuilder(64);
+        for (byte b : bytes) sb.append(String.format("%02x", b));
+        String token = sb.toString();
+
+        // 3. INSERT token vào DB (expires_at = bây giờ + 15 phút)
+        String insertSql =
+                "INSERT INTO password_reset_tokens (token, user_id, expires_at) "
+              + "VALUES (?, ?, SYSTIMESTAMP + INTERVAL '15' MINUTE)";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(insertSql)) {
+            ps.setString(1, token);
+            ps.setLong  (2, userId);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi lưu reset token: " + e.getMessage(), e);
+        }
+
+        return token;
+    }
+
+    /**
+     * Kiểm tra token có hợp lệ không (tồn tại, {@code used=0}, chưa hết hạn).
+     *
+     * @param token token cần kiểm tra
+     * @return {@code true} nếu hợp lệ
+     */
+    public boolean validateResetToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String sql = "SELECT 1 FROM password_reset_tokens "
+                   + "WHERE token = ? AND used = 0 AND expires_at > SYSTIMESTAMP";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, token.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            System.err.println("[UserDAO] validateResetToken lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đặt lại mật khẩu bằng token một lần.
+     *
+     * <p>Thực hiện trong một transaction:
+     * <ol>
+     *   <li>Xác thực token (tồn tại, used=0, chưa hết hạn)</li>
+     *   <li>Hash mật khẩu mới bằng BCrypt</li>
+     *   <li>UPDATE {@code users.password}</li>
+     *   <li>UPDATE {@code password_reset_tokens.used = 1} để huỷ token ngay lập tức</li>
+     * </ol>
+     *
+     * @param token       token hợp lệ từ {@link #generatePasswordResetToken}
+     * @param newPassword mật khẩu mới plain-text (chưa hash)
+     * @return {@code true} nếu thành công, {@code false} nếu token không hợp lệ
+     * @throws RuntimeException nếu lỗi DB
+     */
+    public boolean resetPasswordWithToken(String token, String newPassword) {
+        if (token == null || token.isBlank()) return false;
+
+        String findSql = "SELECT user_id FROM password_reset_tokens "
+                       + "WHERE token = ? AND used = 0 AND expires_at > SYSTIMESTAMP";
+
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Lấy user_id và kiểm tra token
+                long userId;
+                try (PreparedStatement ps = conn.prepareStatement(findSql)) {
+                    ps.setString(1, token.trim());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;    // token không tồn tại / đã dùng / hết hạn
+                        }
+                        userId = rs.getLong("user_id");
+                    }
+                }
+
+                // 2. Hash mật khẩu mới
+                String newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+
+                // 3. Cập nhật mật khẩu
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE users SET password = ? WHERE user_id = ?")) {
+                    ps.setString(1, newHash);
+                    ps.setLong  (2, userId);
+                    ps.executeUpdate();
+                }
+
+                // 4. Đánh dấu token đã dùng — chống replay ngay lập tức
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE password_reset_tokens SET used = 1 WHERE token = ?")) {
+                    ps.setString(1, token.trim());
+                    ps.executeUpdate();
+                }
+
+                conn.commit();
+                return true;
+
+            } catch (Exception ex) {
+                conn.rollback();
+                throw new RuntimeException("[UserDAO] Lỗi resetPasswordWithToken: " + ex.getMessage(), ex);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi kết nối khi reset mật khẩu: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Đổi mật khẩu khi đã đăng nhập — xác thực mật khẩu cũ trước khi đổi.
+     *
+     * <p>Đây là alias rõ ràng cho {@link #changeOwnPassword} nhưng không ràng buộc
+     * phiên đăng nhập, phù hợp để gọi từ flow quên mật khẩu nội bộ.
+     *
+     * @param userId      user cần đổi mật khẩu
+     * @param oldPassword mật khẩu cũ plain-text
+     * @param newPassword mật khẩu mới plain-text
+     * @return {@code true} nếu thành công
+     * @throws IllegalArgumentException nếu mật khẩu cũ không đúng
+     */
+    public boolean changePassword(long userId, String oldPassword, String newPassword) {
+        // Lấy hash hiện tại
+        String selectSql = "SELECT password FROM users WHERE user_id = ?";
+        String currentHash;
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(selectSql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return false;
+                currentHash = rs.getString("password");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi lấy mật khẩu hiện tại: " + e.getMessage(), e);
+        }
+
+        if (currentHash == null || !BCrypt.checkpw(oldPassword, currentHash)) {
+            throw new IllegalArgumentException("Mật khẩu hiện tại không đúng");
+        }
+
+        String newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        String updateSql = "UPDATE users SET password = ? WHERE user_id = ?";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(updateSql)) {
+            ps.setString(1, newHash);
+            ps.setLong  (2, userId);
+            ps.executeUpdate();
+            // Phase 5: Ghi audit log
+            AuditLogger.getInstance().logPasswordChange(userId);
+            return true;
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi cập nhật mật khẩu: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Dọn dẹp token hết hạn hoặc đã dùng — gọi khi ứng dụng khởi động.
+     * Không ném exception nếu lỗi (log warning là đủ).
+     */
+    public void cleanupExpiredResetTokens() {
+        String sql = "DELETE FROM password_reset_tokens "
+                   + "WHERE expires_at <= SYSTIMESTAMP OR used = 1";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            int deleted = ps.executeUpdate();
+            if (deleted > 0) {
+                System.out.println("[UserDAO] Đã xoá " + deleted + " reset token hết hạn/đã dùng.");
+            }
+        } catch (Exception e) {
+            System.err.println("[UserDAO] cleanupExpiredResetTokens lỗi (không nghiêm trọng): "
+                    + e.getMessage());
         }
     }
 

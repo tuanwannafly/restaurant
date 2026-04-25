@@ -24,10 +24,13 @@ import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
+import com.restaurant.session.SessionExpiredException;
+import com.restaurant.session.TokenService;
 
 public class MainFrame extends JFrame implements SessionListener {
 
@@ -47,18 +50,30 @@ public class MainFrame extends JFrame implements SessionListener {
     private WaiterServicePanel  waiterServicePanel;
     // F3: MyRestaurantInfoPanel — chỉ cho RESTAURANT_ADMIN
     private MyRestaurantInfoPanel myRestaurantPanel;
+    // Phase 5 Audit: AuditLogPanel — chỉ cho SUPER_ADMIN
+    private AuditLogPanel         auditLogPanel;
 
     private JButton[] navButtons;
     // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
     private String[]  navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
-        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant"
+        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant",
+        "baomat"
     };
     private String[]  navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
         "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "🏪 Nhà hàng của tôi"
+        "🏪 Nhà hàng của tôi", "🔐 Bảo mật"
     };
+
+    /**
+     * Phase 6: Swing Timer kiểm tra session token mỗi 30 phút.
+     * Dừng lại trong {@link #onLogout()} để tránh bắn event sau khi frame đã dispose.
+     */
+    private Timer sessionCheckTimer;
+
+    /** Khoảng thời gian kiểm tra token (ms): 30 phút. */
+    private static final int SESSION_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
     public MainFrame() {
         super("Hệ thống Quản lý Nhà hàng");
@@ -72,6 +87,7 @@ public class MainFrame extends JFrame implements SessionListener {
         // Phase 5C: đăng ký để nhận sự kiện logout từ AppSession
         AppSession.getInstance().addSessionListener(this);
         buildUI();
+        startSessionCheckTimer();
     }
 
     /**
@@ -81,6 +97,8 @@ public class MainFrame extends JFrame implements SessionListener {
     @Override
     public void onLogout() {
         SwingUtilities.invokeLater(() -> {
+            // Phase 6: dừng session check timer trước khi đóng frame
+            stopSessionCheckTimer();
             // Phase 7A: dừng toàn bộ polling timer trước khi đóng frame.
             // Gọi trước dispose() để tránh timer tiếp tục bắn event sau logout.
             PollManager.getInstance().stopAll();
@@ -93,6 +111,48 @@ public class MainFrame extends JFrame implements SessionListener {
                 System.exit(0);
             }
         });
+    }
+
+    // ── Session Check Timer ────────────────────────────────────────────────────
+
+    /**
+     * Khởi động Swing Timer kiểm tra token mỗi {@value #SESSION_CHECK_INTERVAL_MS} ms.
+     * <p>
+     * Khi token không còn hợp lệ, timer gọi {@link AppSession#logout()} trên EDT,
+     * hiện thông báo rồi để {@link #onLogout()} xử lý việc chuyển màn hình.
+     * Dọn dẹp các token hết hạn trong DB qua
+     * {@link TokenService#cleanExpiredTokens()} cũng được thực hiện tại đây.
+     */
+    private void startSessionCheckTimer() {
+        sessionCheckTimer = new Timer(SESSION_CHECK_INTERVAL_MS, e -> {
+            // Chạy trên EDT — an toàn để cập nhật UI
+            String token = AppSession.getInstance().getSessionToken();
+            boolean valid = TokenService.getInstance().validateToken(token);
+
+            // Dọn dẹp token hết hạn trong DB (thực hiện ở background để không block EDT)
+            new Thread(() -> TokenService.getInstance().cleanExpiredTokens(),
+                       token-cleanup).start();
+
+            if (!valid) {
+                JOptionPane.showMessageDialog(
+                    this,
+                    "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.",
+                    "Hết phiên",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                // logout() sẽ kích hoạt onLogout() → chuyển về LoginDialog
+                AppSession.getInstance().logout();
+            }
+        });
+        sessionCheckTimer.setInitialDelay(SESSION_CHECK_INTERVAL_MS); // không check ngay khi mở
+        sessionCheckTimer.start();
+    }
+
+    /** Dừng session check timer — gọi trước khi dispose frame. */
+    private void stopSessionCheckTimer() {
+        if (sessionCheckTimer != null && sessionCheckTimer.isRunning()) {
+            sessionCheckTimer.stop();
+        }
     }
 
     private void buildUI() {
@@ -126,6 +186,10 @@ public class MainFrame extends JFrame implements SessionListener {
         if (_guard.isRestaurantAdmin()) {
             myRestaurantPanel = new MyRestaurantInfoPanel();
         }
+        // Phase 5 Audit: khởi tạo AuditLogPanel chỉ khi SUPER_ADMIN
+        if (_guard.isSuperAdmin()) {
+            auditLogPanel = new AuditLogPanel();
+        }
 
         contentArea.add(homePanel,          "home");
         contentArea.add(menuPanel,          "menu");
@@ -142,6 +206,9 @@ public class MainFrame extends JFrame implements SessionListener {
         // F3: đăng ký MyRestaurantInfoPanel vào CardLayout
         contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
                 : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
+        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout
+        contentArea.add(auditLogPanel != null ? auditLogPanel
+                : buildPlaceholder("Nhật ký bảo mật"), "baomat");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -206,6 +273,11 @@ public class MainFrame extends JFrame implements SessionListener {
                 case "myrestaurant":
                     // Thông tin nhà hàng của mình — chỉ RESTAURANT_ADMIN
                     navButtons[i].setVisible(guard.isRestaurantAdmin());
+                    break;
+
+                case "baomat":
+                    // Nhật ký bảo mật — chỉ SUPER_ADMIN
+                    navButtons[i].setVisible(isSuperAdmin);
                     break;
 
                 // "home" và "baocao" luôn hiển thị (không cần case riêng)
