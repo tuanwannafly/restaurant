@@ -1,7 +1,6 @@
 package com.restaurant.ui;
 
 import java.awt.BorderLayout;
-import java.awt.Calendar;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -12,6 +11,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
