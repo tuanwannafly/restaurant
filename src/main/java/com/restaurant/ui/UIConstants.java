@@ -22,6 +22,24 @@ public class UIConstants {
     public static final Color DANGER_LIGHT   = new Color(0xFEE2E2);
     public static final Color CARD_BG        = new Color(0xBFD7F4); // summary cards
 
+    // Badge colors
+    public static final Color BADGE_BLUE_BG   = new Color(0xDBEAFE);
+    public static final Color BADGE_BLUE_FG   = new Color(0x1D4ED8);
+    public static final Color BADGE_GREEN_BG  = new Color(0xD1FAE5);
+    public static final Color BADGE_GREEN_FG  = new Color(0x065F46);
+    public static final Color BADGE_RED_BG    = new Color(0xFEE2E2);
+    public static final Color BADGE_RED_FG    = new Color(0x991B1B);
+    public static final Color BADGE_YELLOW_BG = new Color(0xFEF3C7);
+    public static final Color BADGE_YELLOW_FG = new Color(0x92400E);
+    public static final Color BADGE_GRAY_BG   = new Color(0xF3F4F6);
+    public static final Color BADGE_GRAY_FG   = new Color(0x6B7280);
+
+    // Card accent colors (cho HomePanel cards)
+    public static final Color CARD_BLUE_BG   = new Color(0xEFF6FF);
+    public static final Color CARD_GREEN_BG  = new Color(0xF0FDF4);
+    public static final Color CARD_AMBER_BG  = new Color(0xFFFBEB);
+    public static final Color CARD_RED_BG    = new Color(0xFFF1F2);
+
     // Fonts
     public static final Font FONT_TITLE   = new Font("Segoe UI", Font.BOLD, 22);
     public static final Font FONT_NAV     = new Font("Segoe UI", Font.PLAIN, 13);
@@ -30,6 +48,7 @@ public class UIConstants {
     public static final Font FONT_SMALL   = new Font("Segoe UI", Font.PLAIN, 11);
     public static final Font FONT_BOLD    = new Font("Segoe UI", Font.BOLD, 13);
     public static final Font FONT_LOGO    = new Font("Segoe UI", Font.BOLD, 16);
+    public static final Font FONT_VALUE   = new Font("Segoe UI", Font.BOLD, 28);
 
     // Sizes
     public static final int NAV_HEIGHT    = 44;
@@ -38,4 +57,10 @@ public class UIConstants {
     public static final int BTN_HEIGHT    = 34;
     public static final int CORNER_RADIUS = 8;
     public static final int CARD_RADIUS   = 16;
+
+    // Spacing constants
+    public static final int PADDING_SM  = 8;
+    public static final int PADDING_MD  = 16;
+    public static final int PADDING_LG  = 24;
+    public static final int PADDING_XL  = 48;
 }
