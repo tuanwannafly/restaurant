@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -19,7 +18,6 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -28,7 +26,6 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
 
@@ -37,6 +34,7 @@ import com.restaurant.dao.UserDAO.AdminUser;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
 import com.restaurant.ui.RoundedButton;
+import com.restaurant.ui.RoundedTextField;
 import com.restaurant.ui.UIConstants;
 
 /**
@@ -82,27 +80,32 @@ public class RestaurantDialog extends JDialog {
 
     // ── Fields ────────────────────────────────────────────────────────────────
 
+    private static final String STATUS_ACTIVE   = "Hoạt động";
+    private static final String STATUS_INACTIVE = "Vô hiệu hóa";
+
     private final BiConsumer<Restaurant, AdminChoice> onSave;
     private final Restaurant                          item;
     private final boolean                             isNew;
 
     // Restaurant fields
-    private JTextField    tfName;
-    private JTextField    tfAddress;
-    private JTextField    tfPhone;
-    private JTextField    tfEmail;
-    private JComboBox<String> cbStatus;
+    private RoundedTextField txtName;
+    private RoundedTextField txtOwner;
+    private RoundedTextField txtEmail;
+    private RoundedTextField txtPhone;
+    private RoundedTextField txtAddress;
+    private RoundedTextField txtCreatedDate;
+    private JComboBox<String> cboStatus;
 
     // Admin section (chỉ hiển thị khi tạo mới)
-    private JRadioButton  rbSkip;
-    private JRadioButton  rbExisting;
-    private JRadioButton  rbNew;
+    private JRadioButton   rbSkip;
+    private JRadioButton   rbExisting;
+    private JRadioButton   rbNew;
     private JComboBox<AdminUser> cbAdmins;
-    private JTextField    tfAdminName;
-    private JTextField    tfAdminEmail;
+    private RoundedTextField tfAdminName;
+    private RoundedTextField tfAdminEmail;
     private JPasswordField pfAdminPassword;
-    private JPanel        panelExisting;
-    private JPanel        panelNew;
+    private JPanel         panelExisting;
+    private JPanel         panelNew;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -111,16 +114,14 @@ public class RestaurantDialog extends JDialog {
      */
     public RestaurantDialog(Window owner, Restaurant item,
                             BiConsumer<Restaurant, AdminChoice> onSave) {
-        super(owner,
-              item == null ? "Thêm nhà hàng mới" : "Cập nhật thông tin nhà hàng",
-              ModalityType.APPLICATION_MODAL);
+        super(owner, "Tạo / Cập nhật nhà hàng", ModalityType.APPLICATION_MODAL);
         this.item   = item;
         this.onSave = onSave;
         this.isNew  = (item == null);
         buildUI();
         if (item != null) fillData();
         pack();
-        setMinimumSize(new Dimension(560, 0));
+        setMinimumSize(new Dimension(600, 0));
         setLocationRelativeTo(owner);
         setResizable(false);
     }
@@ -139,21 +140,22 @@ public class RestaurantDialog extends JDialog {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Color.WHITE);
 
-        // Header title
-        JLabel title = new JLabel(isNew ? "Thêm nhà hàng mới" : "Cập nhật thông tin nhà hàng");
+        // NORTH: tiêu đề căn giữa
+        JLabel title = new JLabel("Tạo / Cập nhật nhà hàng", JLabel.CENTER);
         title.setFont(UIConstants.FONT_TITLE);
-        title.setBorder(BorderFactory.createEmptyBorder(20, 24, 12, 24));
+        title.setForeground(UIConstants.TEXT_PRIMARY);
+        title.setBorder(BorderFactory.createEmptyBorder(20, 48, 12, 48));
         root.add(title, BorderLayout.NORTH);
 
-        // Scroll panel chứa tất cả nội dung
+        // CENTER: scroll chứa form + AdminChoice section
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBackground(Color.WHITE);
-        content.setBorder(BorderFactory.createEmptyBorder(0, 24, 12, 24));
         content.add(buildRestaurantForm());
         if (isNew) {
             content.add(Box.createVerticalStrut(16));
             content.add(buildAdminSection());
+            content.add(Box.createVerticalStrut(8));
         }
 
         JScrollPane scroll = new JScrollPane(content);
@@ -161,22 +163,22 @@ public class RestaurantDialog extends JDialog {
         scroll.getViewport().setBackground(Color.WHITE);
         root.add(scroll, BorderLayout.CENTER);
 
-        // Button bar
-        JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 12));
-        btnBar.setBackground(Color.WHITE);
-        btnBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR));
+        // SOUTH: button bar — Lưu (WEST) + Hủy (EAST)
+        JPanel outerPanel = new JPanel(new BorderLayout());
+        outerPanel.setBackground(Color.WHITE);
+        outerPanel.setBorder(BorderFactory.createEmptyBorder(12, 48, 20, 48));
 
-        RoundedButton btnCancel = RoundedButton.outline("Hủy");
-        btnCancel.setPreferredSize(new Dimension(90, UIConstants.BTN_HEIGHT));
+        RoundedButton btnSave = new RoundedButton("Lưu");
+        btnSave.setPreferredSize(new Dimension(80, UIConstants.BTN_HEIGHT));
+        btnSave.addActionListener(e -> handleSave());
+
+        RoundedButton btnCancel = new RoundedButton("Hủy");
+        btnCancel.setPreferredSize(new Dimension(80, UIConstants.BTN_HEIGHT));
         btnCancel.addActionListener(e -> dispose());
 
-        RoundedButton btnSave = new RoundedButton(isNew ? "Thêm" : "Lưu");
-        btnSave.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
-        btnSave.addActionListener(e -> save());
-
-        btnBar.add(btnCancel);
-        btnBar.add(btnSave);
-        root.add(btnBar, BorderLayout.SOUTH);
+        outerPanel.add(btnSave,   BorderLayout.WEST);
+        outerPanel.add(btnCancel, BorderLayout.EAST);
+        root.add(outerPanel, BorderLayout.SOUTH);
 
         setContentPane(root);
     }
@@ -186,24 +188,33 @@ public class RestaurantDialog extends JDialog {
     private JPanel buildRestaurantForm() {
         JPanel form = new JPanel(new GridBagLayout());
         form.setBackground(Color.WHITE);
+        form.setBorder(BorderFactory.createEmptyBorder(20, 48, 20, 48));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets  = new Insets(6, 4, 6, 4);
         gbc.fill    = GridBagConstraints.HORIZONTAL;
         gbc.anchor  = GridBagConstraints.WEST;
 
-        tfName    = field();
-        tfAddress = field();
-        tfPhone   = field();
-        tfEmail   = field();
-        cbStatus  = new JComboBox<>(new String[]{"ACTIVE", "INACTIVE"});
-        cbStatus.setFont(UIConstants.FONT_BODY);
+        txtName        = new RoundedTextField("");
+        txtOwner       = new RoundedTextField("");
+        txtEmail       = new RoundedTextField("");
+        txtPhone       = new RoundedTextField("");
+        txtAddress     = new RoundedTextField("");
+        txtCreatedDate = new RoundedTextField("");
+        txtCreatedDate.setEditable(!isNew);   // read-only khi edit mode
 
-        addRow(form, gbc, 0, "Tên nhà hàng *:", tfName);
-        addRow(form, gbc, 1, "Địa chỉ:",         tfAddress);
-        addRow(form, gbc, 2, "Số điện thoại:",   tfPhone);
-        addRow(form, gbc, 3, "Email:",             tfEmail);
-        addRow(form, gbc, 4, "Trạng thái:",        cbStatus);
+        cboStatus = new JComboBox<>(new String[]{ STATUS_ACTIVE, STATUS_INACTIVE });
+        cboStatus.setFont(UIConstants.FONT_BODY);
+        cboStatus.setBorder(new RoundedTextField.RoundedBorder(
+                UIConstants.CORNER_RADIUS, UIConstants.BORDER_COLOR));
+
+        addRow(form, gbc, 0, "Tên nhà hàng:",  txtName);
+        addRow(form, gbc, 1, "Chủ nhà hàng:",  txtOwner);
+        addRow(form, gbc, 2, "Email:",          txtEmail);
+        addRow(form, gbc, 3, "SĐT:",            txtPhone);
+        addRow(form, gbc, 4, "Địa chỉ:",        txtAddress);
+        addRow(form, gbc, 5, "Ngày tạo:",       txtCreatedDate);
+        addRow(form, gbc, 6, "Trạng thái:",     cboStatus);
 
         return form;
     }
@@ -215,7 +226,6 @@ public class RestaurantDialog extends JDialog {
         section.setBackground(Color.WHITE);
         section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
-        // Tiêu đề phân cách
         TitledBorder border = BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(UIConstants.BORDER_COLOR),
             "  Admin quản lý nhà hàng  ");
@@ -228,7 +238,6 @@ public class RestaurantDialog extends JDialog {
         inner.setBackground(Color.WHITE);
         inner.setBorder(BorderFactory.createEmptyBorder(8, 12, 12, 12));
 
-        // Radio buttons
         ButtonGroup grp = new ButtonGroup();
         rbSkip     = radio("Bỏ qua — sẽ gán admin sau");
         rbExisting = radio("Chọn từ danh sách admin có sẵn");
@@ -246,7 +255,6 @@ public class RestaurantDialog extends JDialog {
         inner.add(rbNew);
         inner.add(buildNewAdminPanel());
 
-        // Radio listener để show/hide sub-panels
         rbSkip.addActionListener(e -> updateAdminPanelVisibility());
         rbExisting.addActionListener(e -> updateAdminPanelVisibility());
         rbNew.addActionListener(e -> updateAdminPanelVisibility());
@@ -261,7 +269,6 @@ public class RestaurantDialog extends JDialog {
         panelExisting.setBackground(Color.WHITE);
         panelExisting.setBorder(BorderFactory.createEmptyBorder(6, 24, 6, 0));
 
-        // Load danh sách admin từ DB
         cbAdmins = new JComboBox<>();
         cbAdmins.setFont(UIConstants.FONT_BODY);
         cbAdmins.setPreferredSize(new Dimension(0, 34));
@@ -288,19 +295,17 @@ public class RestaurantDialog extends JDialog {
         gbc.fill    = GridBagConstraints.HORIZONTAL;
         gbc.anchor  = GridBagConstraints.WEST;
 
-        tfAdminName     = field();
-        tfAdminEmail    = field();
+        tfAdminName     = new RoundedTextField("");
+        tfAdminEmail    = new RoundedTextField("");
         pfAdminPassword = new JPasswordField();
         pfAdminPassword.setFont(UIConstants.FONT_BODY);
-        pfAdminPassword.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
-            BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+        pfAdminPassword.setBorder(new RoundedTextField.RoundedBorder(
+                UIConstants.CORNER_RADIUS, UIConstants.BORDER_COLOR));
 
-        addRow(panelNew, gbc, 0, "Họ tên *:",     tfAdminName);
-        addRow(panelNew, gbc, 1, "Email *:",        tfAdminEmail);
-        addRow(panelNew, gbc, 2, "Mật khẩu *:",    pfAdminPassword);
+        addRow(panelNew, gbc, 0, "Họ tên *:",   tfAdminName);
+        addRow(panelNew, gbc, 1, "Email *:",     tfAdminEmail);
+        addRow(panelNew, gbc, 2, "Mật khẩu *:", pfAdminPassword);
 
-        // Gợi ý: link mở RegisterStaffDialog-style (tạo riêng sau)
         JLabel hint = new JLabel(
             "<html><font color='#6B7280' size='2'>* Tài khoản sẽ có quyền RESTAURANT_ADMIN</font></html>");
         hint.setFont(UIConstants.FONT_SMALL);
@@ -340,7 +345,6 @@ public class RestaurantDialog extends JDialog {
                                 return l;
                             }
                         });
-                        // Tự động chuyển sang "tạo mới"
                         if (rbExisting.isSelected()) {
                             rbNew.setSelected(true);
                             updateAdminPanelVisibility();
@@ -365,29 +369,31 @@ public class RestaurantDialog extends JDialog {
 
     private void fillData() {
         if (item == null) return;
-        tfName.setText(nvl(item.getName()));
-        tfAddress.setText(nvl(item.getAddress()));
-        tfPhone.setText(nvl(item.getPhone()));
-        tfEmail.setText(nvl(item.getEmail()));
-        cbStatus.setSelectedItem(item.getStatus() != null ? item.getStatus().name() : "ACTIVE");
+        txtName.setText(nvl(item.getName()));
+        // txtOwner: requires item.getOwnerName() — add field to Restaurant model if needed
+        txtEmail.setText(nvl(item.getEmail()));
+        txtPhone.setText(nvl(item.getPhone()));
+        txtAddress.setText(nvl(item.getAddress()));
+        txtCreatedDate.setText(item.getCreatedAt() != null ? item.getCreatedAt().toString() : "");
+        cboStatus.setSelectedItem(item.getStatus() == Status.ACTIVE ? STATUS_ACTIVE : STATUS_INACTIVE);
     }
 
-    private void save() {
+    private void handleSave() {
         // --- Validate restaurant ---
-        String name = tfName.getText().trim();
+        String name = txtName.getText().trim();
         if (name.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                 "Vui lòng nhập tên nhà hàng!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            tfName.requestFocusInWindow();
+            txtName.requestFocusInWindow();
             return;
         }
 
         Restaurant r = (item != null) ? item : new Restaurant();
         r.setName(name);
-        r.setAddress(tfAddress.getText().trim());
-        r.setPhone(tfPhone.getText().trim());
-        r.setEmail(tfEmail.getText().trim());
-        r.setStatus(Status.from((String) cbStatus.getSelectedItem()));
+        r.setEmail(txtEmail.getText().trim());
+        r.setPhone(txtPhone.getText().trim());
+        r.setAddress(txtAddress.getText().trim());
+        r.setStatus(STATUS_ACTIVE.equals(cboStatus.getSelectedItem()) ? Status.ACTIVE : Status.INACTIVE);
 
         // --- Validate admin section (chỉ khi tạo mới) ---
         AdminChoice adminChoice = AdminChoice.skip();
@@ -437,16 +443,31 @@ public class RestaurantDialog extends JDialog {
 
     // ── Layout helpers ────────────────────────────────────────────────────────
 
+    /**
+     * Thêm một hàng label + field vào form GridBagLayout.
+     * Label cố định 180px, RIGHT align, FONT_BODY, TEXT_PRIMARY.
+     * Field fill HORIZONTAL với weightx=1.0.
+     */
     private void addRow(JPanel form, GridBagConstraints gbc,
-                        int row, String labelText, JComponent comp) {
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        JLabel lbl = new JLabel(labelText);
-        lbl.setFont(UIConstants.FONT_BOLD);
-        lbl.setPreferredSize(new Dimension(130, 32));
+                        int row, String labelText, java.awt.Component comp) {
+        // Label
+        gbc.gridx   = 0;
+        gbc.gridy   = row;
+        gbc.weightx = 0;
+        JLabel lbl = new JLabel(labelText, JLabel.RIGHT);
+        lbl.setFont(UIConstants.FONT_BODY);
+        lbl.setForeground(UIConstants.TEXT_PRIMARY);
+        lbl.setPreferredSize(new Dimension(180, 34));
         form.add(lbl, gbc);
 
-        gbc.gridx = 1; gbc.weightx = 1;
-        comp.setPreferredSize(new Dimension(300, 34));
+        // Field
+        gbc.gridx   = 1;
+        gbc.weightx = 1.0;
+        if (comp instanceof RoundedTextField) {
+            ((RoundedTextField) comp).setPreferredSize(new Dimension(300, 34));
+        } else {
+            comp.setPreferredSize(new Dimension(300, 34));
+        }
         form.add(comp, gbc);
     }
 
@@ -456,15 +477,6 @@ public class RestaurantDialog extends JDialog {
         rb.setBackground(Color.WHITE);
         rb.setFocusPainted(false);
         return rb;
-    }
-
-    private JTextField field() {
-        JTextField tf = new JTextField();
-        tf.setFont(UIConstants.FONT_BODY);
-        tf.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
-            BorderFactory.createEmptyBorder(4, 10, 4, 10)));
-        return tf;
     }
 
     private String nvl(String s) { return s != null ? s : ""; }
