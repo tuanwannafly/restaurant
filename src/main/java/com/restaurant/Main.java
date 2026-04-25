@@ -5,7 +5,11 @@ import java.awt.Font;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
+import com.restaurant.dao.UserDAO;
 import com.restaurant.data.DataManager;
+import com.restaurant.session.AppSession;
+import com.restaurant.session.RefreshTokenService;
+import com.restaurant.session.TokenStorage;
 import com.restaurant.ui.LoginDialog;
 import com.restaurant.ui.MainFrame;
 
@@ -39,6 +43,37 @@ public class Main {
             try {
                 DataManager.getInstance().cleanupExpiredResetTokens();
             } catch (Exception ignored) { /* Không block khởi động nếu DB chưa sẵn sàng */ }
+            try {
+                RefreshTokenService.getInstance().cleanExpiredTokens();
+            } catch (Exception ignored) { /* Không block khởi động */ }
+
+            // ── Silent re-auth: kiểm tra refresh token đã lưu trên disk ────────
+            boolean silentLoginOk = false;
+            try {
+                java.util.Optional<String> savedToken = TokenStorage.getInstance().loadRefreshToken();
+                if (savedToken.isPresent()) {
+                    java.util.Optional<Long> userIdOpt =
+                            RefreshTokenService.getInstance().validateAndRotate(savedToken.get());
+                    if (userIdOpt.isPresent()) {
+                        // Token hợp lệ → load thông tin user từ DB vào AppSession
+                        silentLoginOk = new UserDAO().loginByUserId(userIdOpt.get());
+                    } else {
+                        // Token đã hết hạn hoặc bị revoke → xoá file
+                        TokenStorage.getInstance().clearSavedToken();
+                    }
+                }
+            } catch (Exception silentEx) {
+                System.err.println("[Main] Silent re-auth thất bại: " + silentEx.getMessage());
+                TokenStorage.getInstance().clearSavedToken();
+                silentLoginOk = false;
+            }
+
+            // Nếu silent login thành công → mở MainFrame trực tiếp, không cần LoginDialog
+            if (silentLoginOk && AppSession.getInstance().isLoggedIn()) {
+                MainFrame frame = new MainFrame();
+                frame.setVisible(true);
+                return;
+            }
 
             // Bước 1: Hiện dialog đăng nhập
             LoginDialog loginDialog = new LoginDialog(null);

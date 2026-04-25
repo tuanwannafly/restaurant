@@ -17,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -29,6 +30,8 @@ import javax.swing.border.EmptyBorder;
 
 import com.restaurant.data.DataManager;
 import com.restaurant.db.DBConnection;
+import com.restaurant.session.RefreshTokenService;
+import com.restaurant.session.TokenStorage;
 
 /**
  * Dialog đăng nhập – xác thực trực tiếp qua Oracle JDBC + BCrypt.
@@ -45,13 +48,14 @@ public class LoginDialog extends JDialog {
 
     private JTextField     tfEmail;
     private JPasswordField tfPassword;
+    private JCheckBox      chkRememberMe;
     private JLabel         lblError;
     private JButton        btnLogin;
 
     public LoginDialog(Frame owner) {
         super(owner, "Đăng nhập hệ thống", true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(420, 430);
+        setSize(420, 460);
         setResizable(false);
         setLocationRelativeTo(null);
         buildUI();
@@ -106,6 +110,16 @@ public class LoginDialog extends JDialog {
         lblError.setForeground(UIConstants.DANGER);
         lblError.setAlignmentX(LEFT_ALIGNMENT);
         form.add(lblError);
+
+        // Checkbox "Ghi nhớ đăng nhập 30 ngày"
+        form.add(Box.createVerticalStrut(4));
+        chkRememberMe = new JCheckBox("Ghi nhớ đăng nhập 30 ngày");
+        chkRememberMe.setFont(UIConstants.FONT_SMALL);
+        chkRememberMe.setForeground(UIConstants.TEXT_SECONDARY);
+        chkRememberMe.setBackground(Color.WHITE);
+        chkRememberMe.setAlignmentX(LEFT_ALIGNMENT);
+        chkRememberMe.setFocusPainted(false);
+        form.add(chkRememberMe);
 
         form.add(Box.createVerticalStrut(10));
         btnLogin = new RoundedButton("Đăng nhập");
@@ -179,6 +193,18 @@ public class LoginDialog extends JDialog {
                 btnLogin.setText("Đăng nhập");
                 try {
                     if (get()) {
+                        // Nếu "Ghi nhớ đăng nhập" được chọn → sinh & lưu refresh token
+                        if (chkRememberMe.isSelected()) {
+                            try {
+                                long uid = com.restaurant.session.AppSession.getInstance().getUserId();
+                                String rt = RefreshTokenService.getInstance().generateRefreshToken(uid);
+                                TokenStorage.getInstance().saveRefreshToken(rt);
+                            } catch (Exception rtEx) {
+                                System.err.println("[LoginDialog] Cảnh báo: không lưu được refresh token: "
+                                        + rtEx.getMessage());
+                                // Không block đăng nhập nếu refresh token lỗi
+                            }
+                        }
                         loginSuccess = true;
                         dispose();
                     } else {

@@ -24,6 +24,8 @@ import javax.swing.SwingWorker;
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.RefreshTokenService;
+import com.restaurant.session.TokenStorage;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.UIConstants;
 
@@ -71,7 +73,7 @@ public class MyProfileDialog extends JDialog {
     public MyProfileDialog(Frame owner) {
         super(owner, "Hồ sơ của tôi", ModalityType.APPLICATION_MODAL);
         buildUI();
-        setSize(480, 500);
+        setSize(480, 560);
         setResizable(false);
         setLocationRelativeTo(owner);
         // Load phone/address bất đồng bộ sau khi dialog visible
@@ -292,6 +294,31 @@ public class MyProfileDialog extends JDialog {
         wrapper.add(actionRow);
         wrapper.add(Box.createVerticalStrut(8));
 
+        // ── Separator + "Đăng xuất tất cả thiết bị" ──
+        wrapper.add(Box.createVerticalStrut(12));
+        javax.swing.JSeparator sep = new javax.swing.JSeparator();
+        sep.setAlignmentX(Component.LEFT_ALIGNMENT);
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        sep.setForeground(UIConstants.BORDER_COLOR);
+        wrapper.add(sep);
+        wrapper.add(Box.createVerticalStrut(12));
+
+        JLabel lblDeviceHint = new JLabel(
+            "<html><i>Đăng xuất khỏi tất cả thiết bị sẽ xoá mọi phiên ghi nhớ đăng nhập.</i></html>");
+        lblDeviceHint.setFont(UIConstants.FONT_SMALL);
+        lblDeviceHint.setForeground(UIConstants.TEXT_SECONDARY);
+        lblDeviceHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.add(lblDeviceHint);
+        wrapper.add(Box.createVerticalStrut(8));
+
+        RoundedButton btnRevokeAll = new RoundedButton("🔒 Đăng xuất tất cả thiết bị");
+        btnRevokeAll.setPreferredSize(new Dimension(220, UIConstants.BTN_HEIGHT));
+        btnRevokeAll.setMaximumSize(new Dimension(Integer.MAX_VALUE, UIConstants.BTN_HEIGHT));
+        btnRevokeAll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnRevokeAll.addActionListener(e -> revokeAllDevices());
+        wrapper.add(btnRevokeAll);
+        wrapper.add(Box.createVerticalStrut(8));
+
         return wrapper;
     }
 
@@ -432,7 +459,11 @@ public class MyProfileDialog extends JDialog {
             protected void done() {
                 try {
                     get();
-                    showInfo(lblPwInfo, "✅ Đổi mật khẩu thành công!", UIConstants.SUCCESS);
+                    // Thu hồi toàn bộ refresh token khi đổi mật khẩu (bảo mật)
+                    long uid = AppSession.getInstance().getUserId();
+                    RefreshTokenService.getInstance().revokeAllForUser(uid);
+                    TokenStorage.getInstance().clearSavedToken();
+                    showInfo(lblPwInfo, "✅ Đổi mật khẩu thành công! Đã đăng xuất tất cả thiết bị.", UIConstants.SUCCESS);
                     clearPasswordFields();
                 } catch (ExecutionException ex) {
                     Throwable cause = ex.getCause();
@@ -450,6 +481,52 @@ public class MyProfileDialog extends JDialog {
                 } finally {
                     btnChangePw.setEnabled(true);
                     btnChangePw.setText("🔑 Đổi mật khẩu");
+                }
+            }
+        }.execute();
+    }
+
+    // ── Revoke all devices ───────────────────────────────────────────────────
+
+    /**
+     * Thu hồi tất cả refresh token của user hiện tại sau khi xác nhận.
+     * Gọi {@link RefreshTokenService#revokeAllForUser(long)} trên SwingWorker.
+     */
+    private void revokeAllDevices() {
+        int confirm = javax.swing.JOptionPane.showConfirmDialog(
+                this,
+                "<html>Bạn sẽ bị đăng xuất khỏi <b>tất cả thiết bị</b> đang ghi nhớ đăng nhập.<br>"
+                + "Hành động này không thể hoàn tác. Tiếp tục?</html>",
+                "Xác nhận đăng xuất tất cả thiết bị",
+                javax.swing.JOptionPane.YES_NO_OPTION,
+                javax.swing.JOptionPane.WARNING_MESSAGE);
+
+        if (confirm != javax.swing.JOptionPane.YES_OPTION) return;
+
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                long uid = AppSession.getInstance().getUserId();
+                RefreshTokenService.getInstance().revokeAllForUser(uid);
+                TokenStorage.getInstance().clearSavedToken();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    javax.swing.JOptionPane.showMessageDialog(
+                            MyProfileDialog.this,
+                            "✅ Đã đăng xuất khỏi tất cả thiết bị thành công.",
+                            "Thành công",
+                            javax.swing.JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    javax.swing.JOptionPane.showMessageDialog(
+                            MyProfileDialog.this,
+                            "❌ Lỗi: " + ex.getMessage(),
+                            "Thất bại",
+                            javax.swing.JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();

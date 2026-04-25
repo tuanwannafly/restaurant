@@ -117,6 +117,56 @@ public class UserDAO {
     }
 
     /**
+     * Đăng nhập theo user_id — dùng cho silent re-auth sau khi refresh token hợp lệ.
+     * Truy vấn DB lấy thông tin user rồi load vào {@link com.restaurant.session.AppSession}.
+     *
+     * @param userId user_id của user cần load session
+     * @return {@code true} nếu user tồn tại và ACTIVE; {@code false} nếu không tìm thấy
+     */
+    public boolean loginByUserId(long userId) {
+        String sql = """
+            SELECT u.user_id, u.name, u.email,
+                   r.name AS role_name,
+                   u.restaurant_id
+            FROM   users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE  u.user_id = ?
+              AND  u.status  = 'ACTIVE'
+            """;
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return false;
+
+                String name         = rs.getString("name");
+                String email        = rs.getString("email");
+                String roleName     = rs.getString("role_name");
+                long   restaurantId = rs.getLong("restaurant_id");
+
+                com.restaurant.session.AppSession.getInstance()
+                        .login(userId, name, email, roleName, restaurantId);
+
+                // Sinh session token mới cho phiên vừa restore
+                try {
+                    String token = com.restaurant.session.TokenService
+                            .getInstance().generateSessionToken(userId);
+                    com.restaurant.session.AppSession.getInstance().setSessionToken(token);
+                } catch (Exception tokenEx) {
+                    System.err.println("[UserDAO] Cảnh báo: không tạo session token khi silent login: "
+                            + tokenEx.getMessage());
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("[UserDAO] loginByUserId lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Kiểm tra email có tồn tại và active không (không kiểm tra password).
      */
     public boolean emailExists(String email) {

@@ -126,8 +126,12 @@ public class AppSession {
     public void logout() {
         if (!loggedIn) return;   // idempotent: không notify lần 2
 
-        // Thu hồi token trong DB trước khi reset state
+        // Thu hồi session token trong DB
         TokenService.getInstance().revokeToken(this.sessionToken);
+
+        // Xoá refresh token khỏi disk (thiết bị hiện tại)
+        // Không revoke DB record — đó là việc của RefreshTokenService khi cần
+        TokenStorage.getInstance().clearSavedToken();
 
         this.userId       = 0L;
         this.userName     = null;
