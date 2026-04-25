@@ -12,6 +12,7 @@ import com.restaurant.db.DBConnection;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
+import com.restaurant.session.TokenService;
 
 /**
  * DAO xử lý xác thực và quản lý user.
@@ -93,7 +94,19 @@ public class UserDAO {
                 String roleName     = rs.getString("role_name");
                 long   restaurantId = rs.getLong("restaurant_id");
 
+                // Ghi thông tin phiên vào AppSession
                 AppSession.getInstance().login(userId, name, email.trim(), roleName, restaurantId);
+
+                // Phase 6: Sinh session token và lưu vào AppSession
+                try {
+                    String token = TokenService.getInstance().generateSessionToken(userId);
+                    AppSession.getInstance().setSessionToken(token);
+                } catch (Exception tokenEx) {
+                    // Ghi log nhưng không chặn đăng nhập nếu DB token lỗi
+                    System.err.println("[UserDAO] Cảnh báo: không tạo được session token: "
+                            + tokenEx.getMessage());
+                }
+
                 return true;
             }
         } catch (Exception e) {

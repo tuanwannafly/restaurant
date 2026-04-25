@@ -36,8 +36,29 @@ public final class RbacGuard {
      * @param p permission cần kiểm tra (non-null)
      * @return {@code true} nếu role hiện tại có quyền đó
      */
+    /**
+     * Kiểm tra người dùng hiện tại có quyền {@code p} hay không.
+     * <p>
+     * <b>Phase 6 — Token Guard:</b> Trước khi kiểm tra role, xác nhận session token
+     * còn hiệu lực qua {@link TokenService#validateToken(String)}.
+     * Nếu token không hợp lệ (hết hạn / bị thu hồi / null), ném
+     * {@link SessionExpiredException} thay vì trả về {@code false}.
+     * Điều này buộc UI layer phải bắt exception và chuyển về LoginDialog
+     * thay vì chỉ ẩn nút bấm.
+     *
+     * @param p permission cần kiểm tra (non-null)
+     * @return {@code true} nếu role hiện tại có quyền đó
+     * @throws SessionExpiredException nếu session token không hợp lệ
+     */
     public boolean can(Permission p) {
         if (p == null) return false;
+
+        // Phase 6: Kiểm tra session token còn hợp lệ trước khi kiểm tra RBAC
+        String token = AppSession.getInstance().getSessionToken();
+        if (!TokenService.getInstance().validateToken(token)) {
+            throw new SessionExpiredException();
+        }
+
         String role = AppSession.getInstance().getUserRole();
         return Permission.forRole(role).contains(p);
     }
