@@ -17,10 +17,12 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.border.CompoundBorder;
 
 import com.restaurant.data.DataManager;
+import com.restaurant.session.OperationType;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.UIConstants;
 
@@ -29,6 +31,10 @@ import com.restaurant.ui.UIConstants;
  *
  * <p>Được gọi từ {@code EmployeePanel} và mở modal. Sau khi dialog đóng,
  * caller kiểm tra {@link #isSuccess()} để biết tài khoản có được tạo thành công.
+ *
+ * <p><b>Giai đoạn 3 — Operation Token:</b> trước khi gọi {@code registerStaff},
+ * người dùng phải xác nhận bằng {@link ConfirmOperationDialog} để ngăn chặn
+ * việc gán role nhầm do thao tác vô ý.
  */
 public class RegisterStaffDialog extends JDialog {
 
@@ -163,7 +169,6 @@ public class RegisterStaffDialog extends JDialog {
     // ── Info box ──────────────────────────────────────────────────────────────
 
     private JPanel buildInfoBox() {
-        // Lấy tên nhà hàng từ DataManager; fallback nếu không lấy được
         String restaurantName;
         try {
             var restaurant = DataManager.getInstance().getMyRestaurant();
@@ -177,7 +182,7 @@ public class RegisterStaffDialog extends JDialog {
 
         JPanel box = new JPanel();
         box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
-        box.setBackground(new Color(0xEFF6FF));  // PRIMARY_LIGHT
+        box.setBackground(new Color(0xEFF6FF));
         box.setBorder(new CompoundBorder(
             BorderFactory.createLineBorder(new Color(0xBFDBFE), 1, true),
             BorderFactory.createEmptyBorder(10, 14, 10, 14)));
@@ -223,51 +228,35 @@ public class RegisterStaffDialog extends JDialog {
 
     // ── Validation ────────────────────────────────────────────────────────────
 
-    /**
-     * Validates all form fields.
-     * @return {@code null} if valid, or an error message string.
-     */
     private String validateForm() {
         String name     = tfName.getText().trim();
         String email    = tfEmail.getText().trim();
         String password = new String(pfPassword.getPassword());
         String confirm  = new String(pfConfirm.getPassword());
 
-        if (name.isEmpty()) {
-            return "Vui lòng nhập họ và tên.";
-        }
-        if (email.isEmpty()) {
-            return "Vui lòng nhập email đăng nhập.";
-        }
-        if (!email.contains("@") || email.contains(" ")) {
-            return "Email không hợp lệ (phải chứa @ và không có khoảng trắng).";
-        }
-        if (password.length() < 6) {
-            return "Mật khẩu phải có ít nhất 6 ký tự.";
-        }
-        if (!password.equals(confirm)) {
-            return "Xác nhận mật khẩu không khớp.";
-        }
-        if (cmbRole.getSelectedItem() == null) {
-            return "Vui lòng chọn vai trò.";
-        }
+        if (name.isEmpty())                              return "Vui lòng nhập họ và tên.";
+        if (email.isEmpty())                             return "Vui lòng nhập email đăng nhập.";
+        if (!email.contains("@") || email.contains(" "))return "Email không hợp lệ (phải chứa @ và không có khoảng trắng).";
+        if (password.length() < 6)                       return "Mật khẩu phải có ít nhất 6 ký tự.";
+        if (!password.equals(confirm))                   return "Xác nhận mật khẩu không khớp.";
+        if (cmbRole.getSelectedItem() == null)           return "Vui lòng chọn vai trò.";
         return null;
     }
 
     // ── Submit ────────────────────────────────────────────────────────────────
 
     private void submit() {
-        // Clear previous error
+        // Xoá lỗi cũ
         lblError.setText(" ");
 
-        // Validate
+        // Validate form trước
         String error = validateForm();
         if (error != null) {
             lblError.setText(error);
             return;
         }
 
-        // Snapshot inputs before worker
+        // Snapshot inputs trước khi mở dialog xác nhận
         final String name     = tfName.getText().trim();
         final String email    = tfEmail.getText().trim();
         final String password = new String(pfPassword.getPassword());
@@ -277,6 +266,14 @@ public class RegisterStaffDialog extends JDialog {
             case "Thu ngân" -> "CASHIER";
             default -> throw new IllegalArgumentException("Vai trò không hợp lệ");
         };
+
+        // ── Operation Token: xác nhận trước khi gán role cho user mới ─────
+        // targetId = 0 vì user chưa tồn tại; type đủ để nhận diện thao tác.
+        boolean confirmed = ConfirmOperationDialog.show(
+            SwingUtilities.getWindowAncestor(this),
+            OperationType.CHANGE_ROLE,
+            0L);
+        if (!confirmed) return;   // người dùng huỷ hoặc nhập sai mã → dừng lại
 
         // Disable button, hiện "Đang tạo..."
         btnSubmit.setEnabled(false);
@@ -299,7 +296,7 @@ public class RegisterStaffDialog extends JDialog {
                 } catch (ExecutionException ex) {
                     Throwable cause = ex.getCause();
                     if (cause instanceof IllegalArgumentException) {
-                        errorMsg = cause.getMessage(); // e.g. "Email đã tồn tại"
+                        errorMsg = cause.getMessage();
                     } else {
                         errorMsg = "Lỗi tạo tài khoản: " + (cause != null ? cause.getMessage() : ex.getMessage());
                     }

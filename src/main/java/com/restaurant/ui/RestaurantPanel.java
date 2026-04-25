@@ -27,6 +27,8 @@ import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
+import com.restaurant.session.OperationType;
+import com.restaurant.ui.dialog.ConfirmOperationDialog;
 import com.restaurant.ui.dialog.RestaurantDialog;
 import com.restaurant.ui.dialog.RestaurantDialog.AdminChoice;
 
@@ -39,6 +41,10 @@ import com.restaurant.ui.dialog.RestaurantDialog.AdminChoice;
  *   <li>Tạo tài khoản RESTAURANT_ADMIN mới ngay tại chỗ</li>
  *   <li>Bỏ qua — gán admin sau</li>
  * </ul>
+ *
+ * <p><b>Giai đoạn 3 — Operation Token:</b> thao tác xoá nhà hàng yêu cầu
+ * người dùng xác nhận bằng {@link ConfirmOperationDialog} thay cho
+ * JOptionPane YES/NO thông thường.
  */
 public class RestaurantPanel extends JPanel {
 
@@ -65,7 +71,6 @@ public class RestaurantPanel extends JPanel {
     // ── UI ────────────────────────────────────────────────────────────────────
 
     private void buildUI() {
-        // ── Top bar ──
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setOpaque(false);
         topBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 16, 0));
@@ -84,7 +89,6 @@ public class RestaurantPanel extends JPanel {
         topBar.add(titleLbl, BorderLayout.WEST);
         topBar.add(btnPanel, BorderLayout.EAST);
 
-        // ── Table ──
         tableModel = new DefaultTableModel(COLUMNS, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -143,7 +147,7 @@ public class RestaurantPanel extends JPanel {
                 r.getPhone(),
                 r.getEmail(),
                 r.getStatus() != null ? r.getStatus().label() : "",
-                ""   // placeholder cho ActionRenderer
+                ""
             });
         }
     }
@@ -166,10 +170,6 @@ public class RestaurantPanel extends JPanel {
 
     // ── CRUD operations ───────────────────────────────────────────────────────
 
-    /**
-     * Mở dialog thêm nhà hàng mới (với phần chọn / tạo admin).
-     * Sau khi restaurant được lưu thành công, xử lý AdminChoice tiếp theo.
-     */
     private void openAddDialog() {
         new RestaurantDialog(SwingUtilities.getWindowAncestor(this), null,
             (Restaurant saved, AdminChoice adminChoice) -> {
@@ -177,11 +177,9 @@ public class RestaurantPanel extends JPanel {
 
                     @Override
                     protected String doInBackground() throws Exception {
-                        // 1. Tạo nhà hàng — restaurantId được cập nhật vào saved
                         dao.add(saved);
                         long restaurantId = saved.getRestaurantId();
 
-                        // 2. Xử lý admin
                         return switch (adminChoice.mode) {
                             case EXISTING -> {
                                 userDAO.assignAdminToRestaurant(
@@ -211,7 +209,6 @@ public class RestaurantPanel extends JPanel {
                                 msg, "Thành công", JOptionPane.INFORMATION_MESSAGE);
                         } catch (java.util.concurrent.ExecutionException ee) {
                             Throwable cause = ee.getCause() != null ? ee.getCause() : ee;
-                            // Nếu lỗi xảy ra sau khi restaurant đã tạo → reload để hiển thị
                             loadData();
                             JOptionPane.showMessageDialog(RestaurantPanel.this,
                                 "Nhà hàng đã tạo nhưng gán admin thất bại:\n"
@@ -282,11 +279,19 @@ public class RestaurantPanel extends JPanel {
         }.execute();
     }
 
+    /**
+     * Xoá nhà hàng sau khi người dùng xác nhận bằng Operation Token.
+     *
+     * <p>Thay thế JOptionPane YES/NO thông thường bằng {@link ConfirmOperationDialog}
+     * để buộc người dùng nhập lại mã xác nhận ngắn hạn trước khi thực thi.
+     */
     private void deleteRestaurant(Restaurant item) {
-        int confirm = JOptionPane.showConfirmDialog(this,
-            "Xóa nhà hàng \"" + item.getName() + "\"?\nThao tác này không thể hoàn tác.",
-            "Xác nhận xóa", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (confirm != JOptionPane.YES_OPTION) return;
+        // ── Operation Token: yêu cầu xác nhận bằng mã ngắn hạn ────────────
+        boolean confirmed = ConfirmOperationDialog.show(
+            SwingUtilities.getWindowAncestor(this),
+            OperationType.DELETE_RESTAURANT,
+            item.getRestaurantId());
+        if (!confirmed) return;
 
         new SwingWorker<Void, Void>() {
             @Override protected Void doInBackground() {
