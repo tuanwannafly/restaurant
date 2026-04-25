@@ -216,6 +216,9 @@ public class MainFrame extends JFrame implements SessionListener {
         // Phase 5: đăng ký AdminStatsPanel vào CardLayout
         contentArea.add(adminStatsPanel != null ? adminStatsPanel
                 : buildPlaceholder("Thống kê Admin"), "adminstats");
+        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout — thiếu trước đây
+        contentArea.add(auditLogPanel != null ? auditLogPanel
+                : buildPlaceholder("Nhật ký bảo mật"), "baomat");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -447,7 +450,9 @@ public class MainFrame extends JFrame implements SessionListener {
             case "adminstats":
                 if (adminStatsPanel != null) adminStatsPanel.loadStats();
                 break;
-            case "nhahangs":  restaurantPanel.loadData();       break;
+            case "nhahangs":
+                if (restaurantPanel != null) restaurantPanel.loadData();
+                break;
             case "bep":       kitchenPanel.loadData();          break;
             case "phucvu":    waiterServicePanel.loadData();    break;
             // F3: load dữ liệu khi điều hướng đến tab "Nhà hàng của tôi"

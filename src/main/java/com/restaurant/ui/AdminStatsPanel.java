@@ -167,8 +167,9 @@ public class AdminStatsPanel extends JPanel {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xBFD7F4));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.setColor(UIConstants.CARD_BG);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(),
+                        UIConstants.CARD_RADIUS, UIConstants.CARD_RADIUS);
                 g2.dispose();
                 super.paintComponent(g);
             }

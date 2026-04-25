@@ -1,6 +1,7 @@
 package com.restaurant.ui;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
 
 public class UIConstants {
     // Colors
@@ -19,6 +20,7 @@ public class UIConstants {
     public static final Color WARNING        = new Color(0xF59E0B);
     public static final Color DANGER         = new Color(0xEF4444);
     public static final Color DANGER_LIGHT   = new Color(0xFEE2E2);
+    public static final Color CARD_BG        = new Color(0xBFD7F4); // summary cards
 
     // Fonts
     public static final Font FONT_TITLE   = new Font("Segoe UI", Font.BOLD, 22);
@@ -35,4 +37,5 @@ public class UIConstants {
     public static final int ROW_HEIGHT    = 38;
     public static final int BTN_HEIGHT    = 34;
     public static final int CORNER_RADIUS = 8;
+    public static final int CARD_RADIUS   = 16;
 }
