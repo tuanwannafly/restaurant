@@ -55,7 +55,7 @@ public class KitchenDAO {
     private static final String SQL_ACTIVE_TICKETS =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
-            "       mi.item_name,     t.table_number, t.table_id " +
+            "       mi.name AS item_name,     t.table_number, t.table_id " +
             "FROM   order_items oi " +
             "JOIN   orders           o  ON oi.order_id    = o.order_id " +
             "JOIN   restaurant_tables t  ON o.table_id     = t.table_id " +
@@ -71,7 +71,7 @@ public class KitchenDAO {
     private static final String SQL_READY_BY_TABLE =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
-            "       mi.item_name,     t.table_number, t.table_id " +
+            "       mi.name AS item_name,     t.table_number, t.table_id " +
             "FROM   order_items oi " +
             "JOIN   orders           o  ON oi.order_id     = o.order_id " +
             "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +

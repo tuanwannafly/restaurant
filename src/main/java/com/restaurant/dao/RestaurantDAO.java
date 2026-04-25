@@ -3,7 +3,6 @@ package com.restaurant.dao;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,7 +50,7 @@ public class RestaurantDAO {
         requireSuperAdmin();
 
         List<Restaurant> list = new ArrayList<>();
-        String sql = "SELECT restaurant_id, name, address, phone, email, status, created_at"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status"
                    + " FROM restaurants ORDER BY name";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -64,6 +63,7 @@ public class RestaurantDAO {
 
         } catch (Exception e) {
             System.err.println("[RestaurantDAO] findAll lỗi: " + e.getMessage());
+            throw new RuntimeException("[RestaurantDAO] Lỗi tải danh sách nhà hàng: " + e.getMessage(), e);
         }
         return list;
     }
@@ -78,7 +78,7 @@ public class RestaurantDAO {
     public Restaurant findById(long id) {
         requireSuperAdmin();
 
-        String sql = "SELECT restaurant_id, name, address, phone, email, status, created_at"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status"
                    + " FROM restaurants WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -104,7 +104,7 @@ public class RestaurantDAO {
      * @return Restaurant nếu tìm thấy, null nếu không có
      */
     public Restaurant findByIdPublic(long id) {
-        String sql = "SELECT restaurant_id, name, address, phone, email, status, created_at"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status"
                    + " FROM restaurants WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -334,10 +334,7 @@ public class RestaurantDAO {
         r.setPhone  (nvl(rs.getString("phone")));
         r.setEmail  (nvl(rs.getString("email")));
         r.setStatus (Status.from(rs.getString("status")));
-
-        Timestamp ts = rs.getTimestamp("created_at");
-        r.setCreatedAt(ts != null ? ts.toLocalDateTime() : null);
-
+        // created_at không tồn tại trong schema hiện tại — để null
         return r;
     }
 

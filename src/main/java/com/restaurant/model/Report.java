@@ -45,6 +45,12 @@ public class Report {
     private LocalDateTime createdAt;
     private LocalDateTime resolvedAt;      // null nếu chưa resolved
 
+    /**
+     * Tên nhà hàng — transient, không lưu DB.
+     * Được điền khi SUPER_ADMIN query toàn bộ báo cáo (JOIN với bảng restaurants).
+     */
+    private String        restaurantName;
+
     // ── Constructor rỗng (no-arg) ─────────────────────────────────────────────
 
     public Report() {}
@@ -74,6 +80,9 @@ public class Report {
 
     public long getRestaurantId()               { return restaurantId; }
     public void setRestaurantId(long restaurantId) { this.restaurantId = restaurantId; }
+
+    public String getRestaurantName()           { return restaurantName; }
+    public void setRestaurantName(String name)  { this.restaurantName = name; }
 
     public LocalDateTime getCreatedAt()         { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

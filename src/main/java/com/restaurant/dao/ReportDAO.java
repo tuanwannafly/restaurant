@@ -34,13 +34,19 @@ public class ReportDAO {
     /**
      * Lấy danh sách báo cáo theo phân quyền:
      * <ul>
-     *   <li>Manager trở lên → toàn bộ báo cáo của nhà hàng</li>
+     *   <li>SUPER_ADMIN → toàn bộ báo cáo của mọi nhà hàng (kèm tên nhà hàng)</li>
+     *   <li>Manager trở lên → toàn bộ báo cáo của nhà hàng mình</li>
      *   <li>Nhân viên thường → chỉ báo cáo do mình tạo</li>
      * </ul>
      *
      * @return danh sách Report, sắp xếp mới nhất trước; rỗng nếu không có
      */
     public List<Report> findByCurrentUser() {
+        // SUPER_ADMIN: không có restaurant_id — query ALL reports across all restaurants
+        if (RbacGuard.getInstance().isSuperAdmin()) {
+            return findAllForSuperAdmin();
+        }
+
         long    rid       = AppSession.getInstance().getRestaurantId();
         long    userId    = AppSession.getInstance().getUserId();
         boolean isManager = RbacGuard.getInstance().isManagerOrAbove();
@@ -79,6 +85,40 @@ public class ReportDAO {
         } catch (Exception e) {
             System.err.println("[ReportDAO] findByCurrentUser lỗi: " + e.getMessage());
             throw new RuntimeException("[ReportDAO] Không thể tải danh sách báo cáo: " + e.getMessage(), e);
+        }
+
+        return list;
+    }
+
+    /**
+     * Lấy TOÀN BỘ báo cáo từ mọi nhà hàng — chỉ dùng cho SUPER_ADMIN.
+     * JOIN với bảng restaurants để lấy tên nhà hàng hiển thị trong UI.
+     *
+     * @return danh sách Report đã điền {@code restaurantName}, mới nhất trước
+     */
+    private List<Report> findAllForSuperAdmin() {
+        List<Report> list = new ArrayList<>();
+
+        String sql = "SELECT r.report_id, r.title, r.description, r.report_type, r.severity," +
+                     "       r.status, r.created_by, r.restaurant_id, r.created_at, r.resolved_at," +
+                     "       NVL(rest.name, 'N/A') AS restaurant_name" +
+                     "  FROM reports r" +
+                     "  LEFT JOIN restaurants rest ON r.restaurant_id = rest.restaurant_id" +
+                     " ORDER BY r.created_at DESC";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Report rep = map(rs);
+                rep.setRestaurantName(rs.getString("restaurant_name"));
+                list.add(rep);
+            }
+
+        } catch (Exception e) {
+            System.err.println("[ReportDAO] findAllForSuperAdmin lỗi: " + e.getMessage());
+            throw new RuntimeException("[ReportDAO] Không thể tải báo cáo toàn hệ thống: " + e.getMessage(), e);
         }
 
         return list;
@@ -146,14 +186,26 @@ public class ReportDAO {
         }
 
         long rid = AppSession.getInstance().getRestaurantId();
+        boolean isSuperAdmin = RbacGuard.getInstance().isSuperAdmin();
 
-        String sql = "UPDATE reports" +
-                     "   SET status = ?," +
-                     "       resolved_at = CASE WHEN ? = 'RESOLVED'" +
-                     "                         THEN SYSTIMESTAMP" +
-                     "                         ELSE NULL END" +
-                     " WHERE report_id = ?" +
-                     "   AND restaurant_id = ?";
+        // SUPER_ADMIN không bị ràng buộc restaurant_id → cập nhật bất kỳ báo cáo nào
+        String sql;
+        if (isSuperAdmin) {
+            sql = "UPDATE reports" +
+                  "   SET status = ?," +
+                  "       resolved_at = CASE WHEN ? = 'RESOLVED'" +
+                  "                         THEN SYSTIMESTAMP" +
+                  "                         ELSE NULL END" +
+                  " WHERE report_id = ?";
+        } else {
+            sql = "UPDATE reports" +
+                  "   SET status = ?," +
+                  "       resolved_at = CASE WHEN ? = 'RESOLVED'" +
+                  "                         THEN SYSTIMESTAMP" +
+                  "                         ELSE NULL END" +
+                  " WHERE report_id = ?" +
+                  "   AND restaurant_id = ?";
+        }
 
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -162,7 +214,9 @@ public class ReportDAO {
             ps.setString(1, dbStatus);
             ps.setString(2, dbStatus);  // dùng lại cho CASE WHEN
             ps.setLong(3, reportId);
-            ps.setLong(4, rid);
+            if (!isSuperAdmin) {
+                ps.setLong(4, rid);
+            }
 
             int rowsAffected = ps.executeUpdate();
 

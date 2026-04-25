@@ -158,38 +158,57 @@ public class MainFrame extends JFrame implements SessionListener {
     private void applyRoleFilter() {
         AppSession session = AppSession.getInstance();
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
+        boolean isSuperAdmin = guard.isSuperAdmin();
 
         for (int i = 0; i < navPages.length; i++) {
             switch (navPages[i]) {
-                case "thongke":
-                    // Dùng Permission.VIEW_STATS thay vì isManagerOrAbove()
+                // ── Các tab chỉ dành cho nhà hàng cụ thể — ẩn với SUPER_ADMIN ──
+                case "menu":
+                case "ban":
+                case "donhang":
+                case "chedomlamviec":
+                    navButtons[i].setVisible(!isSuperAdmin);
+                    break;
+
+                case "nhanvien":
+                    // Ẩn với SUPER_ADMIN; với role khác kiểm tra quyền VIEW_EMPLOYEE
                     navButtons[i].setVisible(
-                            session.hasPermission(
-                                    com.restaurant.session.Permission.VIEW_STATS));
+                            !isSuperAdmin &&
+                            session.hasPermission(com.restaurant.session.Permission.VIEW_EMPLOYEE));
                     break;
+
+                case "bep":
+                    // Ẩn với SUPER_ADMIN; bếp là màn hình vận hành nhà hàng cụ thể
+                    navButtons[i].setVisible(
+                            !isSuperAdmin &&
+                            session.hasPermission(com.restaurant.session.Permission.VIEW_KITCHEN));
+                    break;
+
+                case "phucvu":
+                    // Ẩn với SUPER_ADMIN; phục vụ là màn hình vận hành nhà hàng cụ thể
+                    navButtons[i].setVisible(
+                            !isSuperAdmin &&
+                            session.hasPermission(com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
+                    break;
+
+                case "thongke":
+                    // Thống kê theo nhà hàng — ẩn với SUPER_ADMIN (không có restaurant_id)
+                    navButtons[i].setVisible(
+                            !isSuperAdmin &&
+                            session.hasPermission(com.restaurant.session.Permission.VIEW_STATS));
+                    break;
+
                 case "nhahangs":
-                    // Chỉ SUPER_ADMIN mới thấy tab Nhà hàng
-                    navButtons[i].setVisible(guard.isSuperAdmin());
+                    // Quản lý toàn bộ nhà hàng — chỉ SUPER_ADMIN
+                    navButtons[i].setVisible(isSuperAdmin);
                     break;
+
                 case "myrestaurant":
-                    // Chỉ RESTAURANT_ADMIN thấy "Nhà hàng của tôi"
+                    // Thông tin nhà hàng của mình — chỉ RESTAURANT_ADMIN
                     navButtons[i].setVisible(guard.isRestaurantAdmin());
                     break;
-                case "bep":
-                    navButtons[i].setVisible(
-                            session.hasPermission(
-                                    com.restaurant.session.Permission.VIEW_KITCHEN));
-                    break;
-                case "phucvu":
-                    navButtons[i].setVisible(
-                            session.hasPermission(
-                                    com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
-                    break;
-                case "nhanvien":
-                    navButtons[i].setVisible(
-                            session.hasPermission(
-                                    com.restaurant.session.Permission.VIEW_EMPLOYEE));
-                    break;
+
+                // "home" và "baocao" luôn hiển thị (không cần case riêng)
                 default:
                     break;
             }
