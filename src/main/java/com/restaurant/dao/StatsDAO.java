@@ -260,4 +260,121 @@ public class StatsDAO {
 
         return result;
     }
+
+    // ── Method 5: getAdminDashboardStats ──────────────────────────────────────
+
+    /**
+     * Thống kê tổng quan toàn hệ thống dành cho màn hình HomePanel (SUPER_ADMIN).<br>
+     * Trả về Map với các keys:
+     * <ul>
+     *   <li>{@code active_restaurants}  – số nhà hàng đang hoạt động (status = 'ACTIVE')</li>
+     *   <li>{@code new_restaurants}     – số nhà hàng mới tạo trong ngày hôm nay</li>
+     *   <li>{@code revenue_today}       – tổng doanh thu hôm nay, VND (kiểu Long)</li>
+     *   <li>{@code orders_today}        – số đơn hoàn tất hôm nay</li>
+     * </ul>
+     *
+     * <p>Dùng scalar subquery trên {@code DUAL} để lấy 4 chỉ số trong một round-trip DB.
+     * Không có guard quyền — cùng chiến lược với {@link #getDashboardStats(long)}.
+     *
+     * @return Map&lt;String, Long&gt; – không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Long> getAdminDashboardStats() {
+        // NOTE: không gọi requireManager() – HomePanel hiển thị cho mọi admin đăng nhập
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE status = 'ACTIVE')                             AS active_restaurants, " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE TRUNC(created_at) = TRUNC(SYSDATE))            AS new_restaurants, " +
+            "  (SELECT NVL(SUM(total_amount), 0) " +
+            "     FROM orders " +
+            "    WHERE status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))          AS revenue_today, " +
+            "  (SELECT COUNT(*) " +
+            "     FROM orders " +
+            "    WHERE status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))          AS orders_today " +
+            "FROM DUAL";
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("active_restaurants", 0L);
+        result.put("new_restaurants",    0L);
+        result.put("revenue_today",      0L);
+        result.put("orders_today",       0L);
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            if (rs.next()) {
+                result.put("active_restaurants", rs.getLong("active_restaurants"));
+                result.put("new_restaurants",    rs.getLong("new_restaurants"));
+                result.put("revenue_today",      rs.getLong("revenue_today"));
+                result.put("orders_today",       rs.getLong("orders_today"));
+            }
+
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getAdminDashboardStats lỗi: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+// ── Method 6: getSuperAdminStats ──────────────────────────────────────────
+
+    /**
+     * Thống kê toàn hệ thống dành cho {@code AdminStatsPanel} (SUPER_ADMIN).<br>
+     * Trả về Map với các keys:
+     * <ul>
+     *   <li>{@code total_restaurants} – số nhà hàng đang ACTIVE (không phụ thuộc date range)</li>
+     *   <li>{@code total_revenue}     – tổng doanh thu các đơn COMPLETED trong khoảng [from, to]</li>
+     *   <li>{@code total_orders}      – số đơn COMPLETED trong khoảng [from, to]</li>
+     * </ul>
+     *
+     * @param from ngày bắt đầu (inclusive)
+     * @param to   ngày kết thúc (inclusive)
+     * @return Map&lt;String, Long&gt; — không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Long> getSuperAdminStats(LocalDate from, LocalDate to) {
+        // Scalar subquery cho restaurants ACTIVE (không lọc theo ngày),
+        // aggregate trực tiếp cho revenue và orders trong khoảng from–to.
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE status = 'ACTIVE')             AS total_restaurants, " +
+            "  NVL(SUM(o.total_amount), 0)            AS total_revenue, " +
+            "  COUNT(o.order_id)                      AS total_orders " +
+            "FROM orders o " +
+            "WHERE o.status = 'COMPLETED' " +
+            "  AND TRUNC(o.created_at) >= ? " +
+            "  AND TRUNC(o.created_at) <= ?";
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("total_restaurants", 0L);
+        result.put("total_revenue",     0L);
+        result.put("total_orders",      0L);
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setDate(1, java.sql.Date.valueOf(from));
+            ps.setDate(2, java.sql.Date.valueOf(to));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    result.put("total_restaurants", rs.getLong("total_restaurants"));
+                    result.put("total_revenue",     rs.getLong("total_revenue"));
+                    result.put("total_orders",      rs.getLong("total_orders"));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getSuperAdminStats lỗi: " + e.getMessage());
+        }
+
+        return result;
+    }
 }

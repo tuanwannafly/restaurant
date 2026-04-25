@@ -27,6 +27,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
 
+import com.restaurant.model.Restaurant;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
 import com.restaurant.session.TokenService;
@@ -51,18 +52,22 @@ public class MainFrame extends JFrame implements SessionListener {
     private MyRestaurantInfoPanel myRestaurantPanel;
     // Phase 5 Audit: AuditLogPanel — chỉ cho SUPER_ADMIN
     private AuditLogPanel         auditLogPanel;
+    // Phase 3: RestaurantDetailPanel — chỉ cho SUPER_ADMIN
+    private RestaurantDetailPanel restaurantDetailPanel;
+
+    private AdminStatsPanel adminStatsPanel;
 
     private JButton[] navButtons;
     // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
     private String[]  navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
         "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant",
-        "baomat"
+        "baomat", "adminstats"                               // ← thêm
     };
     private String[]  navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
         "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "🏪 Nhà hàng của tôi", "🔐 Bảo mật"
+        "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"   // ← thêm
     };
 
     /**
@@ -176,7 +181,9 @@ public class MainFrame extends JFrame implements SessionListener {
         // Chỉ khởi tạo RestaurantPanel khi SUPER_ADMIN — tránh SecurityException khi load dữ liệu
         com.restaurant.session.RbacGuard _guard = com.restaurant.session.RbacGuard.getInstance();
         if (_guard.isSuperAdmin()) {
-            restaurantPanel = new RestaurantPanel();
+            restaurantPanel       = new RestaurantPanel();
+            restaurantDetailPanel = new RestaurantDetailPanel(() -> navigateTo("nhahangs"));
+            adminStatsPanel       = new AdminStatsPanel();          // ← thêm
         }
         kitchenPanel       = new KitchenPanel();
         // Phase 5: khởi tạo WaiterServicePanel
@@ -199,13 +206,17 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(reportPanel,        "baocao");
         contentArea.add(statsPanel,         "thongke");
         contentArea.add(restaurantPanel != null ? restaurantPanel : buildPlaceholder("Nha hang"), "nhahangs");
+        contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
         contentArea.add(kitchenPanel,       "bep");
         // Phase 5: đăng ký WaiterServicePanel vào CardLayout
         contentArea.add(waiterServicePanel, "phucvu");
         // F3: đăng ký MyRestaurantInfoPanel vào CardLayout
         contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
                 : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
-        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout
+        // Phase 5: đăng ký AdminStatsPanel vào CardLayout
+        contentArea.add(adminStatsPanel != null ? adminStatsPanel
+                : buildPlaceholder("Thống kê Admin"), "adminstats");
+        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout — thiếu trước đây
         contentArea.add(auditLogPanel != null ? auditLogPanel
                 : buildPlaceholder("Nhật ký bảo mật"), "baomat");
 
@@ -276,6 +287,11 @@ public class MainFrame extends JFrame implements SessionListener {
 
                 case "baomat":
                     // Nhật ký bảo mật — chỉ SUPER_ADMIN
+                    navButtons[i].setVisible(isSuperAdmin);
+                    break;
+
+                case "adminstats":
+                    // Thống kê toàn hệ thống — chỉ SUPER_ADMIN
                     navButtons[i].setVisible(isSuperAdmin);
                     break;
 
@@ -431,7 +447,12 @@ public class MainFrame extends JFrame implements SessionListener {
             case "donhang":   orderPanel.loadData();            break;
             case "baocao":    reportPanel.loadData();           break;
             case "thongke":   statsPanel.loadAll();             break;
-            case "nhahangs":  restaurantPanel.loadData();       break;
+            case "adminstats":
+                if (adminStatsPanel != null) adminStatsPanel.loadStats();
+                break;
+            case "nhahangs":
+                if (restaurantPanel != null) restaurantPanel.loadData();
+                break;
             case "bep":       kitchenPanel.loadData();          break;
             case "phucvu":    waiterServicePanel.loadData();    break;
             // F3: load dữ liệu khi điều hướng đến tab "Nhà hàng của tôi"
@@ -441,6 +462,26 @@ public class MainFrame extends JFrame implements SessionListener {
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);
+            navButtons[i].putClientProperty("active", active);
+            navButtons[i].setForeground(active ? UIConstants.PRIMARY : UIConstants.TEXT_PRIMARY);
+            navButtons[i].setFont(active ? UIConstants.FONT_BOLD : UIConstants.FONT_NAV);
+            navButtons[i].repaint();
+        }
+    }
+
+    /**
+     * Phase 3: Điều hướng sang màn hình Chi tiết nhà hàng.
+     * Gọi từ RestaurantPanel khi người dùng click "👁 Xem chi tiết".
+     *
+     * @param r nhà hàng cần hiển thị chi tiết
+     */
+    public void showRestaurantDetail(Restaurant r) {
+        if (restaurantDetailPanel == null) return;
+        restaurantDetailPanel.populate(r);
+        cardLayout.show(contentArea, "restaurant_detail");
+        // Bỏ highlight nav button — đây là sub-view của "nhahangs"
+        for (int i = 0; i < navPages.length; i++) {
+            boolean active = "nhahangs".equals(navPages[i]);
             navButtons[i].putClientProperty("active", active);
             navButtons[i].setForeground(active ? UIConstants.PRIMARY : UIConstants.TEXT_PRIMARY);
             navButtons[i].setFont(active ? UIConstants.FONT_BOLD : UIConstants.FONT_NAV);
