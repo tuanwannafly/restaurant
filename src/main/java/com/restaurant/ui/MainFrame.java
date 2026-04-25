@@ -50,17 +50,20 @@ public class MainFrame extends JFrame implements SessionListener {
     private WaiterServicePanel  waiterServicePanel;
     // F3: MyRestaurantInfoPanel — chỉ cho RESTAURANT_ADMIN
     private MyRestaurantInfoPanel myRestaurantPanel;
+    // Phase 5 Audit: AuditLogPanel — chỉ cho SUPER_ADMIN
+    private AuditLogPanel         auditLogPanel;
 
     private JButton[] navButtons;
     // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
     private String[]  navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
-        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant"
+        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant",
+        "baomat"
     };
     private String[]  navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
         "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "🏪 Nhà hàng của tôi"
+        "🏪 Nhà hàng của tôi", "🔐 Bảo mật"
     };
 
     /**
@@ -183,6 +186,10 @@ public class MainFrame extends JFrame implements SessionListener {
         if (_guard.isRestaurantAdmin()) {
             myRestaurantPanel = new MyRestaurantInfoPanel();
         }
+        // Phase 5 Audit: khởi tạo AuditLogPanel chỉ khi SUPER_ADMIN
+        if (_guard.isSuperAdmin()) {
+            auditLogPanel = new AuditLogPanel();
+        }
 
         contentArea.add(homePanel,          "home");
         contentArea.add(menuPanel,          "menu");
@@ -199,6 +206,9 @@ public class MainFrame extends JFrame implements SessionListener {
         // F3: đăng ký MyRestaurantInfoPanel vào CardLayout
         contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
                 : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
+        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout
+        contentArea.add(auditLogPanel != null ? auditLogPanel
+                : buildPlaceholder("Nhật ký bảo mật"), "baomat");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, nav, contentArea);
         split.setDividerSize(0);
@@ -263,6 +273,11 @@ public class MainFrame extends JFrame implements SessionListener {
                 case "myrestaurant":
                     // Thông tin nhà hàng của mình — chỉ RESTAURANT_ADMIN
                     navButtons[i].setVisible(guard.isRestaurantAdmin());
+                    break;
+
+                case "baomat":
+                    // Nhật ký bảo mật — chỉ SUPER_ADMIN
+                    navButtons[i].setVisible(isSuperAdmin);
                     break;
 
                 // "home" và "baocao" luôn hiển thị (không cần case riêng)

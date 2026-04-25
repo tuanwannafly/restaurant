@@ -126,6 +126,11 @@ public class AppSession {
     public void logout() {
         if (!loggedIn) return;   // idempotent: không notify lần 2
 
+        // Phase 5: Ghi audit log trước khi xoá session data
+        try {
+            com.restaurant.session.AuditLogger.getInstance().logLogout();
+        } catch (Exception ignore) {}
+
         // Thu hồi session token trong DB
         TokenService.getInstance().revokeToken(this.sessionToken);
 

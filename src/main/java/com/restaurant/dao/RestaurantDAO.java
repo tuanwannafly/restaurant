@@ -10,6 +10,7 @@ import com.restaurant.db.DBConnection;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
 import com.restaurant.session.RbacGuard;
 
 /**
@@ -318,6 +319,9 @@ public class RestaurantDAO {
 
             ps.setLong(1, id);
             ps.executeUpdate();
+            // Phase 5: Ghi audit log
+            AuditLogger.getInstance().log("DELETE_RESTAURANT", id, "SUCCESS",
+                    "Xoá nhà hàng #" + id);
 
         } catch (Exception e) {
             throw new RuntimeException("[RestaurantDAO] Lỗi xóa nhà hàng: " + e.getMessage(), e);

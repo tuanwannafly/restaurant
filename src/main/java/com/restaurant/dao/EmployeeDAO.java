@@ -12,6 +12,7 @@ import java.util.Optional;
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 
@@ -219,6 +220,10 @@ public class EmployeeDAO {
             if (rowsAffected == 0) {
                 throw new SecurityException("Không có quyền xóa nhân viên này");
             }
+            // Phase 5: Ghi audit log
+            AuditLogger.getInstance().log("DELETE_EMPLOYEE",
+                    Long.parseLong(employeeId), "SUCCESS",
+                    "Xoá nhân viên #" + employeeId);
 
         } catch (SecurityException se) {
             throw se;
@@ -346,6 +351,10 @@ public class EmployeeDAO {
             if (rowsAffected == 0) {
                 throw new IllegalArgumentException("Role không hợp lệ: " + newRole);
             }
+            // Phase 5: Ghi audit log
+            AuditLogger.getInstance().log("CHANGE_ROLE",
+                    Long.parseLong(employeeId), "SUCCESS",
+                    "Đổi role nhân viên #" + employeeId + " → " + newRole);
 
         } catch (SecurityException | IllegalStateException | IllegalArgumentException ex) {
             throw ex;   // không bọc lại các business exception

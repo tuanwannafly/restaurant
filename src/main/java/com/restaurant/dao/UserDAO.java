@@ -11,6 +11,7 @@ import org.mindrot.jbcrypt.BCrypt;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 import com.restaurant.session.TokenService;
@@ -70,6 +71,14 @@ public class UserDAO {
      * Trả về true và ghi vào AppSession nếu thành công.
      */
     public boolean login(String email, String password) {
+        AuditLogger audit = AuditLogger.getInstance();
+
+        // Phase 5 — Brute-force: kiểm tra khoá trước khi truy vấn DB
+        if (audit.isAccountLocked(email.trim())) {
+            System.err.println("[UserDAO] Tài khoản bị khoá tạm thời: " + email);
+            return false;
+        }
+
         String sql = """
             SELECT u.user_id, u.name, u.email, u.password,
                    r.name  AS role_name,
@@ -85,17 +94,31 @@ public class UserDAO {
 
             ps.setString(1, email.trim());
             try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return false;
-
-                String hash = rs.getString("password");
-                if (hash == null || !BCrypt.checkpw(password, hash)) return false;
+                if (!rs.next()) {
+                    // Email không tồn tại → ghi FAIL, không lộ thông tin
+                    audit.logLogin(email.trim(), 0L, false);
+                    return false;
+                }
 
                 long   userId       = rs.getLong("user_id");
                 String name         = rs.getString("name");
                 String roleName     = rs.getString("role_name");
                 long   restaurantId = rs.getLong("restaurant_id");
+                String hash         = rs.getString("password");
 
-                // Ghi thông tin phiên vào AppSession
+                if (hash == null || !BCrypt.checkpw(password, hash)) {
+                    // Mật khẩu sai → ghi FAIL và kiểm tra ngưỡng brute-force
+                    audit.logLogin(email.trim(), userId, false);
+
+                    int failures = audit.countRecentLoginFailures(email.trim());
+                    if (failures >= 5) {
+                        audit.logAccountLocked(email.trim(), userId);
+                        System.err.println("[UserDAO] Khoá tài khoản 15 phút: " + email);
+                    }
+                    return false;
+                }
+
+                // Đăng nhập thành công → ghi vào AppSession
                 AppSession.getInstance().login(userId, name, email.trim(), roleName, restaurantId);
 
                 // Phase 6: Sinh session token và lưu vào AppSession
@@ -103,11 +126,12 @@ public class UserDAO {
                     String token = TokenService.getInstance().generateSessionToken(userId);
                     AppSession.getInstance().setSessionToken(token);
                 } catch (Exception tokenEx) {
-                    // Ghi log nhưng không chặn đăng nhập nếu DB token lỗi
                     System.err.println("[UserDAO] Cảnh báo: không tạo được session token: "
                             + tokenEx.getMessage());
                 }
 
+                // Ghi audit log LOGIN SUCCESS (sau khi có session)
+                audit.logLogin(email.trim(), userId, true);
                 return true;
             }
         } catch (Exception e) {
@@ -521,6 +545,8 @@ public class UserDAO {
             ps.setString(1, newHash);
             ps.setLong  (2, userId);
             ps.executeUpdate();
+            // Phase 5: Ghi audit log đổi mật khẩu
+            AuditLogger.getInstance().logPasswordChange(userId);
         } catch (Exception e) {
             throw new RuntimeException("[UserDAO] Lỗi cập nhật mật khẩu: " + e.getMessage(), e);
         }
@@ -708,6 +734,8 @@ public class UserDAO {
             ps.setString(1, newHash);
             ps.setLong  (2, userId);
             ps.executeUpdate();
+            // Phase 5: Ghi audit log
+            AuditLogger.getInstance().logPasswordChange(userId);
             return true;
         } catch (Exception e) {
             throw new RuntimeException("[UserDAO] Lỗi cập nhật mật khẩu: " + e.getMessage(), e);
