@@ -1,32 +1,49 @@
 package com.restaurant.ui;
 
-import com.restaurant.dao.RestaurantDAO;
-import com.restaurant.model.Restaurant;
-import com.restaurant.model.Restaurant.Status;
-import com.restaurant.ui.dialog.RestaurantDialog;
-
-import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JSeparator;
+import javax.swing.JTable;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+
+import com.restaurant.dao.RestaurantDAO;
+import com.restaurant.dao.UserDAO;
+import com.restaurant.model.Restaurant;
+import com.restaurant.model.Restaurant.Status;
+import com.restaurant.ui.dialog.RestaurantDialog;
+import com.restaurant.ui.dialog.RestaurantDialog.AdminChoice;
+
 /**
  * Panel quản lý danh sách nhà hàng — chỉ hiển thị khi người dùng là SUPER_ADMIN.
  *
- * <p>Cấu trúc giống {@link EmployeePanel}:
+ * <p>Khi tạo nhà hàng mới, người dùng có thể đồng thời:
  * <ul>
- *   <li>JTable hiển thị danh sách (ID, Tên, Địa chỉ, SĐT, Email, Trạng thái)</li>
- *   <li>Nút "Thêm nhà hàng" → mở {@link RestaurantDialog}</li>
- *   <li>Cột Actions: [Sửa] [Kích hoạt / Vô hiệu hóa] [Xóa]</li>
+ *   <li>Chọn một RESTAURANT_ADMIN có sẵn để gán cho nhà hàng vừa tạo</li>
+ *   <li>Tạo tài khoản RESTAURANT_ADMIN mới ngay tại chỗ</li>
+ *   <li>Bỏ qua — gán admin sau</li>
  * </ul>
  */
 public class RestaurantPanel extends JPanel {
 
     private final RestaurantDAO          dao           = new RestaurantDAO();
+    private final UserDAO                userDAO       = new UserDAO();
     private       DefaultTableModel      tableModel;
     private       StyledTable            table;
     private       List<Restaurant>       displayedItems = new ArrayList<>();
@@ -96,7 +113,6 @@ public class RestaurantPanel extends JPanel {
 
     // ── Data ──────────────────────────────────────────────────────────────────
 
-    /** Tải dữ liệu từ DB bằng SwingWorker (không block EDT). */
     public void loadData() {
         new SwingWorker<List<Restaurant>, Void>() {
             @Override
@@ -134,53 +150,86 @@ public class RestaurantPanel extends JPanel {
 
     // ── Action handler ────────────────────────────────────────────────────────
 
-    /**
-     * Xác định hành động dựa trên vị trí click trong cột Actions.
-     * Phân vùng X:
-     *   [0  – 64)  → Sửa
-     *   [64 – 180) → Toggle status
-     *   [180 – ∞)  → Xóa
-     */
     private void handleAction(MouseEvent e, int row) {
         Rectangle cellRect = table.getCellRect(row, 6, false);
         int relX = e.getX() - cellRect.x;
         Restaurant item = displayedItems.get(row);
 
         if (relX < 64) {
-            // ── Sửa ──
             openEditDialog(item);
         } else if (relX < 180) {
-            // ── Toggle status ──
             toggleStatus(item);
         } else {
-            // ── Xóa ──
             deleteRestaurant(item);
         }
     }
 
     // ── CRUD operations ───────────────────────────────────────────────────────
 
+    /**
+     * Mở dialog thêm nhà hàng mới (với phần chọn / tạo admin).
+     * Sau khi restaurant được lưu thành công, xử lý AdminChoice tiếp theo.
+     */
     private void openAddDialog() {
-        new RestaurantDialog(SwingUtilities.getWindowAncestor(this), null, saved -> {
-            new SwingWorker<Void, Void>() {
-                @Override protected Void doInBackground() {
-                    dao.add(saved);
-                    return null;
-                }
-                @Override protected void done() {
-                    try { get(); loadData(); }
-                    catch (Exception ex) {
-                        JOptionPane.showMessageDialog(RestaurantPanel.this,
-                            "Lỗi thêm nhà hàng: " + getRootMessage(ex),
-                            "Lỗi", JOptionPane.ERROR_MESSAGE);
+        new RestaurantDialog(SwingUtilities.getWindowAncestor(this), null,
+            (Restaurant saved, AdminChoice adminChoice) -> {
+                new SwingWorker<String, Void>() {
+
+                    @Override
+                    protected String doInBackground() throws Exception {
+                        // 1. Tạo nhà hàng — restaurantId được cập nhật vào saved
+                        dao.add(saved);
+                        long restaurantId = saved.getRestaurantId();
+
+                        // 2. Xử lý admin
+                        return switch (adminChoice.mode) {
+                            case EXISTING -> {
+                                userDAO.assignAdminToRestaurant(
+                                    adminChoice.existingUserId, restaurantId);
+                                yield "Nhà hàng đã được tạo và gán admin thành công!";
+                            }
+                            case NEW -> {
+                                userDAO.registerRestaurantAdmin(
+                                    adminChoice.newName,
+                                    adminChoice.newEmail,
+                                    adminChoice.newPassword,
+                                    restaurantId);
+                                yield "Nhà hàng đã được tạo!\n"
+                                    + "Tài khoản admin mới: " + adminChoice.newEmail;
+                            }
+                            case SKIP ->
+                                "Nhà hàng đã được tạo. Nhớ gán admin sau!";
+                        };
                     }
-                }
-            }.execute();
-        }).setVisible(true);
+
+                    @Override
+                    protected void done() {
+                        try {
+                            String msg = get();
+                            loadData();
+                            JOptionPane.showMessageDialog(RestaurantPanel.this,
+                                msg, "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                        } catch (java.util.concurrent.ExecutionException ee) {
+                            Throwable cause = ee.getCause() != null ? ee.getCause() : ee;
+                            // Nếu lỗi xảy ra sau khi restaurant đã tạo → reload để hiển thị
+                            loadData();
+                            JOptionPane.showMessageDialog(RestaurantPanel.this,
+                                "Nhà hàng đã tạo nhưng gán admin thất bại:\n"
+                                + cause.getMessage()
+                                + "\n\nVui lòng gán admin sau.",
+                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(RestaurantPanel.this,
+                                "Lỗi thêm nhà hàng: " + getRootMessage(ex),
+                                "Lỗi", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                }.execute();
+            }
+        ).setVisible(true);
     }
 
     private void openEditDialog(Restaurant item) {
-        // Refresh từ DB trước khi mở dialog
         Restaurant fresh = findByIdSafe(item.getRestaurantId());
         if (fresh == null) {
             JOptionPane.showMessageDialog(this,
@@ -250,7 +299,6 @@ public class RestaurantPanel extends JPanel {
                     loadData();
                 } catch (java.util.concurrent.ExecutionException ee) {
                     Throwable cause = ee.getCause();
-                    // Hiện thông báo ràng buộc nhân viên rõ ràng
                     if (cause instanceof IllegalStateException) {
                         JOptionPane.showMessageDialog(RestaurantPanel.this,
                             cause.getMessage(),
@@ -272,23 +320,16 @@ public class RestaurantPanel extends JPanel {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Restaurant findByIdSafe(long id) {
-        try {
-            return dao.findById(id);
-        } catch (Exception e) {
-            return null;
-        }
+        try { return dao.findById(id); } catch (Exception e) { return null; }
     }
 
-    /** Lấy message gốc từ exception (unwrap RuntimeException wrapper). */
     private String getRootMessage(Exception ex) {
         Throwable cause = ex.getCause();
-        if (cause != null) return cause.getMessage();
-        return ex.getMessage();
+        return cause != null ? cause.getMessage() : ex.getMessage();
     }
 
     // ── Cell Renderers ────────────────────────────────────────────────────────
 
-    /** Tô màu cột Trạng thái: xanh = ACTIVE, đỏ = INACTIVE. */
     private static class StatusRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
@@ -308,10 +349,6 @@ public class RestaurantPanel extends JPanel {
         }
     }
 
-    /**
-     * Renderer cột Actions: [Sửa] [Kích hoạt/Vô hiệu hóa] [Xóa].
-     * Label nút toggle thay đổi theo trạng thái của dòng hiện tại.
-     */
     private class ActionRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable tbl, Object value,
@@ -321,7 +358,6 @@ public class RestaurantPanel extends JPanel {
                                   : (row % 2 == 0 ? Color.WHITE : new Color(0xF9FAFB));
             panel.setBackground(bg);
 
-            // Xác định nhãn nút toggle
             String toggleLabel = "Kích hoạt";
             if (row < displayedItems.size()) {
                 Restaurant r = displayedItems.get(row);
@@ -330,11 +366,11 @@ public class RestaurantPanel extends JPanel {
             Color toggleColor = "Vô hiệu hóa".equals(toggleLabel)
                     ? UIConstants.WARNING : UIConstants.SUCCESS;
 
-            panel.add(styledLabel("✏ Sửa",          UIConstants.PRIMARY));
+            panel.add(styledLabel("✏ Sửa",           UIConstants.PRIMARY));
             panel.add(sep());
             panel.add(styledLabel("⇄ " + toggleLabel, toggleColor));
             panel.add(sep());
-            panel.add(styledLabel("🗑 Xóa",          UIConstants.DANGER));
+            panel.add(styledLabel("🗑 Xóa",           UIConstants.DANGER));
             return panel;
         }
 

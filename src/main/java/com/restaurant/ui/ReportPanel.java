@@ -1,15 +1,10 @@
 package com.restaurant.ui;
 
-import com.restaurant.dao.ReportDAO;
-import com.restaurant.model.Report;
-import com.restaurant.session.RbacGuard;
-import com.restaurant.ui.dialog.ReportAddDialog;
-import com.restaurant.ui.dialog.ReportDetailDialog;
-
-import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -18,6 +13,25 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTable;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+
+import com.restaurant.dao.ReportDAO;
+import com.restaurant.model.Report;
+import com.restaurant.session.RbacGuard;
+import com.restaurant.ui.dialog.ReportAddDialog;
+import com.restaurant.ui.dialog.ReportDetailDialog;
 
 public class ReportPanel extends JPanel {
 
@@ -31,10 +45,12 @@ public class ReportPanel extends JPanel {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    private final boolean isManager = RbacGuard.getInstance().isManagerOrAbove();
+    private final boolean isManager    = RbacGuard.getInstance().isManagerOrAbove();
+    private final boolean isSuperAdmin = RbacGuard.getInstance().isSuperAdmin();
 
-    private static final String[] COLUMNS_MANAGER = {"ID", "Tiêu đề", "Loại", "Mức độ", "Trạng thái", "Ngày tạo", "Người tạo"};
-    private static final String[] COLUMNS_STAFF   = {"ID", "Tiêu đề", "Loại", "Mức độ", "Trạng thái", "Ngày tạo"};
+    private static final String[] COLUMNS_SUPER_ADMIN = {"ID", "Tiêu đề", "Loại", "Mức độ", "Trạng thái", "Ngày tạo", "Nhà hàng"};
+    private static final String[] COLUMNS_MANAGER     = {"ID", "Tiêu đề", "Loại", "Mức độ", "Trạng thái", "Ngày tạo", "Người tạo"};
+    private static final String[] COLUMNS_STAFF       = {"ID", "Tiêu đề", "Loại", "Mức độ", "Trạng thái", "Ngày tạo"};
 
     public ReportPanel() {
         setBackground(UIConstants.BG_PAGE);
@@ -49,16 +65,18 @@ public class ReportPanel extends JPanel {
         topBar.setOpaque(false);
         topBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
 
-        JLabel title = new JLabel("Báo cáo sự cố");
+        JLabel title = new JLabel(isSuperAdmin ? "Báo cáo từ các nhà hàng" : "Báo cáo sự cố");
         title.setFont(UIConstants.FONT_TITLE);
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
         RoundedButton btnAdd = new RoundedButton("+ Gửi báo cáo");
         btnAdd.setPreferredSize(new Dimension(140, UIConstants.BTN_HEIGHT));
         btnAdd.addActionListener(e -> openAddDialog());
-
-        topBar.add(title,  BorderLayout.WEST);
-        topBar.add(btnAdd, BorderLayout.EAST);
+        topBar.add(title, BorderLayout.WEST);
+        // SUPER_ADMIN chỉ tiếp nhận và xử lý báo cáo, không gửi mới
+        if (!isSuperAdmin) {
+            topBar.add(btnAdd, BorderLayout.EAST);
+        }
 
         // ── FilterBar ─────────────────────────────────────────────────────────
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -107,7 +125,9 @@ public class ReportPanel extends JPanel {
         header.add(loadingLabel);
 
         // ── Table ─────────────────────────────────────────────────────────────
-        String[] columns = isManager ? COLUMNS_MANAGER : COLUMNS_STAFF;
+        String[] columns = isSuperAdmin ? COLUMNS_SUPER_ADMIN
+                         : isManager   ? COLUMNS_MANAGER
+                                       : COLUMNS_STAFF;
         tableModel = new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -115,13 +135,13 @@ public class ReportPanel extends JPanel {
 
         // Column widths
         table.getColumnModel().getColumn(0).setPreferredWidth(50);
-        table.getColumnModel().getColumn(1).setPreferredWidth(220);
+        table.getColumnModel().getColumn(1).setPreferredWidth(200);
         table.getColumnModel().getColumn(2).setPreferredWidth(90);
         table.getColumnModel().getColumn(3).setPreferredWidth(100);
         table.getColumnModel().getColumn(4).setPreferredWidth(110);
         table.getColumnModel().getColumn(5).setPreferredWidth(130);
-        if (isManager) {
-            table.getColumnModel().getColumn(6).setPreferredWidth(120);
+        if (isSuperAdmin || isManager) {
+            table.getColumnModel().getColumn(6).setPreferredWidth(150);
         }
 
         // Severity cell renderer
@@ -228,7 +248,17 @@ public class ReportPanel extends JPanel {
 
         tableModel.setRowCount(0);
         for (Report r : filtered) {
-            if (isManager) {
+            if (isSuperAdmin) {
+                tableModel.addRow(new Object[]{
+                    r.getReportId(),
+                    r.getTitle(),
+                    r.getReportTypeDisplay(),
+                    r.getSeverityDisplay(),
+                    r.getStatusDisplay(),
+                    r.getCreatedAt() != null ? r.getCreatedAt().format(FMT) : "",
+                    r.getRestaurantName() != null ? r.getRestaurantName() : "Nhà hàng #" + r.getRestaurantId()
+                });
+            } else if (isManager) {
                 tableModel.addRow(new Object[]{
                     r.getReportId(),
                     r.getTitle(),
