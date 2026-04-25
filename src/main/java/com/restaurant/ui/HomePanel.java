@@ -30,11 +30,10 @@ public class HomePanel extends JPanel {
 
     // ── Stats labels (updated by refreshStats) ────────────────────────────────
 
-    private JLabel lblAvailable;
-    private JLabel lblOccupied;
-    private JLabel lblDirty;
-    private JLabel lblPending;
-    private JLabel lblCompletedToday;
+    private JLabel lblActiveRestaurants;
+    private JLabel lblNewRestaurants;
+    private JLabel lblRevenue;
+    private JLabel lblOrderCount;
 
     /** G2: hiển thị tên nhà hàng đang đăng nhập. */
     private JLabel lblRestaurantName;
@@ -81,53 +80,38 @@ public class HomePanel extends JPanel {
         title.setAlignmentX(CENTER_ALIGNMENT);
         content.add(title);
 
-        // G2: tên nhà hàng đang đăng nhập (refreshed cùng poll 15s)
+        // lblRestaurantName: field được giữ lại nhưng không thêm vào layout (Phase 1)
         lblRestaurantName = new JLabel(" ");
         lblRestaurantName.setFont(UIConstants.FONT_BODY);
         lblRestaurantName.setForeground(UIConstants.TEXT_SECONDARY);
         lblRestaurantName.setAlignmentX(CENTER_ALIGNMENT);
-        content.add(lblRestaurantName);
 
         content.add(Box.createVerticalStrut(20));
 
-        // ── Section: Trạng thái bàn ──
-        content.add(makeSectionLabel("🪑  Trạng thái bàn"));
+        // ── Section: Thống kê nhanh (hôm nay) ──
+        JLabel sectionLabel = new JLabel("Thống kê nhanh (hôm nay)");
+        sectionLabel.setFont(UIConstants.FONT_BOLD);
+        sectionLabel.setForeground(UIConstants.TEXT_PRIMARY);
+        content.add(sectionLabel);
         content.add(Box.createVerticalStrut(10));
 
-        JPanel tableStats = new JPanel(new GridBagLayout());
-        tableStats.setOpaque(false);
+        JPanel statsPanel = new JPanel(new GridBagLayout());
+        statsPanel.setOpaque(false);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets  = new Insets(6, 0, 6, 0);
         gbc.fill    = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1;
 
-        lblAvailable = makeValueLabel("—");
-        lblOccupied  = makeValueLabel("—");
-        lblDirty     = makeValueLabel("—");
+        lblActiveRestaurants = makeValueLabel("—");
+        lblNewRestaurants    = makeValueLabel("—");
+        lblRevenue           = makeValueLabel("—");
+        lblOrderCount        = makeValueLabel("—");
 
-        addStatRow(tableStats, gbc, 0, "Bàn trống (AVAILABLE):", lblAvailable, UIConstants.SUCCESS);
-        addStatRow(tableStats, gbc, 1, "Bàn đang phục vụ:",      lblOccupied,  UIConstants.WARNING);
-        addStatRow(tableStats, gbc, 2, "Bàn cần dọn (DIRTY):",   lblDirty,     UIConstants.DANGER);
-        content.add(tableStats);
-        content.add(Box.createVerticalStrut(22));
-
-        // ── Section: Đơn hàng ──
-        content.add(makeSectionLabel("📋  Đơn hàng hôm nay"));
-        content.add(Box.createVerticalStrut(10));
-
-        JPanel orderStats = new JPanel(new GridBagLayout());
-        orderStats.setOpaque(false);
-        GridBagConstraints gbc2 = new GridBagConstraints();
-        gbc2.insets  = new Insets(6, 0, 6, 0);
-        gbc2.fill    = GridBagConstraints.HORIZONTAL;
-        gbc2.weightx = 1;
-
-        lblPending        = makeValueLabel("—");
-        lblCompletedToday = makeValueLabel("—");
-
-        addStatRow(orderStats, gbc2, 0, "Đang chờ / đang nấu:", lblPending,        UIConstants.PRIMARY);
-        addStatRow(orderStats, gbc2, 1, "Hoàn tất hôm nay:",    lblCompletedToday, UIConstants.SUCCESS);
-        content.add(orderStats);
+        addStatRow(statsPanel, gbc, 0, "Số nhà hàng đang hoạt động:", lblActiveRestaurants, UIConstants.TEXT_PRIMARY);
+        addStatRow(statsPanel, gbc, 1, "Số nhà hàng mới tạo :",       lblNewRestaurants,    UIConstants.TEXT_PRIMARY);
+        addStatRow(statsPanel, gbc, 2, "Doanh thu:",                   lblRevenue,           UIConstants.TEXT_PRIMARY);
+        addStatRow(statsPanel, gbc, 3, "Số đơn hàng:",                 lblOrderCount,        UIConstants.TEXT_PRIMARY);
+        content.add(statsPanel);
 
         add(content, BorderLayout.NORTH);
         revalidate();
@@ -141,30 +125,27 @@ public class HomePanel extends JPanel {
      * Called by PollManager every 15 s and on demand.
      */
     public void refreshStats() {
-        long restaurantId = AppSession.getInstance().getRestaurantId();
-
-        new SwingWorker<Map<String, Integer>, Void>() {
+        new SwingWorker<Map<String, Long>, Void>() {
             private String restaurantName;
 
             @Override
-            protected Map<String, Integer> doInBackground() {
+            protected Map<String, Long> doInBackground() {
                 // G2: piggybacked onto the existing poll — DataManager cache absorbs cost
                 Restaurant r = DataManager.getInstance().getMyRestaurant();
                 restaurantName = (r != null && r.getName() != null)
                         ? "🏪 " + r.getName() : "";
-                return new StatsDAO().getDashboardStats(restaurantId);
+                return new StatsDAO().getAdminDashboardStats();
             }
 
             @Override
             protected void done() {
                 try {
-                    Map<String, Integer> s = get();
-                    lblAvailable     .setText(String.valueOf(s.get("tables_available")));
-                    lblOccupied      .setText(String.valueOf(s.get("tables_occupied")));
-                    lblDirty         .setText(String.valueOf(s.get("tables_dirty")));
-                    lblPending       .setText(String.valueOf(s.get("orders_pending")));
-                    lblCompletedToday.setText(String.valueOf(s.get("orders_completed_today")));
-                    // G2: update restaurant name label on EDT
+                    Map<String, Long> s = get();
+                    lblActiveRestaurants.setText(String.valueOf(s.get("active_restaurants")));
+                    lblNewRestaurants   .setText(String.valueOf(s.get("new_restaurants")));
+                    lblRevenue          .setText(String.format("%,.0f", (double) s.get("revenue_today")));
+                    lblOrderCount       .setText(String.valueOf(s.get("orders_today")));
+                    // G2: cập nhật restaurantName (field giữ nguyên theo spec)
                     if (lblRestaurantName != null) {
                         lblRestaurantName.setText(restaurantName);
                     }
@@ -201,7 +182,7 @@ public class HomePanel extends JPanel {
         JLabel lbl = new JLabel(labelText);
         lbl.setFont(UIConstants.FONT_BODY);
         lbl.setForeground(UIConstants.TEXT_PRIMARY);
-        lbl.setPreferredSize(new Dimension(210, 36));
+        lbl.setPreferredSize(new Dimension(230, 36));
         panel.add(lbl, gbc);
 
         gbc.gridx = 1; gbc.weightx = 1;

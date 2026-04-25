@@ -260,4 +260,65 @@ public class StatsDAO {
 
         return result;
     }
+
+    // ── Method 5: getAdminDashboardStats ──────────────────────────────────────
+
+    /**
+     * Thống kê tổng quan toàn hệ thống dành cho màn hình HomePanel (SUPER_ADMIN).<br>
+     * Trả về Map với các keys:
+     * <ul>
+     *   <li>{@code active_restaurants}  – số nhà hàng đang hoạt động (status = 'ACTIVE')</li>
+     *   <li>{@code new_restaurants}     – số nhà hàng mới tạo trong ngày hôm nay</li>
+     *   <li>{@code revenue_today}       – tổng doanh thu hôm nay, VND (kiểu Long)</li>
+     *   <li>{@code orders_today}        – số đơn hoàn tất hôm nay</li>
+     * </ul>
+     *
+     * <p>Dùng scalar subquery trên {@code DUAL} để lấy 4 chỉ số trong một round-trip DB.
+     * Không có guard quyền — cùng chiến lược với {@link #getDashboardStats(long)}.
+     *
+     * @return Map&lt;String, Long&gt; – không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Long> getAdminDashboardStats() {
+        // NOTE: không gọi requireManager() – HomePanel hiển thị cho mọi admin đăng nhập
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE status = 'ACTIVE')                             AS active_restaurants, " +
+            "  (SELECT COUNT(*) " +
+            "     FROM restaurants " +
+            "    WHERE TRUNC(created_at) = TRUNC(SYSDATE))            AS new_restaurants, " +
+            "  (SELECT NVL(SUM(total_amount), 0) " +
+            "     FROM orders " +
+            "    WHERE status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))          AS revenue_today, " +
+            "  (SELECT COUNT(*) " +
+            "     FROM orders " +
+            "    WHERE status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))          AS orders_today " +
+            "FROM DUAL";
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("active_restaurants", 0L);
+        result.put("new_restaurants",    0L);
+        result.put("revenue_today",      0L);
+        result.put("orders_today",       0L);
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            if (rs.next()) {
+                result.put("active_restaurants", rs.getLong("active_restaurants"));
+                result.put("new_restaurants",    rs.getLong("new_restaurants"));
+                result.put("revenue_today",      rs.getLong("revenue_today"));
+                result.put("orders_today",       rs.getLong("orders_today"));
+            }
+
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getAdminDashboardStats lỗi: " + e.getMessage());
+        }
+
+        return result;
+    }
 }
