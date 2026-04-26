@@ -7,10 +7,12 @@ import java.awt.Dialog.ModalityType;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.Window;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -34,17 +36,15 @@ import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
+import com.restaurant.dao.OrderDAO;
 import com.restaurant.data.DataManager;
+import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
-import com.restaurant.dao.OrderDAO;
-import com.restaurant.model.Order;
 import com.restaurant.ui.dialog.OpenTableDialog;
 import com.restaurant.ui.dialog.PaymentDialog;
 import com.restaurant.ui.dialog.TableDialog;
-
-import java.awt.Window;
 
 public class TablePanel extends JPanel {
 
