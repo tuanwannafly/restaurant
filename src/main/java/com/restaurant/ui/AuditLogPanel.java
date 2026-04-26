@@ -1,10 +1,15 @@
 package com.restaurant.ui;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -14,6 +19,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -24,6 +31,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerDateModel;
 import javax.swing.SpinnerModel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
@@ -63,6 +71,10 @@ public class AuditLogPanel extends JPanel {
     private static final DateTimeFormatter CSV_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // Card names for CardLayout swap
+    private static final String CARD_TABLE = "table";
+    private static final String CARD_EMPTY = "empty";
+
     // ── Components ────────────────────────────────────────────────────────────
 
     private DefaultTableModel tableModel;
@@ -74,6 +86,10 @@ public class AuditLogPanel extends JPanel {
     private JSpinner          spinTo;
     private JButton           btnRefresh;
     private JButton           btnExport;
+
+    /** CardLayout host that swaps between the table scroll pane and empty state. */
+    private JPanel    contentPanel;
+    private CardLayout contentLayout;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -101,32 +117,24 @@ public class AuditLogPanel extends JPanel {
         // ── Tiêu đề ───────────────────────────────────────────────────────────
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setOpaque(false);
-        topBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
+        topBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 
         JLabel title = new JLabel("🔐 Nhật ký bảo mật");
         title.setFont(UIConstants.FONT_TITLE);
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
-        countLabel = new JLabel("Đang tải...");
-        countLabel.setFont(UIConstants.FONT_SMALL);
-        countLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        topBar.add(title, BorderLayout.WEST);
 
-        topBar.add(title,      BorderLayout.WEST);
-        topBar.add(countLabel, BorderLayout.EAST);
+        // ── PHẦN A — Filter Row 1: action + date range ────────────────────────
+        JPanel filterRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        filterRow1.setOpaque(false);
 
-        // ── Filter bar ────────────────────────────────────────────────────────
-        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
-        filterBar.setOpaque(false);
-        filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
-
-        // Lọc action
         JLabel lblAction = new JLabel("Loại hành động:");
         lblAction.setFont(UIConstants.FONT_BODY);
         cmbAction = new JComboBox<>(ACTIONS);
         cmbAction.setFont(UIConstants.FONT_BODY);
         cmbAction.setPreferredSize(new Dimension(160, 32));
 
-        // Lọc ngày từ - đến
         JLabel lblFrom = new JLabel("Từ ngày:");
         lblFrom.setFont(UIConstants.FONT_BODY);
         spinFrom = makeDateSpinner(LocalDate.now().minusDays(7));
@@ -135,32 +143,57 @@ public class AuditLogPanel extends JPanel {
         lblTo.setFont(UIConstants.FONT_BODY);
         spinTo = makeDateSpinner(LocalDate.now().plusDays(1));
 
-        btnRefresh = new RoundedButton("🔄 Tải lại");
+        filterRow1.add(lblAction);
+        filterRow1.add(cmbAction);
+        filterRow1.add(lblFrom);
+        filterRow1.add(spinFrom);
+        filterRow1.add(lblTo);
+        filterRow1.add(spinTo);
+
+        // ── PHẦN A+B+E — Filter Row 2: buttons (left) + countLabel (right) ────
+        JPanel filterRow2 = new JPanel(new BorderLayout());
+        filterRow2.setOpaque(false);
+        filterRow2.setBorder(BorderFactory.createEmptyBorder(4, 0, 10, 0));
+
+        // PHẦN B — Button panel
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        btnPanel.setOpaque(false);
+
+        btnRefresh = new RoundedButton("Tải lại");
         btnRefresh.setPreferredSize(new Dimension(100, UIConstants.BTN_HEIGHT));
         btnRefresh.setBackground(UIConstants.PRIMARY);
         btnRefresh.setForeground(UIConstants.TEXT_WHITE);
         btnRefresh.addActionListener(e -> loadData());
 
-        btnExport = new RoundedButton("📥 Xuất CSV");
+        btnExport = new RoundedButton("Xuất CSV");
         btnExport.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
         btnExport.setBackground(UIConstants.SUCCESS);
         btnExport.setForeground(UIConstants.TEXT_WHITE);
         btnExport.addActionListener(e -> exportCsv());
 
-        filterBar.add(lblAction);
-        filterBar.add(cmbAction);
-        filterBar.add(lblFrom);
-        filterBar.add(spinFrom);
-        filterBar.add(lblTo);
-        filterBar.add(spinTo);
-        filterBar.add(btnRefresh);
-        filterBar.add(btnExport);
+        btnPanel.add(btnRefresh);
+        btnPanel.add(btnExport);
+
+        // PHẦN E — Count label pushed to the right
+        countLabel = new JLabel("Đang tải...");
+        countLabel.setFont(UIConstants.FONT_SMALL);
+        countLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        countLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        filterRow2.add(btnPanel,    BorderLayout.WEST);
+        filterRow2.add(countLabel,  BorderLayout.EAST);
+
+        // ── PHẦN A — filterWrapper combines both rows ─────────────────────────
+        JPanel filterWrapper = new JPanel(new BorderLayout());
+        filterWrapper.setOpaque(false);
+        filterWrapper.add(filterRow1, BorderLayout.NORTH);
+        filterWrapper.add(filterRow2, BorderLayout.CENTER);
 
         // ── Top wrapper ───────────────────────────────────────────────────────
         JPanel topWrapper = new JPanel(new BorderLayout());
         topWrapper.setOpaque(false);
-        topWrapper.add(topBar,    BorderLayout.NORTH);
-        topWrapper.add(filterBar, BorderLayout.CENTER);
+        topWrapper.add(topBar,       BorderLayout.NORTH);
+        topWrapper.add(filterWrapper, BorderLayout.CENTER);
 
         // ── Loading label ─────────────────────────────────────────────────────
         loadingLabel = new JLabel("Đang tải dữ liệu...", JLabel.CENTER);
@@ -179,28 +212,71 @@ public class AuditLogPanel extends JPanel {
         table.getTableHeader().setForeground(UIConstants.TEXT_PRIMARY);
         table.setFont(UIConstants.FONT_BODY);
 
-        // Column widths
         int[] widths = {55, 160, 110, 90, 75, 280, 150};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
 
-        // Màu kết quả
+        // PHẦN C — Badge renderer for result column
         table.getColumnModel().getColumn(4).setCellRenderer(new ResultCellRenderer());
 
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR));
         scroll.getViewport().setBackground(UIConstants.BG_WHITE);
 
-        add(topWrapper, BorderLayout.NORTH);
-        add(loadingLabel, BorderLayout.CENTER);
-        add(scroll, BorderLayout.CENTER);
+        // ── PHẦN D — Empty state panel ────────────────────────────────────────
+        JPanel emptyState = buildEmptyState();
+
+        // ── PHẦN D — CardLayout host swaps table ↔ emptyState ────────────────
+        contentLayout = new CardLayout();
+        contentPanel  = new JPanel(contentLayout);
+        contentPanel.setOpaque(false);
+        contentPanel.add(scroll,      CARD_TABLE);
+        contentPanel.add(emptyState,  CARD_EMPTY);
+
+        add(topWrapper,   BorderLayout.NORTH);
+        add(loadingLabel, BorderLayout.BEFORE_FIRST_LINE); // invisible by default
+        add(contentPanel, BorderLayout.CENTER);
+    }
+
+    // ── PHẦN D — Empty state builder ─────────────────────────────────────────
+
+    private JPanel buildEmptyState() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel iconLbl = new JLabel("🔍");
+        iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 40));
+        iconLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel msgLbl = new JLabel("Không có bản ghi nào");
+        msgLbl.setFont(UIConstants.FONT_TITLE);
+        msgLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        msgLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel hintLbl = new JLabel("Thử thay đổi bộ lọc hoặc khoảng thời gian");
+        hintLbl.setFont(UIConstants.FONT_BODY);
+        hintLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        hintLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        panel.add(Box.createVerticalGlue());
+        panel.add(iconLbl);
+        panel.add(Box.createVerticalStrut(12));
+        panel.add(msgLbl);
+        panel.add(Box.createVerticalStrut(6));
+        panel.add(hintLbl);
+        panel.add(Box.createVerticalGlue());
+
+        return panel;
     }
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
     private void loadData() {
+        // PHẦN B — loading state text
         btnRefresh.setEnabled(false);
+        btnRefresh.setText("Đang tải...");
         loadingLabel.setVisible(true);
         countLabel.setText("Đang tải...");
 
@@ -219,7 +295,8 @@ public class AuditLogPanel extends JPanel {
                 try {
                     List<AuditEntry> entries = get();
                     populateTable(entries);
-                    countLabel.setText("Tổng: " + entries.size() + " bản ghi");
+                    // PHẦN E — updated format
+                    countLabel.setText("Hiển thị " + entries.size() + " bản ghi");
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog(AuditLogPanel.this,
                             "Lỗi tải dữ liệu: " + e.getMessage(),
@@ -227,7 +304,9 @@ public class AuditLogPanel extends JPanel {
                     countLabel.setText("Lỗi tải dữ liệu");
                 } finally {
                     loadingLabel.setVisible(false);
+                    // PHẦN B — restore button text
                     btnRefresh.setEnabled(true);
+                    btnRefresh.setText("Tải lại");
                 }
             }
         };
@@ -236,6 +315,14 @@ public class AuditLogPanel extends JPanel {
 
     private void populateTable(List<AuditEntry> entries) {
         tableModel.setRowCount(0);
+
+        // PHẦN D — show empty state when no data
+        if (entries.isEmpty()) {
+            contentLayout.show(contentPanel, CARD_EMPTY);
+            return;
+        }
+
+        contentLayout.show(contentPanel, CARD_TABLE);
         for (AuditEntry e : entries) {
             tableModel.addRow(new Object[]{
                 e.logId,
@@ -349,25 +436,61 @@ public class AuditLogPanel extends JPanel {
         return s;
     }
 
-    // ── Custom cell renderer ──────────────────────────────────────────────────
+    // ── PHẦN C — Pill badge renderer ─────────────────────────────────────────
 
+    /**
+     * Renders a pill-shaped badge for the Kết quả column.
+     * Background is painted via fillRoundRect; the label text is replaced
+     * with a prefixed version ("✓ SUCCESS", "✗ FAIL", "⚠ LOCKED").
+     */
     private static class ResultCellRenderer extends DefaultTableCellRenderer {
+
+        private Color bgColor = Color.WHITE;
+
         @Override
         public Component getTableCellRendererComponent(
-                javax.swing.JTable table, Object value,
+                javax.swing.JTable t, Object value,
                 boolean isSelected, boolean hasFocus, int row, int column) {
-            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
             String v = value != null ? value.toString() : "";
-            if (!isSelected) {
+
+            // Prefix text with visual indicator
+            String display = switch (v) {
+                case "SUCCESS" -> "✓ SUCCESS";
+                case "FAIL"    -> "✗ FAIL";
+                case "LOCKED"  -> "⚠ LOCKED";
+                default        -> v;
+            };
+
+            super.getTableCellRendererComponent(t, display, isSelected, hasFocus, row, column);
+            setHorizontalAlignment(CENTER);
+            setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+            setOpaque(false); // we paint the background ourselves
+
+            if (isSelected) {
+                bgColor = UIConstants.ROW_SELECTED;
+                setForeground(UIConstants.TEXT_PRIMARY);
+            } else {
                 switch (v) {
-                    case "SUCCESS" -> { setBackground(new Color(0xD1FAE5)); setForeground(new Color(0x065F46)); }
-                    case "FAIL"    -> { setBackground(UIConstants.DANGER_LIGHT); setForeground(UIConstants.DANGER); }
-                    case "LOCKED" -> { setBackground(new Color(0xFEF3C7)); setForeground(new Color(0x92400E)); }
-                    default        -> { setBackground(UIConstants.BG_WHITE);   setForeground(UIConstants.TEXT_PRIMARY); }
+                    case "SUCCESS" -> { bgColor = Color.decode("#D1FAE5"); setForeground(Color.decode("#065F46")); }
+                    case "FAIL"    -> { bgColor = Color.decode("#FEE2E2"); setForeground(Color.decode("#991B1B")); }
+                    case "LOCKED"  -> { bgColor = Color.decode("#FEF3C7"); setForeground(Color.decode("#92400E")); }
+                    default        -> { bgColor = UIConstants.BG_WHITE;   setForeground(UIConstants.TEXT_PRIMARY); }
                 }
             }
-            setHorizontalAlignment(CENTER);
+            setFont(UIConstants.FONT_BOLD);
             return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            // Pill shape inset by 2px vertically for breathing room
+            g2.setColor(bgColor);
+            g2.fillRoundRect(2, 3, getWidth() - 4, getHeight() - 6, 12, 12);
+            g2.dispose();
+            super.paintComponent(g); // draw text on top
         }
     }
 }

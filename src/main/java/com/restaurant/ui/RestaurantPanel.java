@@ -73,6 +73,11 @@ public class RestaurantPanel extends JPanel {
     private JComboBox<String> cboStatus;
     private JComboBox<String> cboSort;
 
+    // ── Table / Empty-state card ──────────────────────────────────────────────
+
+    private java.awt.CardLayout tableCardLayout;
+    private JPanel              tableCardPanel;
+
     // ── Table columns ─────────────────────────────────────────────────────────
 
     private static final String[] COLUMNS = {
@@ -131,20 +136,24 @@ public class RestaurantPanel extends JPanel {
 
         // ── Row 2 ─────────────────────────────────────────────────────────────
         JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        row2.setOpaque(false);
+        row2.setBackground(Color.WHITE);
+        row2.setOpaque(true);
+        row2.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)));
 
-        // Search field
-        txtSearch = new RoundedTextField("Tìm kiếm");
-        txtSearch.setPreferredSize(new Dimension(300, UIConstants.BTN_HEIGHT));
+        // Search field — cập nhật placeholder rõ hơn
+        txtSearch = new RoundedTextField("Tên hoặc email nhà hàng...");
+        txtSearch.setPreferredSize(new Dimension(280, UIConstants.BTN_HEIGHT));
         txtSearch.addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) applyFilter();
             }
         });
 
-        // Search button
-        RoundedButton btnSearch = RoundedButton.outline("🔍");
-        btnSearch.setPreferredSize(new Dimension(UIConstants.BTN_HEIGHT, UIConstants.BTN_HEIGHT));
+        // Search button — chuyển thành text "Tìm"
+        RoundedButton btnSearch = RoundedButton.outline("Tìm");
+        btnSearch.setPreferredSize(new Dimension(55, UIConstants.BTN_HEIGHT));
         btnSearch.addActionListener(e -> applyFilter());
 
         // Status filter
@@ -166,6 +175,7 @@ public class RestaurantPanel extends JPanel {
         row2.add(btnSearch);
         row2.add(Box.createHorizontalStrut(8));
         row2.add(cboStatus);
+        row2.add(Box.createHorizontalStrut(4));   // separator giữa 2 dropdown
         row2.add(cboSort);
         row2.add(btnFilter);
 
@@ -174,7 +184,16 @@ public class RestaurantPanel extends JPanel {
         return topBar;
     }
 
-    private JScrollPane buildTableArea() {
+    /**
+     * Xây dựng khu vực bảng — dùng CardLayout để swap giữa
+     * bảng dữ liệu ("table") và empty-state ("empty").
+     */
+    private JPanel buildTableArea() {
+        tableCardLayout = new java.awt.CardLayout();
+        tableCardPanel  = new JPanel(tableCardLayout);
+        tableCardPanel.setOpaque(false);
+
+        // ── Table card ────────────────────────────────────────────────────────
         tableModel = new DefaultTableModel(COLUMNS, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -184,10 +203,29 @@ public class RestaurantPanel extends JPanel {
         table.getColumnModel().getColumn(COL_EMAIL)  .setPreferredWidth(200);
         table.getColumnModel().getColumn(COL_DATE)   .setPreferredWidth(100);
         table.getColumnModel().getColumn(COL_STATUS) .setPreferredWidth(100);
-        table.getColumnModel().getColumn(COL_ACTION) .setPreferredWidth(280);
+        table.getColumnModel().getColumn(COL_ACTION) .setPreferredWidth(320);
+        table.getColumnModel().getColumn(COL_ACTION) .setMinWidth(320);
 
+        table.setRowHeight(42);   // đủ chỗ cho 3 button trong 1 hàng (vgap×2 + btnH = 3+26+3=32 < 42)
         table.getColumnModel().getColumn(COL_STATUS).setCellRenderer(new StatusRenderer());
         table.getColumnModel().getColumn(COL_ACTION).setCellRenderer(new ActionRenderer());
+
+        // Tooltip cho từng vùng trong cột Hành động
+        table.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override public void mouseMoved(java.awt.event.MouseEvent e) {
+                int col = table.columnAtPoint(e.getPoint());
+                int row = table.rowAtPoint(e.getPoint());
+                if (col == COL_ACTION && row >= 0) {
+                    java.awt.Rectangle cellRect = table.getCellRect(row, COL_ACTION, false);
+                    int relX = e.getX() - cellRect.x;
+                    if      (relX < 91)  table.setToolTipText("Xóa nhà hàng này");
+                    else if (relX < 184) table.setToolTipText("Chỉnh sửa thông tin");
+                    else                 table.setToolTipText("Xem chi tiết & nhân viên");
+                } else {
+                    table.setToolTipText(null);
+                }
+            }
+        });
 
         table.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
@@ -197,7 +235,49 @@ public class RestaurantPanel extends JPanel {
             }
         });
 
-        return StyledTable.wrap(table);
+        JScrollPane scroll = StyledTable.wrap(table);
+
+        // ── Empty-state card ──────────────────────────────────────────────────
+        JPanel emptyState = buildEmptyState();
+
+        tableCardPanel.add(scroll,      "table");
+        tableCardPanel.add(emptyState,  "empty");
+
+        // Mặc định hiển thị bảng cho đến khi loadData() xác định
+        tableCardLayout.show(tableCardPanel, "table");
+        return tableCardPanel;
+    }
+
+    /**
+     * Panel empty-state: hiển thị khi không có nhà hàng nào thoả filter.
+     */
+    private JPanel buildEmptyState() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+
+        JLabel iconLbl = new JLabel("🏪");
+        iconLbl.setFont(new java.awt.Font("Segoe UI Emoji", java.awt.Font.PLAIN, 48));
+        iconLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel titleLbl = new JLabel("Chưa có nhà hàng nào");
+        titleLbl.setFont(UIConstants.FONT_TITLE);
+        titleLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        titleLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel hintLbl = new JLabel("Nhấn \"+ Thêm nhà hàng\" để bắt đầu");
+        hintLbl.setFont(UIConstants.FONT_BODY);
+        hintLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        hintLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        panel.add(Box.createVerticalGlue());
+        panel.add(iconLbl);
+        panel.add(Box.createVerticalStrut(16));
+        panel.add(titleLbl);
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(hintLbl);
+        panel.add(Box.createVerticalGlue());
+        return panel;
     }
 
     /** Pagination footer: "1 | 2 | 3 | … | Xem thêm" */
@@ -246,6 +326,11 @@ public class RestaurantPanel extends JPanel {
                 r.getStatus() != null ? r.getStatus().label() : "",
                 ""   // placeholder for ActionRenderer
             });
+        }
+        // Swap giữa bảng và empty-state
+        if (tableCardLayout != null && tableCardPanel != null) {
+            tableCardLayout.show(tableCardPanel,
+                displayedItems.isEmpty() ? "empty" : "table");
         }
     }
 
@@ -346,9 +431,19 @@ public class RestaurantPanel extends JPanel {
         int relX = e.getX() - cellRect.x;
         Restaurant item = displayedItems.get(dataIndex);
 
-        if (relX < 74) {
+        /*
+         * Layout thực: hgap=4 | Xóa(70) | gap4 | Cập nhật(90) | gap4 | Xem chi tiết(110) | hgap=4
+         * Nhưng FlowLayout CENTER với column 320px sẽ có leading offset:
+         *   leadingX = (320 - 286) / 2 = 17px
+         * Nên các ngưỡng thực tế:
+         *   Xóa:        leadingX + 0..70       → 0..87
+         *   Cập nhật:   leadingX + 74..163     → 91..180
+         *   Xem chi tiết: leadingX + 167+      → 184+
+         * Để đơn giản và ổn định, dùng ngưỡng tương đối với width cố định:
+         */
+        if (relX < 91) {
             deleteRestaurant(item);
-        } else if (relX < 168) {
+        } else if (relX < 184) {
             openEditDialog(item);
         } else {
             openDetailView(item);
@@ -514,7 +609,7 @@ public class RestaurantPanel extends JPanel {
 
     /**
      * Renderer cho cột Hành động — 3 nút riêng biệt:
-     * 🗑 Xóa (DANGER) | ✏ Cập nhật (PRIMARY) | 👁 Xem chi tiết (outline)
+     * Xóa (DANGER) | Cập nhật (PRIMARY) | Xem chi tiết (TEXT_SECONDARY)
      *
      * <p>Thứ tự bố cục và khoảng cách phải khớp với ngưỡng relX trong
      * {@link #handleAction} để click detection chính xác:
@@ -522,6 +617,7 @@ public class RestaurantPanel extends JPanel {
      *   [gap4] [Xóa:70] [gap4] [Cập nhật:90] [gap4] [Xem chi tiết:110]
      *           ^-- relX=4..73      ^-- 78..167          ^-- 172+
      * </pre>
+     * Tooltip thực sự được xử lý qua MouseMotionListener trên table.
      */
     private class ActionRenderer extends DefaultTableCellRenderer {
         @Override
@@ -533,16 +629,16 @@ public class RestaurantPanel extends JPanel {
                                   : (row % 2 == 0 ? Color.WHITE : new Color(0xF9FAFB));
             panel.setBackground(bg);
 
-            // 🗑 Xóa — DANGER, width 70
-            JLabel btnDelete = actionLabel("🗑 Xóa", UIConstants.DANGER);
+            // Xóa — DANGER, width 70 (không emoji để tránh render chậm trên Windows)
+            JLabel btnDelete = actionLabel("Xóa", UIConstants.DANGER, bg);
             btnDelete.setPreferredSize(new Dimension(70, 26));
 
-            // ✏ Cập nhật — PRIMARY, width 90
-            JLabel btnEdit = actionLabel("✏ Cập nhật", UIConstants.PRIMARY);
+            // Cập nhật — PRIMARY, width 90
+            JLabel btnEdit = actionLabel("Cập nhật", UIConstants.PRIMARY, bg);
             btnEdit.setPreferredSize(new Dimension(90, 26));
 
-            // 👁 Xem chi tiết — TEXT_SECONDARY outline, width 110
-            JLabel btnDetail = actionLabel("👁 Xem chi tiết", UIConstants.TEXT_SECONDARY);
+            // Xem chi tiết — TEXT_SECONDARY outline, width 110
+            JLabel btnDetail = actionLabel("Xem chi tiết", UIConstants.TEXT_SECONDARY, bg);
             btnDetail.setPreferredSize(new Dimension(110, 26));
 
             panel.add(btnDelete);
@@ -551,7 +647,7 @@ public class RestaurantPanel extends JPanel {
             return panel;
         }
 
-        private JLabel actionLabel(String text, Color color) {
+        private JLabel actionLabel(String text, Color color, Color panelBg) {
             JLabel l = new JLabel(text, SwingConstants.CENTER);
             l.setFont(UIConstants.FONT_SMALL);
             l.setForeground(color);
