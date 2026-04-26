@@ -203,8 +203,10 @@ public class RestaurantPanel extends JPanel {
         table.getColumnModel().getColumn(COL_EMAIL)  .setPreferredWidth(200);
         table.getColumnModel().getColumn(COL_DATE)   .setPreferredWidth(100);
         table.getColumnModel().getColumn(COL_STATUS) .setPreferredWidth(100);
-        table.getColumnModel().getColumn(COL_ACTION) .setPreferredWidth(280);
+        table.getColumnModel().getColumn(COL_ACTION) .setPreferredWidth(320);
+        table.getColumnModel().getColumn(COL_ACTION) .setMinWidth(320);
 
+        table.setRowHeight(42);   // đủ chỗ cho 3 button trong 1 hàng (vgap×2 + btnH = 3+26+3=32 < 42)
         table.getColumnModel().getColumn(COL_STATUS).setCellRenderer(new StatusRenderer());
         table.getColumnModel().getColumn(COL_ACTION).setCellRenderer(new ActionRenderer());
 
@@ -216,8 +218,8 @@ public class RestaurantPanel extends JPanel {
                 if (col == COL_ACTION && row >= 0) {
                     java.awt.Rectangle cellRect = table.getCellRect(row, COL_ACTION, false);
                     int relX = e.getX() - cellRect.x;
-                    if      (relX < 74)  table.setToolTipText("Xóa nhà hàng này");
-                    else if (relX < 168) table.setToolTipText("Chỉnh sửa thông tin");
+                    if      (relX < 91)  table.setToolTipText("Xóa nhà hàng này");
+                    else if (relX < 184) table.setToolTipText("Chỉnh sửa thông tin");
                     else                 table.setToolTipText("Xem chi tiết & nhân viên");
                 } else {
                     table.setToolTipText(null);
@@ -429,9 +431,19 @@ public class RestaurantPanel extends JPanel {
         int relX = e.getX() - cellRect.x;
         Restaurant item = displayedItems.get(dataIndex);
 
-        if (relX < 74) {
+        /*
+         * Layout thực: hgap=4 | Xóa(70) | gap4 | Cập nhật(90) | gap4 | Xem chi tiết(110) | hgap=4
+         * Nhưng FlowLayout CENTER với column 320px sẽ có leading offset:
+         *   leadingX = (320 - 286) / 2 = 17px
+         * Nên các ngưỡng thực tế:
+         *   Xóa:        leadingX + 0..70       → 0..87
+         *   Cập nhật:   leadingX + 74..163     → 91..180
+         *   Xem chi tiết: leadingX + 167+      → 184+
+         * Để đơn giản và ổn định, dùng ngưỡng tương đối với width cố định:
+         */
+        if (relX < 91) {
             deleteRestaurant(item);
-        } else if (relX < 168) {
+        } else if (relX < 184) {
             openEditDialog(item);
         } else {
             openDetailView(item);
