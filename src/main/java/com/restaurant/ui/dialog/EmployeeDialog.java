@@ -264,7 +264,7 @@ public class EmployeeDialog extends JDialog {
      */
     private long resolveTargetUserId(String employeeId) {
         try {
-            var opt = employeeDAO.findUserIdByEmployeeId(employeeId);
+            java.util.Optional<Long> opt = employeeDAO.findUserId(employeeId);
             return opt.isPresent() ? opt.get() : 0L;
         } catch (Exception ignored) {
             return 0L;

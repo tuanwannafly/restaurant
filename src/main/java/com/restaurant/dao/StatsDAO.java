@@ -377,4 +377,97 @@ public class StatsDAO {
 
         return result;
     }
+
+    // ── Method 7: getMonthlyRevenue ────────────────────────────────────────────
+
+/**
+ * Doanh thu theo từng tháng trong khoảng [fromMonth, toMonth] của năm year.
+ *
+ * @param year      năm cần thống kê
+ * @param fromMonth tháng bắt đầu (1–12)
+ * @param toMonth   tháng kết thúc (1–12)
+ * @return Map key = "T{month}/{year}", value = tổng doanh thu (VND)
+ */
+public Map<String, Long> getMonthlyRevenue(int year, int fromMonth, int toMonth) {
+    String sql =
+        "SELECT EXTRACT(MONTH FROM created_at) AS mon, " +
+        "       NVL(SUM(total_amount), 0)       AS revenue " +
+        "FROM orders " +
+        "WHERE status = 'COMPLETED' " +
+        "  AND EXTRACT(YEAR  FROM created_at) = ? " +
+        "  AND EXTRACT(MONTH FROM created_at) BETWEEN ? AND ? " +
+        "GROUP BY EXTRACT(MONTH FROM created_at) " +
+        "ORDER BY mon";
+
+    Map<String, Long> result = new java.util.LinkedHashMap<>();
+    // Pre-fill với 0 để tháng không có đơn vẫn xuất hiện trên biểu đồ
+    for (int m = fromMonth; m <= toMonth; m++) {
+        result.put("T" + m + "/" + year, 0L);
+    }
+
+    try (Connection conn = DBConnection.getInstance().getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setInt(1, year);
+        ps.setInt(2, fromMonth);
+        ps.setInt(3, toMonth);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                int  month   = rs.getInt("mon");
+                long revenue = rs.getLong("revenue");
+                result.put("T" + month + "/" + year, revenue);
+            }
+        }
+    } catch (Exception e) {
+        System.err.println("[StatsDAO] getMonthlyRevenue lỗi: " + e.getMessage());
+    }
+    return result;
+}
+
+    // ── Method 8: getMonthlyOrders ─────────────────────────────────────────────
+
+    /**
+     * Số đơn hoàn thành theo từng tháng trong khoảng [fromMonth, toMonth] của năm year.
+     *
+     * @param year      năm cần thống kê
+     * @param fromMonth tháng bắt đầu (1–12)
+     * @param toMonth   tháng kết thúc (1–12)
+     * @return Map key = "T{month}/{year}", value = số đơn hoàn thành
+     */
+    public Map<String, Long> getMonthlyOrders(int year, int fromMonth, int toMonth) {
+        String sql =
+            "SELECT EXTRACT(MONTH FROM created_at) AS mon, " +
+            "       COUNT(*)                        AS order_count " +
+            "FROM orders " +
+            "WHERE status = 'COMPLETED' " +
+            "  AND EXTRACT(YEAR  FROM created_at) = ? " +
+            "  AND EXTRACT(MONTH FROM created_at) BETWEEN ? AND ? " +
+            "GROUP BY EXTRACT(MONTH FROM created_at) " +
+            "ORDER BY mon";
+
+        Map<String, Long> result = new java.util.LinkedHashMap<>();
+        for (int m = fromMonth; m <= toMonth; m++) {
+            result.put("T" + m + "/" + year, 0L);
+        }
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, year);
+            ps.setInt(2, fromMonth);
+            ps.setInt(3, toMonth);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int  month = rs.getInt("mon");
+                    long count = rs.getLong("order_count");
+                    result.put("T" + month + "/" + year, count);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getMonthlyOrders lỗi: " + e.getMessage());
+        }
+        return result;
+    }
 }

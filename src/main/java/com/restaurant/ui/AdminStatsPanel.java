@@ -602,11 +602,12 @@ public class AdminStatsPanel extends JPanel {
 
         /** Rút gọn giá trị: 1_500_000 → "1.5M", 250_000 → "250K", ... */
         private String compactVal(long val) {
-            if (val == 0)                  return "0";
-            if (val >= 1_000_000_000L)     return String.format("%.1fB", val / 1_000_000_000.0);
-            if (val >= 1_000_000L)         return String.format("%.1fM", val / 1_000_000.0);
-            if (val >= 1_000L)             return String.format("%.0fK", val / 1_000.0);
-            return String.valueOf(val);
+            String suffix = (unit != null && !unit.isBlank()) ? unit : "";
+            if (val == 0)              return "0" + suffix;
+            if (val >= 1_000_000_000L) return String.format("%.1fB%s", val / 1_000_000_000.0, suffix);
+            if (val >= 1_000_000L)     return String.format("%.1fM%s", val / 1_000_000.0, suffix);
+            if (val >= 1_000L)         return String.format("%.0fK%s", val / 1_000.0, suffix);
+            return val + suffix;
         }
     }
 }
