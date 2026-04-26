@@ -2,13 +2,13 @@ package com.restaurant.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import java.awt.GridLayout;
 import java.awt.RenderingHints;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -17,6 +17,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
@@ -73,45 +74,45 @@ public class HomePanel extends JPanel {
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-        // Title
-        JLabel title = new JLabel("Tổng quan");
-        title.setFont(UIConstants.FONT_TITLE);
-        title.setForeground(UIConstants.TEXT_PRIMARY);
-        title.setAlignmentX(CENTER_ALIGNMENT);
-        content.add(title);
+        // ── Greeting header ──────────────────────────────────────────────────
+        String userName = AppSession.getInstance().getUserName();
+        JLabel greeting = new JLabel("Xin chào, " + userName + " 👋");
+        greeting.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        greeting.setForeground(UIConstants.TEXT_PRIMARY);
+        greeting.setAlignmentX(LEFT_ALIGNMENT);
 
-        // lblRestaurantName: field được giữ lại nhưng không thêm vào layout (Phase 1)
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        JLabel subtitle = new JLabel("Đây là tổng quan hệ thống hôm nay — " + today);
+        subtitle.setFont(UIConstants.FONT_BODY);
+        subtitle.setForeground(UIConstants.TEXT_SECONDARY);
+        subtitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        content.add(greeting);
+        content.add(Box.createVerticalStrut(4));
+        content.add(subtitle);
+        content.add(Box.createVerticalStrut(24));
+
+        // lblRestaurantName: field giữ lại nhưng không thêm vào layout
         lblRestaurantName = new JLabel(" ");
         lblRestaurantName.setFont(UIConstants.FONT_BODY);
         lblRestaurantName.setForeground(UIConstants.TEXT_SECONDARY);
-        lblRestaurantName.setAlignmentX(CENTER_ALIGNMENT);
 
-        content.add(Box.createVerticalStrut(20));
-
-        // ── Section: Thống kê nhanh (hôm nay) ──
-        JLabel sectionLabel = new JLabel("Thống kê nhanh (hôm nay)");
-        sectionLabel.setFont(UIConstants.FONT_BOLD);
-        sectionLabel.setForeground(UIConstants.TEXT_PRIMARY);
-        content.add(sectionLabel);
-        content.add(Box.createVerticalStrut(10));
-
-        JPanel statsPanel = new JPanel(new GridBagLayout());
-        statsPanel.setOpaque(false);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets  = new Insets(6, 0, 6, 0);
-        gbc.fill    = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1;
-
+        // ── 4 stat cards in 2×2 grid ─────────────────────────────────────────
         lblActiveRestaurants = makeValueLabel("—");
         lblNewRestaurants    = makeValueLabel("—");
         lblRevenue           = makeValueLabel("—");
         lblOrderCount        = makeValueLabel("—");
 
-        addStatRow(statsPanel, gbc, 0, "Số nhà hàng đang hoạt động:", lblActiveRestaurants, UIConstants.TEXT_PRIMARY);
-        addStatRow(statsPanel, gbc, 1, "Số nhà hàng mới tạo :",       lblNewRestaurants,    UIConstants.TEXT_PRIMARY);
-        addStatRow(statsPanel, gbc, 2, "Doanh thu:",                   lblRevenue,           UIConstants.TEXT_PRIMARY);
-        addStatRow(statsPanel, gbc, 3, "Số đơn hàng:",                 lblOrderCount,        UIConstants.TEXT_PRIMARY);
-        content.add(statsPanel);
+        JPanel cardsPanel = new JPanel(new GridLayout(2, 2, 16, 16));
+        cardsPanel.setOpaque(false);
+        cardsPanel.setAlignmentX(LEFT_ALIGNMENT);
+
+        cardsPanel.add(buildStatCard("🏪", "Nhà hàng hoạt động", lblActiveRestaurants, new Color(0xEFF6FF)));
+        cardsPanel.add(buildStatCard("🆕", "Nhà hàng mới hôm nay", lblNewRestaurants,    new Color(0xF0FDF4)));
+        cardsPanel.add(buildStatCard("💰", "Doanh thu hôm nay",     lblRevenue,           new Color(0xFFFBEB)));
+        cardsPanel.add(buildStatCard("📦", "Đơn hàng hôm nay",      lblOrderCount,        new Color(0xFFF1F2)));
+
+        content.add(cardsPanel);
 
         add(content, BorderLayout.NORTH);
         revalidate();
@@ -163,48 +164,73 @@ public class HomePanel extends JPanel {
 
     // ── UI helpers ────────────────────────────────────────────────────────────
 
-    private JLabel makeSectionLabel(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(UIConstants.FONT_BODY);
-        lbl.setForeground(UIConstants.TEXT_SECONDARY);
-        return lbl;
+    /**
+     * Build a rounded stat card with accent background, emoji icon,
+     * a large value label, and a small description label underneath.
+     *
+     * @param icon        Emoji shown top-left (28 px)
+     * @param label       Description text shown below the value
+     * @param valueLbl    The JLabel whose text is updated by refreshStats()
+     * @param accentColor Background fill colour for the card
+     */
+    private JPanel buildStatCard(String icon, String label, JLabel valueLbl, Color accentColor) {
+        // Derive a slightly darker border from accentColor (reduce each channel by 20%)
+        Color borderColor = new Color(
+                Math.max(0, (int) (accentColor.getRed()   * 0.80)),
+                Math.max(0, (int) (accentColor.getGreen() * 0.80)),
+                Math.max(0, (int) (accentColor.getBlue()  * 0.80))
+        );
+
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(accentColor);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(),
+                        UIConstants.CARD_RADIUS, UIConstants.CARD_RADIUS);
+                g2.setColor(borderColor);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1,
+                        UIConstants.CARD_RADIUS, UIConstants.CARD_RADIUS);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+
+        // Icon label — top-left
+        JLabel iconLbl = new JLabel(icon);
+        iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
+        card.add(iconLbl, BorderLayout.NORTH);
+
+        // Centre panel: value + description stacked vertically
+        JPanel centre = new JPanel();
+        centre.setOpaque(false);
+        centre.setLayout(new BoxLayout(centre, BoxLayout.Y_AXIS));
+        centre.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+
+        valueLbl.setFont(UIConstants.FONT_TITLE);          // 22 px bold
+        valueLbl.setForeground(UIConstants.TEXT_PRIMARY);
+        valueLbl.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel descLbl = new JLabel(label);
+        descLbl.setFont(UIConstants.FONT_SMALL);           // 11 px
+        descLbl.setForeground(UIConstants.TEXT_SECONDARY);
+        descLbl.setAlignmentX(LEFT_ALIGNMENT);
+
+        centre.add(valueLbl);
+        centre.add(Box.createVerticalStrut(2));
+        centre.add(descLbl);
+
+        card.add(centre, BorderLayout.CENTER);
+
+        return card;
     }
 
     private JLabel makeValueLabel(String initial) {
         JLabel lbl = new JLabel(initial);
         lbl.setFont(UIConstants.FONT_BOLD);
         return lbl;
-    }
-
-    private void addStatRow(JPanel panel, GridBagConstraints gbc,
-                            int row, String labelText, JLabel valueLabel, Color valueColor) {
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        JLabel lbl = new JLabel(labelText);
-        lbl.setFont(UIConstants.FONT_BODY);
-        lbl.setForeground(UIConstants.TEXT_PRIMARY);
-        lbl.setPreferredSize(new Dimension(230, 36));
-        panel.add(lbl, gbc);
-
-        gbc.gridx = 1; gbc.weightx = 1;
-        JPanel valueBox = new JPanel(new BorderLayout()) {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(Color.WHITE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(),
-                        UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
-                g2.setColor(UIConstants.BORDER_COLOR);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1,
-                        UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
-                g2.dispose();
-            }
-        };
-        valueBox.setOpaque(false);
-        valueBox.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
-        valueBox.setPreferredSize(new Dimension(0, 40));
-        valueLabel.setForeground(valueColor);
-        valueBox.add(valueLabel, BorderLayout.WEST);
-        panel.add(valueBox, gbc);
     }
 }
