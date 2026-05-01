@@ -20,6 +20,8 @@ import com.restaurant.model.TableItem;
  * <p>
  * Phase 5: bổ sung {@link #getReadyByTable(long)} và {@link #getDirtyTables(long)}
  * để WaiterServicePanel lấy dữ liệu mà không cần DAO mới.
+ * <p>
+ * Phase 5D: bổ sung {@link #getCancelledItems(long)} cho Tab "Đã hủy".
  */
 public class KitchenDAO {
 
@@ -119,6 +121,24 @@ public class KitchenDAO {
     private static final String SQL_UPDATE_STATUS =
             "UPDATE order_items SET item_status = ? WHERE order_item_id = ?";
 
+    /**
+     * Phase 5D – Lấy tất cả order_items thuộc đơn đã HỦY trong ngày hôm nay.
+     */
+    private static final String SQL_CANCELLED_ITEMS =
+            "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
+            "       oi.quantity,      oi.item_status, oi.round_number, " +
+            "       oi.created_at,    oi.assigned_to, " +
+            "       mi.name AS item_name, t.table_number, t.table_id, " +
+            "       NULL AS note, NULL AS assigned_employee_name " +
+            "FROM   order_items oi " +
+            "JOIN   orders           o  ON oi.order_id     = o.order_id " +
+            "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
+            "JOIN   menu_items       mi  ON oi.menu_item_id = mi.item_id " +
+            "WHERE  o.restaurant_id = ? " +
+            "  AND  o.status = 'CANCELLED' " +
+            "  AND  TRUNC(o.created_at) = TRUNC(SYSDATE) " +
+            "ORDER  BY oi.created_at DESC";
+
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**
@@ -198,6 +218,31 @@ public class KitchenDAO {
             }
         } catch (SQLException e) {
             System.err.println("[KitchenDAO] getDirtyTables error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Phase 5D – WaiterServicePanel Tab "Đã hủy":
+     * Lấy tất cả order_items thuộc các đơn hàng có status CANCELLED trong ngày hôm nay.
+     *
+     * @param restaurantId nhà hàng hiện tại
+     * @return danh sách {@link KitchenTicket} sắp xếp theo thời gian hủy giảm dần,
+     *         rỗng nếu không có đơn hủy nào hôm nay
+     */
+    public List<KitchenTicket> getCancelledItems(long restaurantId) {
+        List<KitchenTicket> list = new ArrayList<>();
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_CANCELLED_ITEMS)) {
+
+            ps.setLong(1, restaurantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapTicket(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[KitchenDAO] getCancelledItems error: " + e.getMessage());
         }
         return list;
     }

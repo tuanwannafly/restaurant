@@ -17,6 +17,7 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -37,8 +38,10 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.border.AbstractBorder;
+import javax.swing.border.MatteBorder;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 
@@ -50,7 +53,7 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 
 /**
- * Màn hình phục vụ bàn dành cho role WAITER — Phase 4C.
+ * Màn hình phục vụ bàn dành cho role WAITER — Phase 5D.
  * <p>
  * Gồm 3 tab:
  * <ol>
@@ -58,7 +61,7 @@ import com.restaurant.session.Permission;
  *       chuyển sang DELIVERING / DELIVERED.</li>
  *   <li><b>Dọn bàn</b>     – danh sách bàn DIRTY / CLEANING, cho phép
  *       chuyển sang CLEANING / RANH.</li>
- *   <li><b>Đã hủy</b>      – placeholder, Phase tiếp theo.</li>
+ *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày, kèm thống kê.</li>
  * </ol>
  * Auto-refresh mỗi 5 giây. Timer chỉ chạy khi panel đang hiển thị
  * (kiểm soát qua {@link AncestorListener}).
@@ -77,7 +80,8 @@ public class WaiterServicePanel extends JPanel {
     private JPanel deliveryCardsPanel;
     private int    lastReadyCount = 0;
 
-    private JPanel cleanTablePanel;  // Phase 4C
+    private JPanel cleanTablePanel;   // Phase 4C
+    private JPanel cancelledPanel;    // Phase 5D
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -175,8 +179,8 @@ public class WaiterServicePanel extends JPanel {
         tabs.setBackground(UIConstants.BG_PAGE);
 
         tabs.addTab("🚚  Phục vụ bàn", buildDeliveryTab());
-        tabs.addTab("🧹  Dọn bàn",     buildCleanTab());          // Phase 4C
-        tabs.addTab("🚫  Đã hủy",      buildCancelledPlaceholder());
+        tabs.addTab("🧹  Dọn bàn",     buildCleanTab());       // Phase 4C
+        tabs.addTab("🚫  Đã hủy",      buildCancelledTab());   // Phase 5D
 
         return tabs;
     }
@@ -209,16 +213,16 @@ public class WaiterServicePanel extends JPanel {
         return cleanTablePanel;
     }
 
-    // ─── Tab 3: Placeholder ───────────────────────────────────────────────────
+    // ─── Tab 3: Đã hủy (Phase 5D) ────────────────────────────────────────────
 
-    private JPanel buildCancelledPlaceholder() {
-        JPanel p = new JPanel(new GridBagLayout());
-        p.setBackground(UIConstants.BG_PAGE);
-        JLabel l = new JLabel("Đã hủy – đang xây dựng", SwingConstants.CENTER);
-        l.setFont(UIConstants.FONT_BODY);
-        l.setForeground(UIConstants.TEXT_SECONDARY);
-        p.add(l);
-        return p;
+    /**
+     * Khởi tạo container rỗng cho tab Đã hủy.
+     * Nội dung được điền bởi {@link #rebuildCancelledTab(List)} sau khi load data.
+     */
+    private JPanel buildCancelledTab() {
+        cancelledPanel = new JPanel(new BorderLayout());
+        cancelledPanel.setBackground(UIConstants.BG_PAGE);
+        return cancelledPanel;
     }
 
     // ─── Data loading ─────────────────────────────────────────────────────────
@@ -231,12 +235,14 @@ public class WaiterServicePanel extends JPanel {
         new SwingWorker<Void, Void>() {
             Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
             List<TableItem>                              dirtyList;
+            List<KitchenDAO.KitchenTicket>               cancelledList;
 
             @Override
             protected Void doInBackground() {
                 long rid = AppSession.getInstance().getRestaurantId();
-                readyMap  = kitchenDAO.getReadyByTable(rid);
-                dirtyList = kitchenDAO.getDirtyTables(rid);
+                readyMap      = kitchenDAO.getReadyByTable(rid);
+                dirtyList     = kitchenDAO.getDirtyTables(rid);
+                cancelledList = kitchenDAO.getCancelledItems(rid);
                 return null;
             }
 
@@ -246,6 +252,7 @@ public class WaiterServicePanel extends JPanel {
                     get();
                     rebuildDeliveryCards(readyMap);
                     rebuildCleanCards(dirtyList);
+                    rebuildCancelledTab(cancelledList);
                 } catch (Exception ex) {
                     System.err.println("[WaiterServicePanel] loadData lỗi: "
                             + ex.getMessage());
@@ -363,6 +370,97 @@ public class WaiterServicePanel extends JPanel {
                 new CleanActionEditor(tables, tableDAO, this::loadData));
 
         JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        return scroll;
+    }
+
+    // ─── Rebuild cancelled tab (Tab 3) ───────────────────────────────────────
+
+    /**
+     * Phase 5D – Dựng lại toàn bộ nội dung tab "Đã hủy".
+     * Hiển thị thanh thống kê và bảng chi tiết các món bị hủy hôm nay.
+     *
+     * @param items danh sách KitchenTicket thuộc đơn hủy trong ngày
+     */
+    private void rebuildCancelledTab(List<KitchenDAO.KitchenTicket> items) {
+        cancelledPanel.removeAll();
+
+        if (items == null || items.isEmpty()) {
+            cancelledPanel.add(
+                    buildEmptyState("✅", "Không có món nào bị hủy hôm nay"),
+                    BorderLayout.CENTER);
+            cancelledPanel.revalidate();
+            cancelledPanel.repaint();
+            return;
+        }
+
+        // ── Stats bar ──
+        int totalQty = items.stream().mapToInt(t -> t.quantity).sum();
+
+        JPanel statsBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        statsBar.setBackground(UIConstants.BG_WHITE);
+        statsBar.setBorder(new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR));
+
+        JLabel lblCount = new JLabel("Hôm nay: " + items.size() + " đơn hủy");
+        lblCount.setFont(UIConstants.FONT_BODY);
+        lblCount.setForeground(UIConstants.TEXT_SECONDARY);
+
+        JLabel lblSep = new JLabel("  |  ");
+        lblSep.setForeground(UIConstants.TEXT_SECONDARY);
+
+        JLabel lblQty = new JLabel("Tổng số lượng: " + totalQty + " món");
+        lblQty.setFont(UIConstants.FONT_BOLD);
+        lblQty.setForeground(UIConstants.DANGER);
+
+        statsBar.add(lblCount);
+        statsBar.add(lblSep);
+        statsBar.add(lblQty);
+
+        cancelledPanel.add(statsBar, BorderLayout.NORTH);
+        cancelledPanel.add(buildCancelledTable(items), BorderLayout.CENTER);
+        cancelledPanel.revalidate();
+        cancelledPanel.repaint();
+    }
+
+    /**
+     * Phase 5D – Tạo JScrollPane chứa bảng danh sách món bị hủy.
+     *
+     * @param items danh sách KitchenTicket cần hiển thị
+     * @return JScrollPane đã được style
+     */
+    private JScrollPane buildCancelledTable(List<KitchenDAO.KitchenTicket> items) {
+        String[] cols = {"Bàn", "Tên món", "SL", "Lượt", "Thời gian hủy"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm  dd/MM");
+        for (KitchenDAO.KitchenTicket t : items) {
+            String timeStr = (t.createdAt != null) ? t.createdAt.format(fmt) : "—";
+            model.addRow(new Object[]{
+                    t.tableName,
+                    t.itemName,
+                    t.quantity,
+                    t.roundNumber,
+                    timeStr
+            });
+        }
+
+        StyledTable table = new StyledTable(model);
+        table.getColumnModel().getColumn(0).setPreferredWidth(100);
+        table.getColumnModel().getColumn(1).setPreferredWidth(200);
+        table.getColumnModel().getColumn(2).setPreferredWidth(60);
+        table.getColumnModel().getColumn(3).setPreferredWidth(60);
+        table.getColumnModel().getColumn(4).setPreferredWidth(150);
+
+        // Center align cột SL (2) và Lượt (3)
+        DefaultTableCellRenderer centerR = new DefaultTableCellRenderer();
+        centerR.setHorizontalAlignment(SwingConstants.CENTER);
+        table.getColumnModel().getColumn(2).setCellRenderer(centerR);
+        table.getColumnModel().getColumn(3).setCellRenderer(centerR);
+
+        JScrollPane scroll = StyledTable.wrap(table);
         scroll.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
         return scroll;
     }
