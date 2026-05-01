@@ -23,15 +23,22 @@ import java.util.stream.Collectors;
  * TableOrderFrame — Phase 3B (redesigned with CardLayout)
  *
  * JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
- * Dùng CardLayout với 2 card:
- *   "menu" — Màn hình chọn món (search, filter, grid cards)
- *   "cart" — Màn hình giỏ hàng (JTable, số lượng, ghi chú, gửi order)
+ * Dùng CardLayout với 5 card:
+ *   "menu"    — Màn hình chọn món (search, filter, grid cards)
+ *   "cart"    — Màn hình giỏ hàng (JTable, số lượng, ghi chú, gửi order)
+ *   "status"  — Trạng thái món (Phase 1A skeleton)
+ *   "payment" — Thanh toán (Phase 1A skeleton)
+ *   "waiting" — Chờ xử lý (Phase 1A skeleton)
  */
 public class TableOrderFrame extends JFrame {
 
     // ─── Card names ───────────────────────────────────────────────────────────
     private static final String CARD_MENU = "menu";
     private static final String CARD_CART = "cart";
+    // PHASE 1A — 3 card mới
+    private static final String CARD_STATUS  = "status";
+    private static final String CARD_PAYMENT = "payment";
+    private static final String CARD_WAITING = "waiting";
 
     // ─── Layout ───────────────────────────────────────────────────────────────
     private CardLayout cardLayout;
@@ -119,10 +126,36 @@ public class TableOrderFrame extends JFrame {
 
         cardPanel.add(buildMenuCard(), CARD_MENU);
         cardPanel.add(buildCartCard(), CARD_CART);
+        // PHASE 1A — đăng ký 3 card skeleton mới
+        cardPanel.add(buildStatusCard(),  CARD_STATUS);
+        cardPanel.add(buildPaymentCard(), CARD_PAYMENT);
+        cardPanel.add(buildWaitingCard(), CARD_WAITING);
 
         setContentPane(cardPanel);
-        cardLayout.show(cardPanel, CARD_MENU);
+        navigateTo(CARD_MENU);
     }
+
+    // PHASE 1A — Navigate helper (dùng cho các phase sau)
+    private void navigateTo(String card) {
+        cardLayout.show(cardPanel, card);
+    }
+
+    // ─── PHASE 1A: Placeholder builder ───────────────────────────────────────
+
+    private JPanel buildPlaceholder(String name) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(UIConstants.BG_PAGE);
+        JLabel lbl = new JLabel("Card: " + name + " — đang phát triển", SwingConstants.CENTER);
+        lbl.setFont(UIConstants.FONT_TITLE);
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+        p.add(lbl, BorderLayout.CENTER);
+        return p;
+    }
+
+    // PHASE 1A — 3 card skeleton builders
+    private JPanel buildStatusCard()  { return buildPlaceholder("status"); }
+    private JPanel buildPaymentCard() { return buildPlaceholder("payment"); }
+    private JPanel buildWaitingCard() { return buildPlaceholder("waiting"); }
 
     // ═════════════════════════════════════════════════════════════════════════
     // CARD 1 — MÀN HÌNH CHỌN MÓN
@@ -761,11 +794,11 @@ public class TableOrderFrame extends JFrame {
             return;
         }
         refreshCartTable();
-        cardLayout.show(cardPanel, CARD_CART);
+        navigateTo(CARD_CART);
     }
 
     private void showMenu() {
-        cardLayout.show(cardPanel, CARD_MENU);
+        navigateTo(CARD_MENU);
     }
 
     // ── Send order ────────────────────────────────────────────────────────────
