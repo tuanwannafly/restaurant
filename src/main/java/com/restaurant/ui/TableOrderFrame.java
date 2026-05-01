@@ -22,12 +22,10 @@ import java.util.stream.Collectors;
 /**
  * TableOrderFrame — Phase 3B (redesigned with CardLayout)
  *
- * <p>JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
+ * JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
  * Dùng CardLayout với 2 card:
- * <ol>
- *   <li>"menu"  — Màn hình chọn món (search, filter, grid cards)</li>
- *   <li>"cart"  — Màn hình giỏ hàng (JTable, số lượng, ghi chú, gửi order)</li>
- * </ol>
+ *   "menu" — Màn hình chọn món (search, filter, grid cards)
+ *   "cart" — Màn hình giỏ hàng (JTable, số lượng, ghi chú, gửi order)
  */
 public class TableOrderFrame extends JFrame {
 
@@ -55,14 +53,9 @@ public class TableOrderFrame extends JFrame {
     private JLabel     lblSubtotal;
     private JButton    btnShowCart;
 
-    /** Tất cả items từ DB (loaded once). */
-    private List<MenuItem> allMenuItems = new ArrayList<>();
-    /** Items đang hiển thị sau filter/search. */
+    private List<MenuItem> allMenuItems  = new ArrayList<>();
     private List<MenuItem> filteredItems = new ArrayList<>();
-    /** Category đang được chọn ("Tất cả" = không lọc). */
-    private String selectedCategory = "Tất cả";
-
-    /** Buttons lọc category — giữ ref để toggle active style. */
+    private String selectedCategory      = "Tất cả";
     private final List<JButton> categoryButtons = new ArrayList<>();
 
     // ─── Cart screen UI ───────────────────────────────────────────────────────
@@ -168,7 +161,7 @@ public class TableOrderFrame extends JFrame {
         left.add(logo);
         left.add(sysName);
 
-        // CENTER — table badge
+        // CENTER — table badge (rounded pill, PRIMARY background)
         JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -190,7 +183,7 @@ public class TableOrderFrame extends JFrame {
         center.setOpaque(false);
         center.add(tableBadge);
 
-        // RIGHT — restaurant name + logout
+        // RIGHT — globe icon + restaurant name + logout button
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         right.setOpaque(false);
 
@@ -230,7 +223,7 @@ public class TableOrderFrame extends JFrame {
         JPanel content = new JPanel(new BorderLayout(0, 0));
         content.setBackground(UIConstants.BG_PAGE);
 
-        // ── Sub-NORTH: search bar
+        // Sub-NORTH: search bar
         JPanel searchBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 12));
         searchBar.setBackground(UIConstants.BG_PAGE);
         searchBar.setBorder(new EmptyBorder(8, 16, 0, 16));
@@ -253,7 +246,6 @@ public class TableOrderFrame extends JFrame {
         tfSearch.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
                 new EmptyBorder(4, 14, 4, 14)));
-        // placeholder hint via focus listener
         setPlaceholder(tfSearch, "🔍  Tìm kiếm món ăn...");
 
         tfSearch.getDocument().addDocumentListener(new DocumentListener() {
@@ -264,7 +256,7 @@ public class TableOrderFrame extends JFrame {
 
         searchBar.add(tfSearch);
 
-        // ── Sub-CENTER: category filter + grid
+        // Sub-CENTER: category filter + grid
         JPanel centerContent = new JPanel(new BorderLayout(0, 0));
         centerContent.setBackground(UIConstants.BG_PAGE);
 
@@ -274,7 +266,6 @@ public class TableOrderFrame extends JFrame {
         menuGridPanel.setBackground(UIConstants.BG_PAGE);
         menuGridPanel.setBorder(new EmptyBorder(12, 20, 20, 20));
 
-        // Placeholder loading state
         JLabel loading = new JLabel("Đang tải thực đơn…", SwingConstants.CENTER);
         loading.setFont(UIConstants.FONT_BODY);
         loading.setForeground(UIConstants.TEXT_SECONDARY);
@@ -282,7 +273,7 @@ public class TableOrderFrame extends JFrame {
 
         centerContent.add(menuGridPanel, BorderLayout.CENTER);
 
-        content.add(searchBar,    BorderLayout.NORTH);
+        content.add(searchBar,     BorderLayout.NORTH);
         content.add(centerContent, BorderLayout.CENTER);
 
         JScrollPane scroll = new JScrollPane(content);
@@ -298,16 +289,13 @@ public class TableOrderFrame extends JFrame {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         bar.setBackground(UIConstants.BG_PAGE);
         bar.setBorder(new EmptyBorder(4, 20, 0, 20));
-        // Buttons sẽ được tạo sau khi load menu xong — placeholder "Tất cả"
         JButton btnAll = buildCategoryButton("Tất cả", true);
         categoryButtons.add(btnAll);
         bar.add(btnAll);
         return bar;
     }
 
-    /** Tạo hoặc cập nhật category filter bar sau khi biết danh sách categories. */
     private void updateCategoryBar(List<String> categories) {
-        // Tìm panel filter bar (parent của menuGridPanel rồi lên center)
         Container centerContent = menuGridPanel.getParent();
         Component north = ((BorderLayout) centerContent.getLayout()).getLayoutComponent(BorderLayout.NORTH);
         if (!(north instanceof JPanel filterBar)) return;
@@ -326,14 +314,10 @@ public class TableOrderFrame extends JFrame {
 
             btn.addActionListener(e -> {
                 selectedCategory = cat;
-                // Toggle active style
                 for (JButton b : categoryButtons) {
                     boolean active = b.getText().equals(selectedCategory);
                     b.setBackground(active ? UIConstants.PRIMARY : Color.WHITE);
                     b.setForeground(active ? Color.WHITE : UIConstants.PRIMARY);
-                    b.setBorder(active
-                            ? BorderFactory.createLineBorder(UIConstants.PRIMARY, 1, true)
-                            : BorderFactory.createLineBorder(UIConstants.PRIMARY, 1, true));
                 }
                 filterMenu();
             });
@@ -350,14 +334,8 @@ public class TableOrderFrame extends JFrame {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.setPreferredSize(new Dimension(Math.max(80, text.length() * 9 + 28), 32));
         btn.setBorder(BorderFactory.createLineBorder(UIConstants.PRIMARY, 1, true));
-
-        if (active) {
-            btn.setBackground(UIConstants.PRIMARY);
-            btn.setForeground(Color.WHITE);
-        } else {
-            btn.setBackground(Color.WHITE);
-            btn.setForeground(UIConstants.PRIMARY);
-        }
+        btn.setBackground(active ? UIConstants.PRIMARY : Color.WHITE);
+        btn.setForeground(active ? Color.WHITE : UIConstants.PRIMARY);
         return btn;
     }
 
@@ -380,7 +358,7 @@ public class TableOrderFrame extends JFrame {
         btnShowCart.addActionListener(e -> showCart());
 
         bar.add(lblSubtotal, BorderLayout.WEST);
-        bar.add(btnShowCart,  BorderLayout.EAST);
+        bar.add(btnShowCart, BorderLayout.EAST);
         return bar;
     }
 
@@ -388,7 +366,6 @@ public class TableOrderFrame extends JFrame {
 
     private void rebuildMenuGrid() {
         menuGridPanel.removeAll();
-        // Dynamic columns based on width
         int cols = Math.max(3, Math.min(6, getWidth() / 180));
         menuGridPanel.setLayout(new GridLayout(0, cols, 12, 12));
 
@@ -433,10 +410,8 @@ public class TableOrderFrame extends JFrame {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
-                // Rounded top corners only
                 g2.setColor(new Color(0xF3F4F6));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight() + 12, 12, 12);
-                // Food emoji as placeholder
                 g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
                 g2.setColor(new Color(0xD1D5DB));
                 String emoji = pickFoodEmoji(item.getCategory());
@@ -463,7 +438,7 @@ public class TableOrderFrame extends JFrame {
         lblPrice.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         lblPrice.setForeground(UIConstants.TEXT_SECONDARY);
 
-        // "+" button
+        // "+" add-to-cart button
         JButton btnAdd = new JButton("+") {
             @Override
             protected void paintComponent(Graphics g) {
@@ -498,7 +473,6 @@ public class TableOrderFrame extends JFrame {
         card.add(imgPlaceholder, BorderLayout.CENTER);
         card.add(info,           BorderLayout.SOUTH);
 
-        // Click anywhere on card also adds to cart
         card.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { addToCart(item); }
         });
@@ -509,13 +483,13 @@ public class TableOrderFrame extends JFrame {
     private String pickFoodEmoji(String category) {
         if (category == null) return "🍽";
         String c = category.toLowerCase();
-        if (c.contains("uống") || c.contains("drink")) return "🥤";
+        if (c.contains("uống") || c.contains("drink"))   return "🥤";
         if (c.contains("tráng") || c.contains("dessert")) return "🍮";
         if (c.contains("hải sản") || c.contains("seafood")) return "🦐";
-        if (c.contains("thịt") || c.contains("meat")) return "🥩";
-        if (c.contains("cơm") || c.contains("rice")) return "🍚";
-        if (c.contains("phở") || c.contains("soup")) return "🍜";
-        if (c.contains("gà") || c.contains("chicken")) return "🍗";
+        if (c.contains("thịt") || c.contains("meat"))    return "🥩";
+        if (c.contains("cơm") || c.contains("rice"))     return "🍚";
+        if (c.contains("phở") || c.contains("soup"))     return "🍜";
+        if (c.contains("gà") || c.contains("chicken"))   return "🍗";
         return "🍽";
     }
 
@@ -544,7 +518,6 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // LEFT — logo + system name (same as menu header)
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
         JLabel logo = new JLabel("⛁");
@@ -556,12 +529,10 @@ public class TableOrderFrame extends JFrame {
         left.add(logo);
         left.add(sysName);
 
-        // CENTER — cart title
         JLabel title = new JLabel("🛒  Giỏ hàng của bạn", SwingConstants.CENTER);
         title.setFont(new Font("Segoe UI", Font.BOLD, 16));
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // RIGHT — table badge
         JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -592,10 +563,9 @@ public class TableOrderFrame extends JFrame {
     // ── CART CENTER ───────────────────────────────────────────────────────────
 
     private JScrollPane buildCartCenter() {
-        // Table model
         cartTableModel = new DefaultTableModel(CART_COLS, 0) {
             @Override public boolean isCellEditable(int row, int col) {
-                return col == 4 || col == 5; // Ghi chú + Số lượng
+                return col == 4 || col == 5; // Ghi chú + Số lượng editable
             }
         };
 
@@ -616,26 +586,22 @@ public class TableOrderFrame extends JFrame {
         ((DefaultTableCellRenderer) header.getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.CENTER);
 
-        // Column widths
-        setColWidth(cartTable, 0, 50,  50);   // STT
-        setColWidth(cartTable, 1, 200, 300);  // Tên món
-        setColWidth(cartTable, 2, 120, 150);  // Đơn giá
-        setColWidth(cartTable, 3, 130, 160);  // Thành tiền
-        setColWidth(cartTable, 4, 160, 250);  // Ghi chú
-        setColWidth(cartTable, 5, 140, 180);  // Số lượng
+        setColWidth(cartTable, 0, 50,  50);
+        setColWidth(cartTable, 1, 200, 300);
+        setColWidth(cartTable, 2, 120, 150);
+        setColWidth(cartTable, 3, 130, 160);
+        setColWidth(cartTable, 4, 160, 250);
+        setColWidth(cartTable, 5, 140, 180);
 
-        // Center align for numeric cols
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
         for (int c : new int[]{0, 2, 3}) {
             cartTable.getColumnModel().getColumn(c).setCellRenderer(centerRenderer);
         }
 
-        // Ghi chú column — editable JTextField with placeholder
         cartTable.getColumnModel().getColumn(4).setCellRenderer(new NoteRenderer());
         cartTable.getColumnModel().getColumn(4).setCellEditor(new NoteEditor(cartItems));
 
-        // Số lượng column — custom renderer + editor
         cartTable.getColumnModel().getColumn(5).setCellRenderer(new QtyRenderer());
         cartTable.getColumnModel().getColumn(5).setCellEditor(
                 new QtyEditor(cartItems, this::refreshCartTable));
@@ -656,12 +622,10 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // Total label
         lblCartTotal = new JLabel("Tổng cộng: 0 đ");
         lblCartTotal.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lblCartTotal.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // Back button (text style)
         JButton btnBack = new JButton("← Tiếp tục chọn món");
         btnBack.setFont(UIConstants.FONT_BODY);
         btnBack.setForeground(UIConstants.PRIMARY);
@@ -671,7 +635,6 @@ public class TableOrderFrame extends JFrame {
         btnBack.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btnBack.addActionListener(e -> showMenu());
 
-        // Send order button
         RoundedButton btnSend = new RoundedButton("✅  Gửi món");
         btnSend.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btnSend.setPreferredSize(new Dimension(160, UIConstants.BTN_HEIGHT + 6));
@@ -704,7 +667,6 @@ public class TableOrderFrame extends JFrame {
                     allMenuItems  = get();
                     filteredItems = new ArrayList<>(allMenuItems);
 
-                    // Collect distinct categories
                     List<String> categories = allMenuItems.stream()
                             .map(MenuItem::getCategory)
                             .filter(Objects::nonNull)
@@ -729,13 +691,16 @@ public class TableOrderFrame extends JFrame {
 
     private void filterMenu() {
         String query = tfSearch.getText().trim().toLowerCase();
+        // Skip if placeholder text is still showing
+        if (query.equals("🔍  tìm kiếm món ăn...")) query = "";
 
+        final String q = query;
         filteredItems = allMenuItems.stream()
                 .filter(m -> {
                     boolean catMatch = "Tất cả".equals(selectedCategory)
                             || selectedCategory.equals(m.getCategory());
-                    boolean nameMatch = query.isEmpty()
-                            || m.getName().toLowerCase().contains(query);
+                    boolean nameMatch = q.isEmpty()
+                            || m.getName().toLowerCase().contains(q);
                     return catMatch && nameMatch;
                 })
                 .collect(Collectors.toList());
@@ -754,7 +719,6 @@ public class TableOrderFrame extends JFrame {
                         () -> cartItems.add(new CartItem(item.getId(), item.getName(), item.getPrice()))
                 );
         refreshCartSummary();
-        // Brief flash of "+" indicator on footer button
         int total = cartItems.stream().mapToInt(c -> c.quantity).sum();
         btnShowCart.setText("🛒  Giỏ hàng (" + total + " món)");
     }
@@ -812,7 +776,6 @@ public class TableOrderFrame extends JFrame {
             return;
         }
 
-        // Commit any pending cell edit
         if (cartTable.isEditing()) {
             cartTable.getCellEditor().stopCellEditing();
         }
@@ -866,7 +829,7 @@ public class TableOrderFrame extends JFrame {
     // CELL RENDERERS / EDITORS
     // ═════════════════════════════════════════════════════════════════════════
 
-    /** Renderer cho cột Ghi chú — text xám khi trống. */
+    /** Renderer cột Ghi chú — italic xám khi trống */
     private static class NoteRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable t, Object value,
@@ -887,7 +850,7 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Editor cho cột Ghi chú — JTextField với placeholder. */
+    /** Editor cột Ghi chú */
     private static class NoteEditor extends DefaultCellEditor {
         private final List<CartItem> items;
         private final JTextField     tf;
@@ -905,8 +868,7 @@ public class TableOrderFrame extends JFrame {
         public Component getTableCellEditorComponent(JTable t, Object value,
                 boolean sel, int row, int col) {
             editingRow = row;
-            String text = (value == null || value.toString().isEmpty()) ? "" : value.toString();
-            tf.setText(text);
+            tf.setText(value == null ? "" : value.toString());
             return tf;
         }
 
@@ -919,11 +881,11 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Renderer cho cột Số lượng — [−] [N] [+] */
+    /** Renderer cột Số lượng — [−] [N] [+] */
     private static class QtyRenderer extends JPanel implements TableCellRenderer {
-        private final JLabel  lblMinus = pill("−");
-        private final JLabel  lblQty   = new JLabel("1", SwingConstants.CENTER);
-        private final JLabel  lblPlus  = pill("+");
+        private final JLabel lblMinus = pill("−");
+        private final JLabel lblQty   = new JLabel("1", SwingConstants.CENTER);
+        private final JLabel lblPlus  = pill("+");
 
         QtyRenderer() {
             setLayout(new FlowLayout(FlowLayout.CENTER, 6, 0));
@@ -969,7 +931,7 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Editor cho cột Số lượng — buttons [−] và [+] thực sự hoạt động. */
+    /** Editor cột Số lượng — click [−]/[+] thực sự thay đổi quantity */
     private class QtyEditor extends AbstractCellEditor implements TableCellEditor {
         private final List<CartItem> items;
         private final Runnable       onRefresh;
