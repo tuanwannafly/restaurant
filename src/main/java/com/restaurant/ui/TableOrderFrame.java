@@ -74,6 +74,13 @@ public class TableOrderFrame extends JFrame {
     private DefaultTableModel statusTableModel;
     private JTable            statusTable;
     private String currentCard = CARD_MENU;
+    // PHASE 1E
+    private JLabel         lblPaymentTotal;
+    private JToggleButton  tbTransfer;
+    private JToggleButton  tbCash;
+    private JPanel         cashInputPanel;
+    private JTextField     tfCashAmount;
+    private String         selectedPaymentMethod = "transfer";
 
     // ─── Cart data ────────────────────────────────────────────────────────────
     private final List<CartItem> cartItems = new ArrayList<>();
@@ -141,11 +148,10 @@ public class TableOrderFrame extends JFrame {
     }
 
     // PHASE 1A — Navigate helper (dùng cho các phase sau)
-    private void navigateTo(String card) { // PHASE 1D
+    private void navigateTo(String card) { // PHASE 1D, cập nhật PHASE 1E
         String prev = currentCard;
         currentCard = card;
 
-        // Unregister poll của card cũ
         if (CARD_STATUS.equals(prev) && !CARD_STATUS.equals(card)) {
             PollManager.getInstance().unregister("order_status_" + tableId);
         }
@@ -153,14 +159,19 @@ public class TableOrderFrame extends JFrame {
             PollManager.getInstance().unregister("order_waiting_" + tableId);
         }
 
-        // Register poll của card mới
         if (CARD_STATUS.equals(card)) {
-            refreshStatusTable(); // load ngay lập tức
+            refreshStatusTable();
             PollManager.getInstance().register(
                 "order_status_" + tableId,
                 this::refreshStatusTable,
                 5_000
             );
+        }
+
+        // PHASE 1E: sync tổng tiền khi vào card thanh toán
+        if (CARD_PAYMENT.equals(card)) {
+            syncPaymentTotal();
+            updateToggleStyle(); // reset style về đúng trạng thái hiện tại
         }
 
         cardLayout.show(cardPanel, card);
@@ -188,7 +199,14 @@ public class TableOrderFrame extends JFrame {
         refreshStatusTable(); // PHASE 1C: load dữ liệu ngay khi build
         return panel;
     }
-    private JPanel buildPaymentCard() { return buildPlaceholder("payment"); }
+    private JPanel buildPaymentCard() { // PHASE 1E
+    JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(UIConstants.BG_PAGE);
+        panel.add(buildPaymentHeader(),  BorderLayout.NORTH);
+        panel.add(buildPaymentCenter(),  BorderLayout.CENTER);
+        panel.add(buildPaymentFooter(),  BorderLayout.SOUTH);
+        return panel;
+    }
     private JPanel buildWaitingCard() { return buildPlaceholder("waiting"); }
     private JPanel buildStatusHeader() { // PHASE 1B
         JPanel bar = new JPanel(new BorderLayout());
@@ -280,6 +298,148 @@ public class TableOrderFrame extends JFrame {
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 10));
         rightPanel.setOpaque(false);
         rightPanel.add(btnRequestPayment);
+
+        bar.add(leftPanel,  BorderLayout.WEST);
+        bar.add(rightPanel, BorderLayout.EAST);
+        return bar;
+    }
+
+    private JPanel buildPaymentHeader() { // PHASE 1E
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Color.WHITE);
+        bar.setPreferredSize(new Dimension(0, 56));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+                new EmptyBorder(0, 24, 0, 24)));
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        left.setOpaque(false);
+        JLabel logo = new JLabel("⛁");
+        logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+        logo.setForeground(UIConstants.PRIMARY);
+        JLabel sysName = new JLabel("SmartRestaurant");
+        sysName.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        sysName.setForeground(UIConstants.PRIMARY);
+        left.add(logo);
+        left.add(sysName);
+
+        JLabel title = new JLabel("Yêu cầu thanh toán", SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(UIConstants.TEXT_PRIMARY);
+
+        JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(UIConstants.PRIMARY);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        tableBadge.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        tableBadge.setForeground(Color.WHITE);
+        tableBadge.setOpaque(false);
+        tableBadge.setPreferredSize(new Dimension(90, 32));
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 12));
+        right.setOpaque(false);
+        right.add(tableBadge);
+
+        bar.add(left,  BorderLayout.WEST);
+        bar.add(title, BorderLayout.CENTER);
+        bar.add(right, BorderLayout.EAST);
+        return bar;
+    }
+
+    private JScrollPane buildPaymentCenter() { // PHASE 1E
+        JPanel outer = new JPanel();
+        outer.setLayout(new BoxLayout(outer, BoxLayout.Y_AXIS));
+        outer.setBackground(UIConstants.BG_PAGE);
+        outer.setBorder(BorderFactory.createEmptyBorder(40, 80, 40, 80));
+
+        lblPaymentTotal = new JLabel("Tổng cộng: đang tải...", SwingConstants.CENTER);
+        lblPaymentTotal.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblPaymentTotal.setForeground(UIConstants.PRIMARY);
+        lblPaymentTotal.setAlignmentX(CENTER_ALIGNMENT);
+        outer.add(lblPaymentTotal);
+        outer.add(Box.createVerticalStrut(24));
+
+        JLabel lblMethod = new JLabel("Chọn phương thức thanh toán:");
+        lblMethod.setFont(UIConstants.FONT_BOLD);
+        lblMethod.setAlignmentX(CENTER_ALIGNMENT);
+        outer.add(lblMethod);
+        outer.add(Box.createVerticalStrut(12));
+
+        ButtonGroup bg = new ButtonGroup();
+        tbTransfer = buildPaymentToggle("🏦  Chuyển khoản");
+        tbCash     = buildPaymentToggle("💵  Tiền mặt");
+        bg.add(tbTransfer);
+        bg.add(tbCash);
+        tbTransfer.setSelected(true);
+
+        JPanel toggleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        toggleRow.setOpaque(false);
+        toggleRow.add(tbTransfer);
+        toggleRow.add(tbCash);
+        toggleRow.setAlignmentX(CENTER_ALIGNMENT);
+        outer.add(toggleRow);
+        outer.add(Box.createVerticalStrut(20));
+
+        cashInputPanel = buildCashInputPanel();
+        cashInputPanel.setAlignmentX(CENTER_ALIGNMENT);
+        cashInputPanel.setVisible(false);
+        outer.add(cashInputPanel);
+
+        tbTransfer.addActionListener(e -> {
+            selectedPaymentMethod = "transfer";
+            cashInputPanel.setVisible(false);
+            updateToggleStyle();
+        });
+        tbCash.addActionListener(e -> {
+            selectedPaymentMethod = "cash";
+            cashInputPanel.setVisible(true);
+            updateToggleStyle();
+        });
+
+        JScrollPane scroll = new JScrollPane(outer);
+        scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBackground(UIConstants.BG_PAGE);
+        scroll.getViewport().setBackground(UIConstants.BG_PAGE);
+        return scroll;
+    }
+
+    private JPanel buildPaymentFooter() { // PHASE 1E
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Color.WHITE);
+        bar.setPreferredSize(new Dimension(0, 60));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR),
+                new EmptyBorder(0, 24, 0, 24)));
+
+        JButton btnBack = new JButton("← Quay lại");
+        btnBack.setFont(UIConstants.FONT_BODY);
+        btnBack.setForeground(UIConstants.PRIMARY);
+        btnBack.setBorderPainted(false);
+        btnBack.setContentAreaFilled(false);
+        btnBack.setFocusPainted(false);
+        btnBack.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btnBack.addActionListener(e -> navigateTo(CARD_STATUS));
+
+        RoundedButton btnSubmit = new RoundedButton("✅  Gửi yêu cầu");
+        btnSubmit.setPreferredSize(new Dimension(160, UIConstants.BTN_HEIGHT + 4));
+        btnSubmit.addActionListener(e -> submitPaymentRequest());
+
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 15));
+        leftPanel.setOpaque(false);
+        leftPanel.add(btnBack);
+
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 12));
+        rightPanel.setOpaque(false);
+        rightPanel.add(btnSubmit);
 
         bar.add(leftPanel,  BorderLayout.WEST);
         bar.add(rightPanel, BorderLayout.EAST);
@@ -673,6 +833,59 @@ public class TableOrderFrame extends JFrame {
         if (c.contains("phở") || c.contains("soup"))     return "🍜";
         if (c.contains("gà") || c.contains("chicken"))   return "🍗";
         return "🍽";
+    }
+
+    private JToggleButton buildPaymentToggle(String text) { // PHASE 1E
+        JToggleButton btn = new JToggleButton(text);
+        btn.setFont(UIConstants.FONT_BOLD);
+        btn.setPreferredSize(new Dimension(180, 44));
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setBorder(BorderFactory.createLineBorder(UIConstants.PRIMARY, 2, true));
+        btn.setBackground(Color.WHITE);
+        btn.setForeground(UIConstants.PRIMARY);
+        return btn;
+    }
+
+    private void updateToggleStyle() { // PHASE 1E
+        tbTransfer.setBackground(tbTransfer.isSelected() ? UIConstants.PRIMARY : Color.WHITE);
+        tbTransfer.setForeground(tbTransfer.isSelected() ? Color.WHITE : UIConstants.PRIMARY);
+        tbCash.setBackground(tbCash.isSelected() ? UIConstants.PRIMARY : Color.WHITE);
+        tbCash.setForeground(tbCash.isSelected() ? Color.WHITE : UIConstants.PRIMARY);
+    }
+
+    private JPanel buildCashInputPanel() { // PHASE 1E
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(new Color(0xF9FAFB));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(16, 24, 16, 24)));
+        panel.setMaximumSize(new Dimension(400, Integer.MAX_VALUE));
+
+        JLabel lblCash = new JLabel("Nhập số tiền khách đưa:");
+        lblCash.setFont(UIConstants.FONT_BOLD);
+        lblCash.setAlignmentX(LEFT_ALIGNMENT);
+        panel.add(lblCash);
+        panel.add(Box.createVerticalStrut(8));
+
+        tfCashAmount = new JTextField("300000");
+        tfCashAmount.setFont(UIConstants.FONT_BODY);
+        tfCashAmount.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        tfCashAmount.setAlignmentX(LEFT_ALIGNMENT);
+        tfCashAmount.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+        panel.add(tfCashAmount);
+        panel.add(Box.createVerticalStrut(6));
+
+        JLabel lblHelper = new JLabel("Tiền thừa sẽ được tính tự động tại quầy.");
+        lblHelper.setFont(UIConstants.FONT_SMALL);
+        lblHelper.setForeground(UIConstants.TEXT_SECONDARY);
+        lblHelper.setAlignmentX(LEFT_ALIGNMENT);
+        panel.add(lblHelper);
+
+        return panel;
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -1344,5 +1557,39 @@ public class TableOrderFrame extends JFrame {
         } catch (Exception e) {
             return "Nhà hàng";
         }
+    }
+    private void submitPaymentRequest() { // PHASE 1E
+        System.out.println("[TableOrderFrame] Payment request:"
+                + " orderId=" + orderId
+                + " method=" + selectedPaymentMethod
+                + (selectedPaymentMethod.equals("cash")
+                    ? " amount=" + tfCashAmount.getText()
+                    : ""));
+
+        ToastNotification.show(this,
+                "Đã gửi yêu cầu! Nhân viên sẽ đến ngay.",
+                ToastNotification.Type.SUCCESS);
+
+        navigateTo(CARD_WAITING);
+    }
+
+    private void syncPaymentTotal() { // PHASE 1E
+        new SwingWorker<List<Order.OrderItem>, Void>() {
+            @Override
+            protected List<Order.OrderItem> doInBackground() {
+                return new OrderDAO().getItemsWithStatus(orderId);
+            }
+            @Override
+            protected void done() {
+                try {
+                    double total = get().stream()
+                            .mapToDouble(Order.OrderItem::getSubtotal).sum();
+                    if (lblPaymentTotal != null)
+                        lblPaymentTotal.setText("Tổng cộng: " + formatPrice(total) + " đ");
+                } catch (Exception ex) {
+                    System.err.println("[TableOrderFrame] syncPaymentTotal lỗi: " + ex.getMessage());
+                }
+            }
+        }.execute();
     }
 }
