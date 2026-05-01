@@ -73,6 +73,7 @@ public class TableOrderFrame extends JFrame {
     private RoundedButton btnRequestPayment;
     private DefaultTableModel statusTableModel;
     private JTable            statusTable;
+    private String currentCard = CARD_MENU;
 
     // ─── Cart data ────────────────────────────────────────────────────────────
     private final List<CartItem> cartItems = new ArrayList<>();
@@ -140,7 +141,28 @@ public class TableOrderFrame extends JFrame {
     }
 
     // PHASE 1A — Navigate helper (dùng cho các phase sau)
-    private void navigateTo(String card) {
+    private void navigateTo(String card) { // PHASE 1D
+        String prev = currentCard;
+        currentCard = card;
+
+        // Unregister poll của card cũ
+        if (CARD_STATUS.equals(prev) && !CARD_STATUS.equals(card)) {
+            PollManager.getInstance().unregister("order_status_" + tableId);
+        }
+        if (CARD_WAITING.equals(prev) && !CARD_WAITING.equals(card)) {
+            PollManager.getInstance().unregister("order_waiting_" + tableId);
+        }
+
+        // Register poll của card mới
+        if (CARD_STATUS.equals(card)) {
+            refreshStatusTable(); // load ngay lập tức
+            PollManager.getInstance().register(
+                "order_status_" + tableId,
+                this::refreshStatusTable,
+                5_000
+            );
+        }
+
         cardLayout.show(cardPanel, card);
     }
 
@@ -493,12 +515,32 @@ public class TableOrderFrame extends JFrame {
         lblSubtotal.setFont(UIConstants.FONT_BODY);
         lblSubtotal.setForeground(UIConstants.TEXT_PRIMARY);
 
+        // PHASE 1D — nút chuyển sang card status
+        JButton btnViewStatus = new JButton("📋 Trạng thái đơn");
+        btnViewStatus.setFont(UIConstants.FONT_BODY);
+        btnViewStatus.setForeground(UIConstants.PRIMARY);
+        btnViewStatus.setBorderPainted(false);
+        btnViewStatus.setContentAreaFilled(false);
+        btnViewStatus.setFocusPainted(false);
+        btnViewStatus.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btnViewStatus.addActionListener(e -> navigateTo(CARD_STATUS));
+
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 11));
+        leftPanel.setOpaque(false);
+        leftPanel.add(lblSubtotal);
+        leftPanel.add(Box.createHorizontalStrut(16)); // PHASE 1D
+        leftPanel.add(btnViewStatus);                 // PHASE 1D
+
         btnShowCart = new RoundedButton("🛒  Giỏ hàng (0 món)");
         btnShowCart.setPreferredSize(new Dimension(200, UIConstants.BTN_HEIGHT + 4));
         btnShowCart.addActionListener(e -> showCart());
 
-        bar.add(lblSubtotal, BorderLayout.WEST);
-        bar.add(btnShowCart, BorderLayout.EAST);
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 10));
+        rightPanel.setOpaque(false);
+        rightPanel.add(btnShowCart);
+
+        bar.add(leftPanel,  BorderLayout.WEST);
+        bar.add(rightPanel, BorderLayout.EAST);
         return bar;
     }
 
@@ -1040,10 +1082,12 @@ public class TableOrderFrame extends JFrame {
 
     // ── Window lifecycle ──────────────────────────────────────────────────────
 
-    private void setupWindowLifecycle() {
+    private void setupWindowLifecycle() { // PHASE 1D
         final String key = "tableorder_" + tableId;
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) {
+                PollManager.getInstance().unregister("order_status_" + tableId);  // PHASE 1D
+                PollManager.getInstance().unregister("order_waiting_" + tableId); // PHASE 1D
                 PollManager.getInstance().unregister(key);
             }
         });
