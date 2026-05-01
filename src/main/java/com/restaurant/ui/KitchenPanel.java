@@ -14,14 +14,19 @@ import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Màn hình bếp (Chef view) – Phase 3A redesign.
+ * Màn hình bếp (Chef view) – Phase 3B: Card UI hoàn chỉnh.
  * <p>
  * Layout: Header | JSplitPane(Chờ chế biến | Đang chế biến)
  * Auto-refresh via {@link PollManager}.
@@ -31,6 +36,14 @@ public class KitchenPanel extends JPanel {
     // ─── Constants ────────────────────────────────────────────────────────────
 
     private static final int REFRESH_MS = 5_000;
+
+    // Wait-time color thresholds
+    private static final Color COLOR_SUCCESS = new Color(0x10B981); // < 10 phút
+    private static final Color COLOR_WARNING = new Color(0xF59E0B); // 10-20 phút
+    private static final Color COLOR_DANGER  = new Color(0xEF4444); // > 20 phút
+
+    // Hover background for cards
+    private static final Color CARD_HOVER_BG = new Color(0xF0F9FF);
 
     // ─── Fields ───────────────────────────────────────────────────────────────
 
@@ -328,10 +341,32 @@ public class KitchenPanel extends JPanel {
                     protected void done() {
                         try {
                             List<KitchenTicket> tickets = get();
-                            allPendingGroups = groupByItemName(tickets);
-                            allCookingGroups = groupCooking(tickets);
+
+                            Map<String, List<KitchenTicket>> pending = new LinkedHashMap<>();
+                            Map<String, List<KitchenTicket>> cooking = new LinkedHashMap<>();
+
+                            for (KitchenTicket ticket : tickets) {
+                                switch (ticket.itemStatus) {
+                                    case PENDING:
+                                    case ACCEPTED:
+                                        pending.computeIfAbsent(ticket.itemName,
+                                                k -> new ArrayList<>()).add(ticket);
+                                        break;
+                                    case COOKING:
+                                        cooking.computeIfAbsent(ticket.itemName,
+                                                k -> new ArrayList<>()).add(ticket);
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+
+                            allPendingGroups = pending;
+                            allCookingGroups = cooking;
+
                             applyPendingFilter();
                             applyCookingFilter();
+
                         } catch (Exception ex) {
                             System.err.println("[KitchenPanel] loadData error: " + ex.getMessage());
                             ToastNotification.show(
@@ -342,29 +377,6 @@ public class KitchenPanel extends JPanel {
                     }
                 };
         worker.execute();
-    }
-
-    // ─── Grouping ─────────────────────────────────────────────────────────────
-
-    private Map<String, List<KitchenTicket>> groupByItemName(List<KitchenTicket> tickets) {
-        Map<String, List<KitchenTicket>> result = new LinkedHashMap<>();
-        for (KitchenTicket t : tickets) {
-            if (t.itemStatus == Order.OrderItem.ItemStatus.PENDING
-                    || t.itemStatus == Order.OrderItem.ItemStatus.ACCEPTED) {
-                result.computeIfAbsent(t.itemName, k -> new ArrayList<>()).add(t);
-            }
-        }
-        return result;
-    }
-
-    private Map<String, List<KitchenTicket>> groupCooking(List<KitchenTicket> tickets) {
-        Map<String, List<KitchenTicket>> result = new LinkedHashMap<>();
-        for (KitchenTicket t : tickets) {
-            if (t.itemStatus == Order.OrderItem.ItemStatus.COOKING) {
-                result.computeIfAbsent(t.itemName, k -> new ArrayList<>()).add(t);
-            }
-        }
-        return result;
     }
 
     // ─── Filter ───────────────────────────────────────────────────────────────
@@ -451,64 +463,181 @@ public class KitchenPanel extends JPanel {
         cookingCardsPanel.repaint();
     }
 
-    // ─── Card Placeholders (Phase 3B will replace these) ─────────────────────
+    // ─── buildPendingCard (Phase 3B) ──────────────────────────────────────────
 
-    /**
-     * Placeholder pending card – Phase 3B will implement full card.
-     */
     private JPanel buildPendingCard(String itemName, List<KitchenTicket> tickets) {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(UIConstants.CORNER_RADIUS, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
-        card.setPreferredSize(new Dimension(220, 120));
+                new RoundedBorder(8, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+        card.setPreferredSize(new Dimension(220, 130));
+        card.setMinimumSize(new Dimension(220, 0));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
+        // 1. Tên món
         JLabel nameLabel = new JLabel(itemName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
         nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        JLabel qtyLabel = new JLabel("Số lượng chờ: " + tickets.size());
+        // 2. Strut
+        // 3. Số lượng chờ
+        int totalQty = sumQuantity(tickets);
+        JLabel qtyLabel = new JLabel("Số lượng chờ: " + totalQty);
         qtyLabel.setFont(UIConstants.FONT_BODY);
-        qtyLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        qtyLabel.setForeground(UIConstants.TEXT_PRIMARY);
         qtyLabel.setAlignmentX(LEFT_ALIGNMENT);
 
+        // 4. Strut
+        // 5. Chờ lâu nhất + màu sắc theo thời gian
+        long waitMinutes = calcWaitMinutes(tickets);
+        JLabel waitLabel = new JLabel("Chờ lâu nhất: " + waitMinutes + " phút");
+        waitLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        if (waitMinutes < 10) {
+            waitLabel.setFont(UIConstants.FONT_BODY);
+            waitLabel.setForeground(COLOR_SUCCESS);
+        } else if (waitMinutes <= 20) {
+            waitLabel.setFont(UIConstants.FONT_BODY);
+            waitLabel.setForeground(COLOR_WARNING);
+        } else {
+            // > 20 phút: DANGER + bold
+            waitLabel.setFont(UIConstants.FONT_BODY.deriveFont(Font.BOLD));
+            waitLabel.setForeground(COLOR_DANGER);
+        }
+
         card.add(nameLabel);
-        card.add(Box.createVerticalStrut(6));
+        card.add(Box.createVerticalStrut(8));
         card.add(qtyLabel);
+        card.add(Box.createVerticalStrut(4));
+        card.add(waitLabel);
+
+        // HOVER effect
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                card.setBackground(CARD_HOVER_BG);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                card.setBackground(Color.WHITE);
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                openPendingDetailDialog(itemName, tickets);
+            }
+        });
 
         return card;
     }
 
-    /**
-     * Placeholder cooking card – Phase 3B will implement full card.
-     */
+    // ─── buildCookingCard (Phase 3B) ──────────────────────────────────────────
+
     private JPanel buildCookingCard(String itemName, List<KitchenTicket> tickets) {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(UIConstants.CORNER_RADIUS, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
-        card.setPreferredSize(new Dimension(220, 120));
+                new RoundedBorder(8, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+        card.setPreferredSize(new Dimension(220, 130));
+        card.setMinimumSize(new Dimension(220, 0));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
+        // 1. Tên món
         JLabel nameLabel = new JLabel(itemName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
         nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        JLabel qtyLabel = new JLabel("Số lượng: " + tickets.size());
+        // 2. Strut
+        // 3. Tên nhân viên hoặc "Đang chế biến"
+        String assignedTo = "Đang chế biến";
+        if (!tickets.isEmpty() && tickets.get(0).assignedTo != null
+                && !tickets.get(0).assignedTo.isBlank()) {
+            assignedTo = tickets.get(0).assignedTo;
+        }
+        JLabel staffLabel = new JLabel(assignedTo);
+        staffLabel.setFont(UIConstants.FONT_BODY);
+        staffLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        staffLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        // 4. Strut
+        // 5. Số lượng
+        int totalQty = sumQuantity(tickets);
+        JLabel qtyLabel = new JLabel("Số lượng: " + totalQty);
         qtyLabel.setFont(UIConstants.FONT_BODY);
-        qtyLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        qtyLabel.setForeground(UIConstants.TEXT_PRIMARY);
         qtyLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         card.add(nameLabel);
-        card.add(Box.createVerticalStrut(6));
+        card.add(Box.createVerticalStrut(8));
+        card.add(staffLabel);
+        card.add(Box.createVerticalStrut(4));
         card.add(qtyLabel);
 
+        // HOVER effect
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                card.setBackground(CARD_HOVER_BG);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                card.setBackground(Color.WHITE);
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                openCookingDetailDialog(itemName, tickets);
+            }
+        });
+
         return card;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Tính thời gian chờ lâu nhất (tính từ created_at cũ nhất đến hiện tại).
+     */
+    private long calcWaitMinutes(List<KitchenTicket> tickets) {
+        return tickets.stream()
+                .map(t -> t.createdAt)
+                .filter(Objects::nonNull)
+                .mapToLong(dt -> Duration.between(dt, LocalDateTime.now()).toMinutes())
+                .max()
+                .orElse(0L);
+    }
+
+    /**
+     * Tổng số lượng tất cả ticket trong nhóm.
+     */
+    private int sumQuantity(List<KitchenTicket> tickets) {
+        return tickets.stream().mapToInt(t -> t.quantity).sum();
+    }
+
+    // ─── Detail Dialogs (Phase 3C – placeholder) ──────────────────────────────
+
+    /**
+     * Mở dialog chi tiết cho nhóm món đang chờ.
+     * Phase 3C sẽ implement đầy đủ.
+     */
+    private void openPendingDetailDialog(String itemName, List<KitchenTicket> tickets) {
+        // Phase 3C implement
+    }
+
+    /**
+     * Mở dialog chi tiết cho nhóm món đang nấu.
+     * Phase 3C sẽ implement đầy đủ.
+     */
+    private void openCookingDetailDialog(String itemName, List<KitchenTicket> tickets) {
+        // Phase 3C implement
     }
 
     // ─── AncestorListener ─────────────────────────────────────────────────────

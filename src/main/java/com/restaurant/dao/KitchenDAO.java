@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,11 +35,15 @@ public class KitchenDAO {
         public final String itemName;
         public final int    quantity;
         public final Order.OrderItem.ItemStatus itemStatus;
+        public final String                    assignedTo;
+        public final LocalDateTime             createdAt;
 
         public KitchenTicket(String itemId, String orderId, String menuItemId,
                              String tableId, String tableName, int roundNumber,
                              String itemName, int quantity,
-                             Order.OrderItem.ItemStatus itemStatus) {
+                             Order.OrderItem.ItemStatus itemStatus,
+                             String assignedTo,
+                             LocalDateTime createdAt) {
             this.itemId      = itemId;
             this.orderId     = orderId;
             this.menuItemId  = menuItemId;
@@ -47,6 +53,8 @@ public class KitchenDAO {
             this.itemName    = itemName;
             this.quantity    = quantity;
             this.itemStatus  = itemStatus;
+            this.assignedTo  = assignedTo;
+            this.createdAt   = createdAt;
         }
     }
 
@@ -55,10 +63,11 @@ public class KitchenDAO {
     private static final String SQL_ACTIVE_TICKETS =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
-            "       mi.name AS item_name,     t.table_number, t.table_id " +
+            "       oi.created_at,    oi.assigned_to, " +
+            "       mi.name AS item_name, t.table_number, t.table_id " +
             "FROM   order_items oi " +
-            "JOIN   orders           o  ON oi.order_id    = o.order_id " +
-            "JOIN   restaurant_tables t  ON o.table_id     = t.table_id " +
+            "JOIN   orders           o  ON oi.order_id     = o.order_id " +
+            "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
             "JOIN   menu_items       mi  ON oi.menu_item_id = mi.item_id " +
             "WHERE  o.restaurant_id = ? " +
             "  AND  oi.item_status IN ('PENDING','ACCEPTED','COOKING') " +
@@ -71,7 +80,8 @@ public class KitchenDAO {
     private static final String SQL_READY_BY_TABLE =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
-            "       mi.name AS item_name,     t.table_number, t.table_id " +
+            "       oi.created_at,    oi.assigned_to, " +
+            "       mi.name AS item_name, t.table_number, t.table_id " +
             "FROM   order_items oi " +
             "JOIN   orders           o  ON oi.order_id     = o.order_id " +
             "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
@@ -79,7 +89,7 @@ public class KitchenDAO {
             "WHERE  o.restaurant_id = ? " +
             "  AND  oi.item_status  = 'READY' " +
             "  AND  (o.table_id, oi.round_number) IN ( " +
-            "           SELECT oi2.order_id, oi2.round_number " +  // reuse sub-query key
+            "           SELECT oi2.order_id, oi2.round_number " +
             "           FROM   order_items oi2 " +
             "           JOIN   orders o2 ON oi2.order_id = o2.order_id " +
             "           WHERE  o2.restaurant_id = ? " +
@@ -207,8 +217,16 @@ public class KitchenDAO {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private KitchenTicket mapTicket(ResultSet rs) throws SQLException {
+        // Đọc created_at → LocalDateTime
+        Timestamp ts = rs.getTimestamp("created_at");
+        LocalDateTime createdAt = (ts != null) ? ts.toLocalDateTime() : LocalDateTime.now();
+
+        // Đọc assigned_to (tên nhân viên, có thể null)
+        String assignedTo = rs.getString("assigned_to");
+
         String rawStatus = rs.getString("item_status");
         Order.OrderItem.ItemStatus status = parseStatus(rawStatus);
+
         return new KitchenTicket(
                 rs.getString("order_item_id"),
                 rs.getString("order_id"),
@@ -218,7 +236,9 @@ public class KitchenDAO {
                 rs.getInt("round_number"),
                 rs.getString("item_name"),
                 rs.getInt("quantity"),
-                status
+                status,
+                assignedTo,
+                createdAt
         );
     }
 
