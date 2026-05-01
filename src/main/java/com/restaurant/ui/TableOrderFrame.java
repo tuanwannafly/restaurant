@@ -71,6 +71,8 @@ public class TableOrderFrame extends JFrame {
     private JLabel            lblCartTotal;
     private JLabel        lblStatusTotal;
     private RoundedButton btnRequestPayment;
+    private DefaultTableModel statusTableModel;
+    private JTable            statusTable;
 
     // ─── Cart data ────────────────────────────────────────────────────────────
     private final List<CartItem> cartItems = new ArrayList<>();
@@ -155,12 +157,13 @@ public class TableOrderFrame extends JFrame {
     }
 
     // PHASE 1A — 3 card skeleton builders
-    private JPanel buildStatusCard() { // PHASE 1B
+    private JPanel buildStatusCard() { // PHASE 1C
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
         panel.add(buildStatusHeader(), BorderLayout.NORTH);
-        panel.add(new JPanel(),        BorderLayout.CENTER); // placeholder CENTER
+        panel.add(buildStatusCenter(), BorderLayout.CENTER); // PHASE 1C: thay placeholder
         panel.add(buildStatusFooter(), BorderLayout.SOUTH);
+        refreshStatusTable(); // PHASE 1C: load dữ liệu ngay khi build
         return panel;
     }
     private JPanel buildPaymentCard() { return buildPlaceholder("payment"); }
@@ -749,6 +752,77 @@ public class TableOrderFrame extends JFrame {
         return scroll;
     }
 
+    private JScrollPane buildStatusCenter() { // PHASE 1C
+        String[] cols = {"STT", "Tên món", "Trạng thái"};
+        statusTableModel = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        statusTable = new JTable(statusTableModel);
+        statusTable.setFont(UIConstants.FONT_BODY);
+        statusTable.setRowHeight(UIConstants.ROW_HEIGHT + 4);
+        statusTable.setShowGrid(false);
+        statusTable.setIntercellSpacing(new Dimension(0, 1));
+        statusTable.setSelectionBackground(UIConstants.ROW_SELECTED);
+        statusTable.setFillsViewportHeight(true);
+
+        JTableHeader header = statusTable.getTableHeader();
+        header.setFont(UIConstants.FONT_HEADER);
+        header.setBackground(UIConstants.HEADER_BG);
+        header.setForeground(UIConstants.TEXT_PRIMARY);
+        header.setPreferredSize(new Dimension(0, 36));
+        header.setReorderingAllowed(false);
+        ((DefaultTableCellRenderer) header.getDefaultRenderer())
+                .setHorizontalAlignment(SwingConstants.CENTER);
+
+        statusTable.getColumnModel().getColumn(0).setPreferredWidth(50);
+        statusTable.getColumnModel().getColumn(0).setMaxWidth(60);
+        statusTable.getColumnModel().getColumn(1).setPreferredWidth(250);
+        statusTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+
+        statusTable.getColumnModel().getColumn(2).setCellRenderer(new StatusCellRenderer());
+
+        JScrollPane scroll = new JScrollPane(statusTable);
+        scroll.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR));
+        scroll.getViewport().setBackground(Color.WHITE);
+        return scroll;
+    }
+
+    public void refreshStatusTable() { // PHASE 1C
+        new SwingWorker<List<Order.OrderItem>, Void>() {
+            @Override
+            protected List<Order.OrderItem> doInBackground() {
+                return new OrderDAO().getItemsWithStatus(orderId);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<Order.OrderItem> items = get();
+                    statusTableModel.setRowCount(0);
+                    double total = 0;
+                    int stt = 1;
+                    for (Order.OrderItem item : items) {
+                        String statusVi = mapItemStatus(item.getItemStatus());
+                        statusTableModel.addRow(new Object[]{
+                            stt++,
+                            item.getMenuItemName(),
+                            statusVi
+                        });
+                        total += item.getSubtotal();
+                    }
+                    if (lblStatusTotal != null) {
+                        lblStatusTotal.setText("Tổng cộng: " + formatPrice(total) + " đ");
+                    }
+                } catch (Exception ex) {
+                    System.err.println("[TableOrderFrame] refreshStatusTable lỗi: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    
+
     // ── CART FOOTER ───────────────────────────────────────────────────────────
 
     private JPanel buildCartFooter() {
@@ -824,6 +898,19 @@ public class TableOrderFrame extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    private String mapItemStatus(Order.OrderItem.ItemStatus status) { // PHASE 1C
+        if (status == null) return "Đang chờ";
+        return switch (status) {
+            case PENDING    -> "Đang chờ";
+            case ACCEPTED   -> "Đang chế biến";
+            case COOKING    -> "Đang chế biến";
+            case READY      -> "Đã chế biến";
+            case DELIVERING -> "Đang mang lên";
+            case DELIVERED  -> "Đã nhận";
+            default         -> "Đang chờ";
+        };
     }
 
     private void filterMenu() {
@@ -984,6 +1071,42 @@ public class TableOrderFrame extends JFrame {
             }
             setBorder(new EmptyBorder(0, 8, 0, 8));
             return this;
+        }
+    }
+
+    private static class StatusCellRenderer extends DefaultTableCellRenderer { // PHASE 1C
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int col) {
+            JLabel lbl = (JLabel) super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, col);
+            String val = value != null ? value.toString() : "";
+            lbl.setHorizontalAlignment(SwingConstants.CENTER);
+            switch (val) {
+                case "Đang chờ":
+                    lbl.setForeground(UIConstants.TEXT_SECONDARY);
+                    lbl.setFont(UIConstants.FONT_BODY);
+                    break;
+                case "Đang chế biến":
+                    lbl.setForeground(UIConstants.WARNING);
+                    lbl.setFont(UIConstants.FONT_BOLD);
+                    break;
+                case "Đã chế biến":
+                    lbl.setForeground(UIConstants.SUCCESS);
+                    lbl.setFont(UIConstants.FONT_BOLD);
+                    break;
+                case "Đang mang lên":
+                    lbl.setForeground(UIConstants.PRIMARY);
+                    lbl.setFont(UIConstants.FONT_BOLD);
+                    break;
+                case "Đã nhận":
+                    lbl.setForeground(new Color(0x9CA3AF));
+                    lbl.setFont(UIConstants.FONT_BODY);
+                    break;
+                default:
+                    lbl.setForeground(UIConstants.TEXT_PRIMARY);
+            }
+            return lbl;
         }
     }
 
