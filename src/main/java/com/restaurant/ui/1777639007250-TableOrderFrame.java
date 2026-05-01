@@ -1460,18 +1460,18 @@ public class TableOrderFrame extends JFrame {
     }
 
     // ── Window lifecycle ──────────────────────────────────────────────────────
-    // ─── PHASE 1F: setupWindowLifecycle() cập nhật ───────────────────────────────
-    private void setupWindowLifecycle() { // PHASE 1D, cập nhật PHASE 1F
-        final String key = "tableorder_" + tableId;
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                PollManager.getInstance().unregister("tableorder_"    + tableId);
-                PollManager.getInstance().unregister("order_status_"  + tableId);
-                PollManager.getInstance().unregister("order_waiting_" + tableId); // PHASE 1F
-            }
-        });
-    }
+// ─── PHASE 1F: setupWindowLifecycle() cập nhật ───────────────────────────────
+private void setupWindowLifecycle() { // PHASE 1D, cập nhật PHASE 1F
+    final String key = "tableorder_" + tableId;
+    addWindowListener(new WindowAdapter() {
+        @Override
+        public void windowClosing(WindowEvent e) {
+            PollManager.getInstance().unregister("tableorder_"    + tableId);
+            PollManager.getInstance().unregister("order_status_"  + tableId);
+            PollManager.getInstance().unregister("order_waiting_" + tableId); // PHASE 1F
+        }
+    });
+}
 
     // ═════════════════════════════════════════════════════════════════════════
     // CELL RENDERERS / EDITORS
