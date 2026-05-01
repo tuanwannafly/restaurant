@@ -69,6 +69,8 @@ public class TableOrderFrame extends JFrame {
     private DefaultTableModel cartTableModel;
     private JTable            cartTable;
     private JLabel            lblCartTotal;
+    private JLabel        lblStatusTotal;
+    private RoundedButton btnRequestPayment;
 
     // ─── Cart data ────────────────────────────────────────────────────────────
     private final List<CartItem> cartItems = new ArrayList<>();
@@ -153,9 +155,111 @@ public class TableOrderFrame extends JFrame {
     }
 
     // PHASE 1A — 3 card skeleton builders
-    private JPanel buildStatusCard()  { return buildPlaceholder("status"); }
+    private JPanel buildStatusCard() { // PHASE 1B
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(UIConstants.BG_PAGE);
+        panel.add(buildStatusHeader(), BorderLayout.NORTH);
+        panel.add(new JPanel(),        BorderLayout.CENTER); // placeholder CENTER
+        panel.add(buildStatusFooter(), BorderLayout.SOUTH);
+        return panel;
+    }
     private JPanel buildPaymentCard() { return buildPlaceholder("payment"); }
     private JPanel buildWaitingCard() { return buildPlaceholder("waiting"); }
+    private JPanel buildStatusHeader() { // PHASE 1B
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Color.WHITE);
+        bar.setPreferredSize(new Dimension(0, 56));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+                new EmptyBorder(0, 24, 0, 24)));
+
+        // LEFT — logo + system name
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        left.setOpaque(false);
+        JLabel logo = new JLabel("⛁");
+        logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+        logo.setForeground(UIConstants.PRIMARY);
+        JLabel sysName = new JLabel("SmartRestaurant");
+        sysName.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        sysName.setForeground(UIConstants.PRIMARY);
+        left.add(logo);
+        left.add(sysName);
+
+        // CENTER — title
+        JLabel title = new JLabel("Đơn hàng của bạn", SwingConstants.CENTER);
+        title.setFont(UIConstants.FONT_TITLE);
+        title.setForeground(UIConstants.TEXT_PRIMARY);
+
+        // RIGHT — table badge
+        JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(UIConstants.PRIMARY);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        tableBadge.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        tableBadge.setForeground(Color.WHITE);
+        tableBadge.setOpaque(false);
+        tableBadge.setPreferredSize(new Dimension(90, 32));
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 12));
+        right.setOpaque(false);
+        right.add(tableBadge);
+
+        bar.add(left,   BorderLayout.WEST);
+        bar.add(title,  BorderLayout.CENTER);
+        bar.add(right,  BorderLayout.EAST);
+        return bar;
+    }
+
+    private JPanel buildStatusFooter() { // PHASE 1B
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Color.WHITE);
+        bar.setPreferredSize(new Dimension(0, 56));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR),
+                new EmptyBorder(0, 24, 0, 24)));
+
+        // LEFT side
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 11));
+        leftPanel.setOpaque(false);
+
+        lblStatusTotal = new JLabel("Tổng cộng: đang tải...");
+        lblStatusTotal.setFont(UIConstants.FONT_BODY);
+        lblStatusTotal.setForeground(UIConstants.TEXT_PRIMARY);
+
+        JButton btnBackToMenu = new JButton("← Gọi thêm món");
+        btnBackToMenu.setFont(UIConstants.FONT_BODY);
+        btnBackToMenu.setForeground(UIConstants.PRIMARY);
+        btnBackToMenu.setBorderPainted(false);
+        btnBackToMenu.setContentAreaFilled(false);
+        btnBackToMenu.setFocusPainted(false);
+        btnBackToMenu.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btnBackToMenu.addActionListener(e -> navigateTo(CARD_MENU));
+
+        leftPanel.add(lblStatusTotal);
+        leftPanel.add(Box.createHorizontalStrut(16));
+        leftPanel.add(btnBackToMenu);
+
+        // RIGHT side
+        btnRequestPayment = new RoundedButton("Yêu cầu thanh toán");
+        btnRequestPayment.setPreferredSize(new Dimension(180, UIConstants.BTN_HEIGHT + 4));
+        btnRequestPayment.addActionListener(e -> navigateTo(CARD_PAYMENT));
+
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 10));
+        rightPanel.setOpaque(false);
+        rightPanel.add(btnRequestPayment);
+
+        bar.add(leftPanel,  BorderLayout.WEST);
+        bar.add(rightPanel, BorderLayout.EAST);
+        return bar;
+    }
 
     // ═════════════════════════════════════════════════════════════════════════
     // CARD 1 — MÀN HÌNH CHỌN MÓN
