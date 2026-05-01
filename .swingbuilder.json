@@ -1,0 +1,71 @@
+{
+  "defaultBackgroundColor": "#FFFFFF",
+  "defaultTextColor": "#000000",
+  "defaultFontFamily": "Arial",
+  "defaultFontSize": 12,
+  "outputDirectory": "swing/components/",
+  "components": {
+    "Panel": {
+      "backgroundColor": "#F5F5F5"
+    },
+    "Button": {
+      "backgroundColor": "#4A90E2",
+      "textColor": "#FFFFFF"
+    },
+    "Label": {
+      "textColor": "#222222"
+    },
+    "TextField": {
+      "fontFamily": "Consolas",
+      "fontSize": 13
+    },
+    "PasswordField": {
+      "fontFamily": "Consolas",
+      "fontSize": 13
+    },
+    "TextArea": {
+      "fontFamily": "Segoe UI",
+      "fontSize": 12
+    },
+    "CheckBox": {
+      "textColor": "#1A1A1A"
+    },
+    "RadioButton": {
+      "textColor": "#1A1A1A"
+    },
+    "ComboBox": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "List": {
+      "backgroundColor": "#FFFFFF",
+      "textColor": "#333333"
+    },
+    "ProgressBar": {
+      "backgroundColor": "#E6F4EA"
+    },
+    "Slider": {
+      "backgroundColor": "#F4F7FF"
+    },
+    "Spinner": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "Separator": {
+      "backgroundColor": "#D9D9D9"
+    },
+    "MenuBar": {
+      "children": [
+        "Menu"
+      ]
+    },
+    "Menu": {
+      "parentId": "MenuBar",
+      "children": [
+        "MenuItem"
+      ]
+    },
+    "MenuItem": {
+      "parentId": "Menu"
+    },
+    "ToolBar": {}
+  }
+}

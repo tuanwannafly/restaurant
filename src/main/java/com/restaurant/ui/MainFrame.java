@@ -98,21 +98,49 @@ public class MainFrame extends JFrame implements SessionListener {
      * Phase 5C: Được gọi khi AppSession.logout() kích hoạt.
      * Đóng MainFrame và mở lại LoginDialog trên EDT.
      */
+    // onLogout() — bọc try-catch đầy đủ
     @Override
     public void onLogout() {
         SwingUtilities.invokeLater(() -> {
-            // Phase 6: dừng session check timer trước khi đóng frame
-            stopSessionCheckTimer();
-            // Phase 7A: dừng toàn bộ polling timer trước khi đóng frame.
-            // Gọi trước dispose() để tránh timer tiếp tục bắn event sau logout.
-            PollManager.getInstance().stopAll();
-            this.dispose();
-            LoginDialog loginDialog = new LoginDialog(null);
-            loginDialog.setVisible(true);
-            if (loginDialog.isLoginSuccess()) {
-                new MainFrame().setVisible(true);
-            } else {
-                System.exit(0);
+            try {
+                stopSessionCheckTimer();
+                PollManager.getInstance().stopAll();
+                this.dispose();
+            } catch (Exception cleanupEx) {
+                System.err.println("[MainFrame] onLogout cleanup lỗi: " + cleanupEx.getMessage());
+            }
+
+            try {
+                LoginDialog loginDialog = new LoginDialog(null);
+                loginDialog.setVisible(true); // blocks until dispose()
+
+                if (loginDialog.isLoginSuccess()) {
+                    try {
+                        MainFrame frame = new MainFrame();
+                        frame.setVisible(true);
+                    } catch (Exception frameEx) {
+                        System.err.println("[MainFrame] Không thể tạo MainFrame sau login: " + frameEx.getMessage());
+                        frameEx.printStackTrace();
+                        // Thử lại một lần
+                        JOptionPane.showMessageDialog(null,
+                                "Lỗi khởi tạo giao diện: " + frameEx.getMessage() +
+                                "\nVui lòng đăng nhập lại.",
+                                "Lỗi", JOptionPane.ERROR_MESSAGE);
+                        LoginDialog retry = new LoginDialog(null);
+                        retry.setVisible(true);
+                        if (retry.isLoginSuccess()) {
+                            new MainFrame().setVisible(true);
+                        } else {
+                            System.exit(0);
+                        }
+                    }
+                } else {
+                    System.exit(0);
+                }
+            } catch (Exception ex) {
+                System.err.println("[MainFrame] onLogout flow lỗi: " + ex.getMessage());
+                ex.printStackTrace();
+                System.exit(1);
             }
         });
     }
@@ -231,15 +259,20 @@ public class MainFrame extends JFrame implements SessionListener {
         applyRoleFilter();
     }
 
-    /** Ẩn/hiện tab dựa trên quyền người dùng. */
+    // applyRoleFilter() — thay permission.hasPermission() bằng kiểm tra trực tiếp qua Permission.forRole()
+    // để tránh gọi TokenService.validateToken() DB trong constructor
     private void applyRoleFilter() {
         AppSession session = AppSession.getInstance();
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
         boolean isSuperAdmin = guard.isSuperAdmin();
+        String userRole = session.getUserRole();
+
+        // Dùng Permission.forRole() trực tiếp, KHÔNG qua can() để tránh DB call + SessionExpiredException
+        java.util.Set<com.restaurant.session.Permission> perms =
+                com.restaurant.session.Permission.forRole(userRole);
 
         for (int i = 0; i < navPages.length; i++) {
             switch (navPages[i]) {
-                // ── Các tab chỉ dành cho nhà hàng cụ thể — ẩn với SUPER_ADMIN ──
                 case "menu":
                 case "ban":
                 case "donhang":
@@ -248,54 +281,45 @@ public class MainFrame extends JFrame implements SessionListener {
                     break;
 
                 case "nhanvien":
-                    // Ẩn với SUPER_ADMIN; với role khác kiểm tra quyền VIEW_EMPLOYEE
                     navButtons[i].setVisible(
                             !isSuperAdmin &&
-                            session.hasPermission(com.restaurant.session.Permission.VIEW_EMPLOYEE));
+                            perms.contains(com.restaurant.session.Permission.VIEW_EMPLOYEE));
                     break;
 
                 case "bep":
-                    // Ẩn với SUPER_ADMIN; bếp là màn hình vận hành nhà hàng cụ thể
                     navButtons[i].setVisible(
                             !isSuperAdmin &&
-                            session.hasPermission(com.restaurant.session.Permission.VIEW_KITCHEN));
+                            perms.contains(com.restaurant.session.Permission.VIEW_KITCHEN));
                     break;
 
                 case "phucvu":
-                    // Ẩn với SUPER_ADMIN; phục vụ là màn hình vận hành nhà hàng cụ thể
                     navButtons[i].setVisible(
                             !isSuperAdmin &&
-                            session.hasPermission(com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
+                            perms.contains(com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
                     break;
 
                 case "thongke":
-                    // Thống kê theo nhà hàng — ẩn với SUPER_ADMIN (không có restaurant_id)
                     navButtons[i].setVisible(
                             !isSuperAdmin &&
-                            session.hasPermission(com.restaurant.session.Permission.VIEW_STATS));
+                            perms.contains(com.restaurant.session.Permission.VIEW_STATS));
                     break;
 
                 case "nhahangs":
-                    // Quản lý toàn bộ nhà hàng — chỉ SUPER_ADMIN
                     navButtons[i].setVisible(isSuperAdmin);
                     break;
 
                 case "myrestaurant":
-                    // Thông tin nhà hàng của mình — chỉ RESTAURANT_ADMIN
                     navButtons[i].setVisible(guard.isRestaurantAdmin());
                     break;
 
                 case "baomat":
-                    // Nhật ký bảo mật — chỉ SUPER_ADMIN
                     navButtons[i].setVisible(isSuperAdmin);
                     break;
 
                 case "adminstats":
-                    // Thống kê toàn hệ thống — chỉ SUPER_ADMIN
                     navButtons[i].setVisible(isSuperAdmin);
                     break;
 
-                // "home" và "baocao" luôn hiển thị (không cần case riêng)
                 default:
                     break;
             }
