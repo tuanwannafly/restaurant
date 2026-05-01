@@ -37,6 +37,7 @@ import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.border.AbstractBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.AncestorEvent;
@@ -53,7 +54,7 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 
 /**
- * Màn hình phục vụ bàn dành cho role WAITER — Phase 5D.
+ * Màn hình phục vụ bàn dành cho role WAITER — Phase 5D (Polish).
  * <p>
  * Gồm 3 tab:
  * <ol>
@@ -61,11 +62,17 @@ import com.restaurant.session.Permission;
  *       chuyển sang DELIVERING / DELIVERED.</li>
  *   <li><b>Dọn bàn</b>     – danh sách bàn DIRTY / CLEANING, cho phép
  *       chuyển sang CLEANING / RANH.</li>
- *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày, kèm thống kê.</li>
+ *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày, kèm thống kê.
+ *       Refresh riêng khi tab được chọn.</li>
  * </ol>
  * Auto-refresh mỗi 5 giây. Timer chỉ chạy khi panel đang hiển thị
  * (kiểm soát qua {@link AncestorListener}).
  * <p>
+ * Polish (Phase 5E):
+ * <ul>
+ *   <li>{@link #showInlineError(String)} – hiển thị lỗi inline 5 giây rồi tự ẩn.</li>
+ *   <li>Tab change listener – refresh tab "Đã hủy" khi người dùng chuyển sang.</li>
+ * </ul>
  * RBAC: yêu cầu {@link Permission#VIEW_WAITER_SERVICE}.
  */
 public class WaiterServicePanel extends JPanel {
@@ -80,8 +87,8 @@ public class WaiterServicePanel extends JPanel {
     private JPanel deliveryCardsPanel;
     private int    lastReadyCount = 0;
 
-    private JPanel cleanTablePanel;   // Phase 4C
-    private JPanel cancelledPanel;    // Phase 5D
+    private JPanel cleanTablePanel;
+    private JPanel cancelledPanel;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -179,8 +186,31 @@ public class WaiterServicePanel extends JPanel {
         tabs.setBackground(UIConstants.BG_PAGE);
 
         tabs.addTab("🚚  Phục vụ bàn", buildDeliveryTab());
-        tabs.addTab("🧹  Dọn bàn",     buildCleanTab());       // Phase 4C
-        tabs.addTab("🚫  Đã hủy",      buildCancelledTab());   // Phase 5D
+        tabs.addTab("🧹  Dọn bàn",     buildCleanTab());
+        tabs.addTab("🚫  Đã hủy",      buildCancelledTab());
+
+        // ── 1c: Tab change listener – refresh tab "Đã hủy" khi chuyển sang ──
+        tabs.addChangeListener(e -> {
+            if (tabs.getSelectedIndex() == 2) {
+                new SwingWorker<List<KitchenDAO.KitchenTicket>, Void>() {
+                    @Override
+                    protected List<KitchenDAO.KitchenTicket> doInBackground() {
+                        return kitchenDAO.getCancelledItems(
+                                AppSession.getInstance().getRestaurantId());
+                    }
+                    @Override
+                    protected void done() {
+                        try {
+                            rebuildCancelledTab(get());
+                        } catch (Exception ex) {
+                            System.err.println("[WaiterServicePanel] tabChange cancelled: "
+                                    + ex.getMessage());
+                            showInlineError("Không thể tải danh sách đã hủy: " + ex.getMessage());
+                        }
+                    }
+                }.execute();
+            }
+        });
 
         return tabs;
     }
@@ -205,7 +235,7 @@ public class WaiterServicePanel extends JPanel {
         return outer;
     }
 
-    // ─── Tab 2: Dọn bàn (Phase 4C) ───────────────────────────────────────────
+    // ─── Tab 2: Dọn bàn ──────────────────────────────────────────────────────
 
     private JPanel buildCleanTab() {
         cleanTablePanel = new JPanel(new BorderLayout());
@@ -213,16 +243,50 @@ public class WaiterServicePanel extends JPanel {
         return cleanTablePanel;
     }
 
-    // ─── Tab 3: Đã hủy (Phase 5D) ────────────────────────────────────────────
+    // ─── Tab 3: Đã hủy ───────────────────────────────────────────────────────
 
-    /**
-     * Khởi tạo container rỗng cho tab Đã hủy.
-     * Nội dung được điền bởi {@link #rebuildCancelledTab(List)} sau khi load data.
-     */
     private JPanel buildCancelledTab() {
         cancelledPanel = new JPanel(new BorderLayout());
         cancelledPanel.setBackground(UIConstants.BG_PAGE);
         return cancelledPanel;
+    }
+
+    // ─── 1a: showInlineError ─────────────────────────────────────────────────
+
+    /**
+     * Hiển thị banner lỗi inline ở phía dưới panel, tự động ẩn sau 5 giây.
+     *
+     * @param msg nội dung lỗi cần hiển thị
+     */
+    private void showInlineError(String msg) {
+        // Xóa banner lỗi cũ nếu có
+        for (Component c : getComponents()) {
+            if (Boolean.TRUE.equals(((JPanel) (c instanceof JPanel ? c : null)) == null
+                    ? null : ((JPanel) c).getClientProperty("inlineError"))) {
+                remove(c);
+            }
+        }
+
+        JLabel errLabel = new JLabel("⚠  " + msg);
+        errLabel.setFont(UIConstants.FONT_SMALL);
+        errLabel.setForeground(UIConstants.DANGER);
+        errLabel.setOpaque(true);
+        errLabel.setBackground(new Color(0xFEE2E2));
+        errLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xFCA5A5)),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+
+        add(errLabel, BorderLayout.SOUTH);
+        revalidate();
+        repaint();
+
+        Timer hideTimer = new Timer(5000, e -> {
+            remove(errLabel);
+            revalidate();
+            repaint();
+        });
+        hideTimer.setRepeats(false);
+        hideTimer.start();
     }
 
     // ─── Data loading ─────────────────────────────────────────────────────────
@@ -248,14 +312,14 @@ public class WaiterServicePanel extends JPanel {
 
             @Override
             protected void done() {
+                // ── 1b: thay System.err bằng showInlineError() ──
                 try {
                     get();
                     rebuildDeliveryCards(readyMap);
                     rebuildCleanCards(dirtyList);
                     rebuildCancelledTab(cancelledList);
                 } catch (Exception ex) {
-                    System.err.println("[WaiterServicePanel] loadData lỗi: "
-                            + ex.getMessage());
+                    showInlineError("Lỗi tải dữ liệu: " + ex.getMessage());
                 }
             }
         }.execute();
@@ -341,7 +405,6 @@ public class WaiterServicePanel extends JPanel {
         table.getTableHeader().setForeground(UIConstants.TEXT_PRIMARY);
         table.getTableHeader().setReorderingAllowed(false);
 
-        // Column widths
         table.getColumnModel().getColumn(0).setPreferredWidth(120);
         table.getColumnModel().getColumn(1).setPreferredWidth(80);
         table.getColumnModel().getColumn(2).setPreferredWidth(120);
@@ -377,7 +440,7 @@ public class WaiterServicePanel extends JPanel {
     // ─── Rebuild cancelled tab (Tab 3) ───────────────────────────────────────
 
     /**
-     * Phase 5D – Dựng lại toàn bộ nội dung tab "Đã hủy".
+     * Dựng lại toàn bộ nội dung tab "Đã hủy".
      * Hiển thị thanh thống kê và bảng chi tiết các món bị hủy hôm nay.
      *
      * @param items danh sách KitchenTicket thuộc đơn hủy trong ngày
@@ -423,7 +486,7 @@ public class WaiterServicePanel extends JPanel {
     }
 
     /**
-     * Phase 5D – Tạo JScrollPane chứa bảng danh sách món bị hủy.
+     * Tạo JScrollPane chứa bảng danh sách món bị hủy.
      *
      * @param items danh sách KitchenTicket cần hiển thị
      * @return JScrollPane đã được style
@@ -525,8 +588,10 @@ public class WaiterServicePanel extends JPanel {
                     return null;
                 }
                 @Override protected void done() {
-                    try { get(); } catch (Exception ex) {
-                        System.err.println("[WaiterServicePanel] btnDeliv: " + ex.getMessage());
+                    try {
+                        get();
+                    } catch (Exception ex) {
+                        showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     loadData();
                 }
@@ -548,8 +613,10 @@ public class WaiterServicePanel extends JPanel {
                     return null;
                 }
                 @Override protected void done() {
-                    try { get(); } catch (Exception ex) {
-                        System.err.println("[WaiterServicePanel] btnDone: " + ex.getMessage());
+                    try {
+                        get();
+                    } catch (Exception ex) {
+                        showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     ToastNotification.show(
                             WaiterServicePanel.this,
@@ -587,7 +654,7 @@ public class WaiterServicePanel extends JPanel {
         JLabel nameQty = new JLabel(t.itemName + " × " + t.quantity);
         nameQty.setFont(UIConstants.FONT_BODY);
 
-        row.add(nameQty,              BorderLayout.WEST);
+        row.add(nameQty,               BorderLayout.WEST);
         row.add(makeBadge(t.itemStatus), BorderLayout.EAST);
         return row;
     }
@@ -797,9 +864,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── CleanActionRenderer ─────────────────────────────────────────────────
 
-    /**
-     * Renderer hiển thị JButton trong cột "Hành động" của bảng Dọn bàn.
-     */
     private static class CleanActionRenderer implements TableCellRenderer {
         private final List<TableItem> tables;
 
@@ -825,10 +889,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── CleanActionEditor ────────────────────────────────────────────────────
 
-    /**
-     * Editor cho cột "Hành động" – kích hoạt khi người dùng click.
-     * Chuyển DIRTY → CLEANING → RANH (sẵn sàng).
-     */
     private class CleanActionEditor extends DefaultCellEditor {
         private final List<TableItem> tables;
         private final TableDAO        tableDAO;
@@ -871,8 +931,10 @@ public class WaiterServicePanel extends JPanel {
                     }
                     @Override
                     protected void done() {
-                        try { get(); } catch (Exception ex) {
-                            System.err.println("[CleanActionEditor] " + ex.getMessage());
+                        try {
+                            get();
+                        } catch (Exception ex) {
+                            showInlineError("Lỗi cập nhật bàn: " + ex.getMessage());
                         }
                         String msg = (next == TableItem.Status.RANH)
                                 ? "Bàn " + currentItem.getName() + " đã sẵn sàng phục vụ!"

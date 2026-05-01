@@ -7,6 +7,7 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
@@ -46,34 +47,33 @@ public class MainFrame extends JFrame implements SessionListener {
     private StatsPanel          statsPanel;
     private RestaurantPanel     restaurantPanel;
     private KitchenPanel        kitchenPanel;
-    // Phase 5: WaiterServicePanel
     private WaiterServicePanel  waiterServicePanel;
-    // F3: MyRestaurantInfoPanel — chỉ cho RESTAURANT_ADMIN
     private MyRestaurantInfoPanel myRestaurantPanel;
-    // Phase 5 Audit: AuditLogPanel — chỉ cho SUPER_ADMIN
     private AuditLogPanel         auditLogPanel;
-    // Phase 3: RestaurantDetailPanel — chỉ cho SUPER_ADMIN
     private RestaurantDetailPanel restaurantDetailPanel;
 
     private AdminStatsPanel adminStatsPanel;
 
     private JButton[] navButtons;
-    // Phase 5: thêm "phucvu" / "Phục vụ" vào arrays điều hướng
-    private String[]  navPages  = {
+
+    // ── 2b: BadgeButton fields cho Bếp và Phục vụ ────────────────────────────
+    /** Badge trên nút "🍳 Bếp" – hiển thị số món đang chờ bếp. */
+    BadgeButton kitchenBadgeBtn;
+    /** Badge trên nút "🛎 Phục vụ" – hiển thị số món READY chờ phục vụ. */
+    BadgeButton waiterBadgeBtn;
+
+    private String[] navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
         "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant",
-        "baomat", "adminstats"                               // ← thêm
+        "baomat", "adminstats"
     };
-    private String[]  navLabels = {
+    private String[] navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
         "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"   // ← thêm
+        "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"
     };
 
-    /**
-     * Phase 6: Swing Timer kiểm tra session token mỗi 30 phút.
-     * Dừng lại trong {@link #onLogout()} để tránh bắn event sau khi frame đã dispose.
-     */
+    /** Swing Timer kiểm tra session token mỗi 30 phút. */
     private Timer sessionCheckTimer;
 
     /** Khoảng thời gian kiểm tra token (ms): 30 phút. */
@@ -88,17 +88,11 @@ public class MainFrame extends JFrame implements SessionListener {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
-        // Phase 5C: đăng ký để nhận sự kiện logout từ AppSession
         AppSession.getInstance().addSessionListener(this);
         buildUI();
         startSessionCheckTimer();
     }
 
-    /**
-     * Phase 5C: Được gọi khi AppSession.logout() kích hoạt.
-     * Đóng MainFrame và mở lại LoginDialog trên EDT.
-     */
-    // onLogout() — bọc try-catch đầy đủ
     @Override
     public void onLogout() {
         SwingUtilities.invokeLater(() -> {
@@ -112,7 +106,7 @@ public class MainFrame extends JFrame implements SessionListener {
 
             try {
                 LoginDialog loginDialog = new LoginDialog(null);
-                loginDialog.setVisible(true); // blocks until dispose()
+                loginDialog.setVisible(true);
 
                 if (loginDialog.isLoginSuccess()) {
                     try {
@@ -121,7 +115,6 @@ public class MainFrame extends JFrame implements SessionListener {
                     } catch (Exception frameEx) {
                         System.err.println("[MainFrame] Không thể tạo MainFrame sau login: " + frameEx.getMessage());
                         frameEx.printStackTrace();
-                        // Thử lại một lần
                         JOptionPane.showMessageDialog(null,
                                 "Lỗi khởi tạo giao diện: " + frameEx.getMessage() +
                                 "\nVui lòng đăng nhập lại.",
@@ -147,21 +140,11 @@ public class MainFrame extends JFrame implements SessionListener {
 
     // ── Session Check Timer ────────────────────────────────────────────────────
 
-    /**
-     * Khởi động Swing Timer kiểm tra token mỗi {@value #SESSION_CHECK_INTERVAL_MS} ms.
-     * <p>
-     * Khi token không còn hợp lệ, timer gọi {@link AppSession#logout()} trên EDT,
-     * hiện thông báo rồi để {@link #onLogout()} xử lý việc chuyển màn hình.
-     * Dọn dẹp các token hết hạn trong DB qua
-     * {@link TokenService#cleanExpiredTokens()} cũng được thực hiện tại đây.
-     */
     private void startSessionCheckTimer() {
         sessionCheckTimer = new Timer(SESSION_CHECK_INTERVAL_MS, e -> {
-            // Chạy trên EDT — an toàn để cập nhật UI
             String token = AppSession.getInstance().getSessionToken();
             boolean valid = TokenService.getInstance().validateToken(token);
 
-            // Dọn dẹp token hết hạn trong DB (thực hiện ở background để không block EDT)
             new Thread(() -> TokenService.getInstance().cleanExpiredTokens(),
                        "token-cleanup").start();
 
@@ -172,15 +155,13 @@ public class MainFrame extends JFrame implements SessionListener {
                     "Hết phiên",
                     JOptionPane.WARNING_MESSAGE
                 );
-                // logout() sẽ kích hoạt onLogout() → chuyển về LoginDialog
                 AppSession.getInstance().logout();
             }
         });
-        sessionCheckTimer.setInitialDelay(SESSION_CHECK_INTERVAL_MS); // không check ngay khi mở
+        sessionCheckTimer.setInitialDelay(SESSION_CHECK_INTERVAL_MS);
         sessionCheckTimer.start();
     }
 
-    /** Dừng session check timer — gọi trước khi dispose frame. */
     private void stopSessionCheckTimer() {
         if (sessionCheckTimer != null && sessionCheckTimer.isRunning()) {
             sessionCheckTimer.stop();
@@ -206,21 +187,18 @@ public class MainFrame extends JFrame implements SessionListener {
         orderPanel         = new OrderPanel();
         reportPanel        = new ReportPanel();
         statsPanel         = new StatsPanel();
-        // Chỉ khởi tạo RestaurantPanel khi SUPER_ADMIN — tránh SecurityException khi load dữ liệu
+
         com.restaurant.session.RbacGuard _guard = com.restaurant.session.RbacGuard.getInstance();
         if (_guard.isSuperAdmin()) {
             restaurantPanel       = new RestaurantPanel();
             restaurantDetailPanel = new RestaurantDetailPanel(() -> navigateTo("nhahangs"));
-            adminStatsPanel       = new AdminStatsPanel();          // ← thêm
+            adminStatsPanel       = new AdminStatsPanel();
         }
         kitchenPanel       = new KitchenPanel();
-        // Phase 5: khởi tạo WaiterServicePanel
         waiterServicePanel = new WaiterServicePanel();
-        // F3: khởi tạo MyRestaurantInfoPanel chỉ khi RESTAURANT_ADMIN
         if (_guard.isRestaurantAdmin()) {
             myRestaurantPanel = new MyRestaurantInfoPanel();
         }
-        // Phase 5 Audit: khởi tạo AuditLogPanel chỉ khi SUPER_ADMIN
         if (_guard.isSuperAdmin()) {
             auditLogPanel = new AuditLogPanel();
         }
@@ -236,15 +214,11 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(restaurantPanel != null ? restaurantPanel : buildPlaceholder("Nha hang"), "nhahangs");
         contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
         contentArea.add(kitchenPanel,       "bep");
-        // Phase 5: đăng ký WaiterServicePanel vào CardLayout
         contentArea.add(waiterServicePanel, "phucvu");
-        // F3: đăng ký MyRestaurantInfoPanel vào CardLayout
         contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
                 : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
-        // Phase 5: đăng ký AdminStatsPanel vào CardLayout
         contentArea.add(adminStatsPanel != null ? adminStatsPanel
                 : buildPlaceholder("Thống kê Admin"), "adminstats");
-        // Phase 5 Audit: đăng ký AuditLogPanel vào CardLayout — thiếu trước đây
         contentArea.add(auditLogPanel != null ? auditLogPanel
                 : buildPlaceholder("Nhật ký bảo mật"), "baomat");
 
@@ -259,15 +233,12 @@ public class MainFrame extends JFrame implements SessionListener {
         applyRoleFilter();
     }
 
-    // applyRoleFilter() — thay permission.hasPermission() bằng kiểm tra trực tiếp qua Permission.forRole()
-    // để tránh gọi TokenService.validateToken() DB trong constructor
     private void applyRoleFilter() {
         AppSession session = AppSession.getInstance();
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
         boolean isSuperAdmin = guard.isSuperAdmin();
         String userRole = session.getUserRole();
 
-        // Dùng Permission.forRole() trực tiếp, KHÔNG qua can() để tránh DB call + SessionExpiredException
         java.util.Set<com.restaurant.session.Permission> perms =
                 com.restaurant.session.Permission.forRole(userRole);
 
@@ -345,12 +316,10 @@ public class MainFrame extends JFrame implements SessionListener {
         left.add(icon);
         left.add(sysName);
 
-        // Hiển thị tên user đang đăng nhập ở bên phải
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
         AppSession session = AppSession.getInstance();
 
-        // F1: Nút "Hồ sơ của tôi" — hiển thị khi có quyền EDIT_OWN_PROFILE
         if (session.hasPermission(com.restaurant.session.Permission.EDIT_OWN_PROFILE)) {
             JButton btnProfile = new JButton(session.getUserName() + " ▾");
             btnProfile.setFont(UIConstants.FONT_BODY);
@@ -373,7 +342,6 @@ public class MainFrame extends JFrame implements SessionListener {
         roleLbl.setForeground(UIConstants.TEXT_SECONDARY);
         right.add(roleLbl);
 
-        // G3: tên nhà hàng trong header — load từ cache (nhanh, SELECT by PK)
         if (session.getRestaurantId() != 0) {
             com.restaurant.model.Restaurant r =
                     com.restaurant.data.DataManager.getInstance().getMyRestaurant();
@@ -390,6 +358,8 @@ public class MainFrame extends JFrame implements SessionListener {
         return header;
     }
 
+    // ── 2c: buildNavBar() dùng BadgeButton cho "bep" và "phucvu" ─────────────
+
     private JPanel buildNavBar() {
         JPanel nav = new JPanel();
         nav.setLayout(new BoxLayout(nav, BoxLayout.Y_AXIS));
@@ -400,9 +370,27 @@ public class MainFrame extends JFrame implements SessionListener {
             BorderFactory.createEmptyBorder(16, 12, 16, 12)));
 
         navButtons = new JButton[navPages.length];
+
         for (int i = 0; i < navPages.length; i++) {
             final String page = navPages[i];
-            JButton btn = createNavButton(navLabels[i]);
+            JButton btn;
+
+            if ("bep".equals(navPages[i])) {
+                // ── BadgeButton cho Bếp ──
+                BadgeButton bb = new BadgeButton(navLabels[i]);
+                applyNavStyle(bb);
+                kitchenBadgeBtn = bb;
+                btn = bb;
+            } else if ("phucvu".equals(navPages[i])) {
+                // ── BadgeButton cho Phục vụ ──
+                BadgeButton bb = new BadgeButton(navLabels[i]);
+                applyNavStyle(bb);
+                waiterBadgeBtn = bb;
+                btn = bb;
+            } else {
+                btn = createNavButton(navLabels[i]);
+            }
+
             btn.addActionListener(e -> navigateTo(page));
             navButtons[i] = btn;
             nav.add(btn);
@@ -423,8 +411,25 @@ public class MainFrame extends JFrame implements SessionListener {
         int r = JOptionPane.showConfirmDialog(this,
                 "Bạn có muốn đăng xuất?", "Xác nhận", JOptionPane.YES_NO_OPTION);
         if (r != JOptionPane.YES_OPTION) return;
-        // Phase 5C: chỉ cần gọi logout() — onLogout() listener xử lý UI tự động
         AppSession.getInstance().logout();
+    }
+
+    /**
+     * Áp dụng toàn bộ style nav button lên một JButton bất kỳ (kể cả BadgeButton).
+     * Tách ra để tái dụng cho {@link #createNavButton(String)} và
+     * {@link BadgeButton}.
+     */
+    private void applyNavStyle(JButton btn) {
+        btn.setFont(UIConstants.FONT_NAV);
+        btn.setForeground(UIConstants.TEXT_PRIMARY);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        btn.setPreferredSize(new Dimension(166, 38));
+        btn.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
     }
 
     private JButton createNavButton(String label) {
@@ -448,16 +453,7 @@ public class MainFrame extends JFrame implements SessionListener {
                 super.paintComponent(g);
             }
         };
-        btn.setFont(UIConstants.FONT_NAV);
-        btn.setForeground(UIConstants.TEXT_PRIMARY);
-        btn.setHorizontalAlignment(SwingConstants.LEFT);
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        btn.setPreferredSize(new Dimension(166, 38));
-        btn.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
+        applyNavStyle(btn);
         return btn;
     }
 
@@ -479,7 +475,6 @@ public class MainFrame extends JFrame implements SessionListener {
                 break;
             case "bep":       kitchenPanel.loadData();          break;
             case "phucvu":    waiterServicePanel.loadData();    break;
-            // F3: load dữ liệu khi điều hướng đến tab "Nhà hàng của tôi"
             case "myrestaurant":
                 if (myRestaurantPanel != null) myRestaurantPanel.loadData();
                 break;
@@ -494,8 +489,7 @@ public class MainFrame extends JFrame implements SessionListener {
     }
 
     /**
-     * Phase 3: Điều hướng sang màn hình Chi tiết nhà hàng.
-     * Gọi từ RestaurantPanel khi người dùng click "👁 Xem chi tiết".
+     * Điều hướng sang màn hình Chi tiết nhà hàng.
      *
      * @param r nhà hàng cần hiển thị chi tiết
      */
@@ -503,7 +497,6 @@ public class MainFrame extends JFrame implements SessionListener {
         if (restaurantDetailPanel == null) return;
         restaurantDetailPanel.populate(r);
         cardLayout.show(contentArea, "restaurant_detail");
-        // Bỏ highlight nav button — đây là sub-view của "nhahangs"
         for (int i = 0; i < navPages.length; i++) {
             boolean active = "nhahangs".equals(navPages[i]);
             navButtons[i].putClientProperty("active", active);
@@ -521,5 +514,89 @@ public class MainFrame extends JFrame implements SessionListener {
         lbl.setForeground(UIConstants.TEXT_SECONDARY);
         p.add(lbl);
         return p;
+    }
+
+    // ── 2a: BadgeButton inner class ───────────────────────────────────────────
+
+    /**
+     * Nút nav có badge đỏ ở góc trên-phải hiển thị số đếm (≤99, hoặc "99+").
+     * <p>
+     * Thừa kế {@link JButton} và override {@link #paintComponent(Graphics)} để:
+     * <ol>
+     *   <li>Vẽ hiệu ứng hover / active giống {@link #createNavButton(String)}.</li>
+     *   <li>Vẽ vòng tròn đỏ kèm số đếm lên trên cùng khi {@code badgeCount > 0}.</li>
+     * </ol>
+     * Sử dụng {@link #setBadgeCount(int)} để cập nhật; badge ẩn đi khi count = 0.
+     */
+    class BadgeButton extends JButton {
+
+        private int badgeCount = 0;
+
+        BadgeButton(String text) {
+            super(text);
+            setOpaque(false);
+            setContentAreaFilled(false);
+        }
+
+        /** Cập nhật số hiển thị trên badge và repaint ngay. */
+        public void setBadgeCount(int n) {
+            this.badgeCount = Math.max(0, n);
+            repaint();
+        }
+
+        /** Trả về giá trị badge hiện tại. */
+        public int getBadgeCount() {
+            return badgeCount;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            // ── Vẽ nền nav (hover / active) giống createNavButton ──
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            if (getClientProperty("active") == Boolean.TRUE) {
+                g2.setColor(UIConstants.PRIMARY_LIGHT);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(),
+                        UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
+            } else {
+                Point p = getMousePosition();
+                if (p != null) {
+                    g2.setColor(new Color(0xF3F4F6));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(),
+                            UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
+                }
+            }
+            g2.dispose();
+
+            // ── Vẽ label ──
+            super.paintComponent(g);
+
+            // ── Vẽ badge ──
+            if (badgeCount <= 0) return;
+
+            Graphics2D g2b = (Graphics2D) g.create();
+            g2b.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int r  = 9;
+            int cx = getWidth() - 10;
+            int cy = 10;
+
+            // Nền vòng tròn đỏ
+            g2b.setColor(UIConstants.DANGER);
+            g2b.fillOval(cx - r, cy - r, r * 2, r * 2);
+
+            // Số đếm màu trắng
+            g2b.setColor(Color.WHITE);
+            g2b.setFont(new Font("Segoe UI", Font.BOLD, 9));
+            String txt = badgeCount > 99 ? "99+" : String.valueOf(badgeCount);
+            FontMetrics fm = g2b.getFontMetrics();
+            g2b.drawString(txt,
+                    cx - fm.stringWidth(txt) / 2,
+                    cy + fm.getAscent() / 2 - 1);
+
+            g2b.dispose();
+        }
     }
 }
