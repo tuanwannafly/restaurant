@@ -37,24 +37,30 @@ public class KitchenDAO {
         public final Order.OrderItem.ItemStatus itemStatus;
         public final String                    assignedTo;
         public final LocalDateTime             createdAt;
+        public final String                    note;
+        public final String                    assignedEmployeeName;
 
         public KitchenTicket(String itemId, String orderId, String menuItemId,
                              String tableId, String tableName, int roundNumber,
                              String itemName, int quantity,
                              Order.OrderItem.ItemStatus itemStatus,
                              String assignedTo,
-                             LocalDateTime createdAt) {
-            this.itemId      = itemId;
-            this.orderId     = orderId;
-            this.menuItemId  = menuItemId;
-            this.tableId     = tableId;
-            this.tableName   = tableName;
-            this.roundNumber = roundNumber;
-            this.itemName    = itemName;
-            this.quantity    = quantity;
-            this.itemStatus  = itemStatus;
-            this.assignedTo  = assignedTo;
-            this.createdAt   = createdAt;
+                             LocalDateTime createdAt,
+                             String note,
+                             String assignedEmployeeName) {
+            this.itemId               = itemId;
+            this.orderId              = orderId;
+            this.menuItemId           = menuItemId;
+            this.tableId              = tableId;
+            this.tableName            = tableName;
+            this.roundNumber          = roundNumber;
+            this.itemName             = itemName;
+            this.quantity             = quantity;
+            this.itemStatus           = itemStatus;
+            this.assignedTo           = assignedTo;
+            this.createdAt            = createdAt;
+            this.note                 = note;
+            this.assignedEmployeeName = assignedEmployeeName;
         }
     }
 
@@ -64,7 +70,8 @@ public class KitchenDAO {
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
             "       oi.created_at,    oi.assigned_to, " +
-            "       mi.name AS item_name, t.table_number, t.table_id " +
+            "       mi.name AS item_name, t.table_number, t.table_id, " +
+            "       NULL AS note, NULL AS assigned_employee_name " +
             "FROM   order_items oi " +
             "JOIN   orders           o  ON oi.order_id     = o.order_id " +
             "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
@@ -224,6 +231,10 @@ public class KitchenDAO {
         // Đọc assigned_to (tên nhân viên, có thể null)
         String assignedTo = rs.getString("assigned_to");
 
+        // Đọc note và assignedEmployeeName (nullable)
+        String note             = rs.getString("note");
+        String assignedName     = rs.getString("assigned_employee_name");
+
         String rawStatus = rs.getString("item_status");
         Order.OrderItem.ItemStatus status = parseStatus(rawStatus);
 
@@ -238,7 +249,9 @@ public class KitchenDAO {
                 rs.getInt("quantity"),
                 status,
                 assignedTo,
-                createdAt
+                createdAt,
+                note,
+                assignedName
         );
     }
 
