@@ -1,20 +1,29 @@
 package com.restaurant.ui;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 import java.awt.Insets;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.format.DateTimeFormatter;
 
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Restaurant;
@@ -28,6 +37,7 @@ import com.restaurant.session.Permission;
  * Dữ liệu load bất đồng bộ bằng SwingWorker để không block EDT.
  *
  * <ul>
+ *   <li>Logo — upload ảnh, preview 80×80, lưu vào assets/restaurant_logos/</li>
  *   <li>Tên, địa chỉ, SĐT, email — có thể chỉnh sửa</li>
  *   <li>Trạng thái, ngày tạo — chỉ đọc</li>
  *   <li>Nút "Lưu thay đổi" gọi {@link DataManager#updateMyRestaurant}</li>
@@ -36,6 +46,9 @@ import com.restaurant.session.Permission;
 public class MyRestaurantInfoPanel extends JPanel {
 
     // ── Form fields ───────────────────────────────────────────────────────────
+    private JLabel      logoPreview;
+    private String      pendingLogoUrl; // path logo đang chờ lưu
+
     private JTextField  tfName;
     private JTextField  tfAddress;
     private JTextField  tfPhone;
@@ -103,38 +116,60 @@ public class MyRestaurantInfoPanel extends JPanel {
 
         int row = 0;
 
-        // Tên nhà hàng
+        // ── Logo row ──
+        lc.gridy = row; fc.gridy = row++;
+        card.add(fieldLabel("Logo:"), lc);
+
+        logoPreview = new JLabel();
+        logoPreview.setPreferredSize(new Dimension(80, 80));
+        logoPreview.setHorizontalAlignment(SwingConstants.CENTER);
+        logoPreview.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR));
+        logoPreview.setBackground(new Color(0xF3F4F6));
+        logoPreview.setOpaque(true);
+
+        RoundedButton btnUploadLogo = RoundedButton.outline("📤 Đổi logo");
+        btnUploadLogo.setPreferredSize(new Dimension(120, UIConstants.BTN_HEIGHT));
+        btnUploadLogo.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
+        btnUploadLogo.addActionListener(e -> pickLogo());
+
+        JPanel logoRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        logoRow.setOpaque(false);
+        logoRow.add(logoPreview);
+        logoRow.add(btnUploadLogo);
+        card.add(logoRow, fc);
+
+        // ── Tên nhà hàng ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("Tên nhà hàng:"), lc);
         tfName = styledField();
         card.add(tfName, fc);
 
-        // Địa chỉ
+        // ── Địa chỉ ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("Địa chỉ:"), lc);
         tfAddress = styledField();
         card.add(tfAddress, fc);
 
-        // SĐT
+        // ── SĐT ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("SĐT:"), lc);
         tfPhone = styledField();
         card.add(tfPhone, fc);
 
-        // Email
+        // ── Email ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("Email:"), lc);
         tfEmail = styledField();
         card.add(tfEmail, fc);
 
-        // Trạng thái (readonly)
+        // ── Trạng thái (readonly) ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("Trạng thái:"), lc);
         lblStatus = new JLabel("—");
         lblStatus.setFont(UIConstants.FONT_BODY);
         card.add(lblStatus, fc);
 
-        // Ngày tạo (readonly)
+        // ── Ngày tạo (readonly) ──
         lc.gridy = row; fc.gridy = row++;
         card.add(fieldLabel("Ngày tạo:"), lc);
         lblCreatedAt = new JLabel("—");
@@ -174,6 +209,35 @@ public class MyRestaurantInfoPanel extends JPanel {
         add(center, BorderLayout.CENTER);
     }
 
+    // ── Logo picker ───────────────────────────────────────────────────────────
+
+    private void pickLogo() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setFileFilter(new FileNameExtensionFilter(
+                "Image files", "jpg", "jpeg", "png", "webp"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        File src = chooser.getSelectedFile();
+        try {
+            File destDir = new File("assets/restaurant_logos");
+            destDir.mkdirs();
+            String fileName = System.currentTimeMillis() + "_" + src.getName();
+            File dest = new File(destDir, fileName);
+            Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            pendingLogoUrl = "assets/restaurant_logos/" + fileName;
+
+            // Cập nhật preview
+            ImageIcon icon = new ImageIcon(new ImageIcon(dest.getPath())
+                    .getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH));
+            logoPreview.setIcon(icon);
+            logoPreview.setText("");
+
+            showMsg("Logo sẽ được lưu khi bạn nhấn 'Lưu thay đổi'.", UIConstants.PRIMARY);
+        } catch (Exception ex) {
+            showMsg("Lỗi: " + ex.getMessage(), UIConstants.DANGER);
+        }
+    }
+
     // ── Data ──────────────────────────────────────────────────────────────────
 
     /**
@@ -195,14 +259,14 @@ public class MyRestaurantInfoPanel extends JPanel {
                 try {
                     currentRestaurant = get();
                     if (currentRestaurant == null) {
-                        showMsg("Không tìm thấy thông tin nhà hàng.", false);
+                        showMsg("Không tìm thấy thông tin nhà hàng.", UIConstants.DANGER);
                         return;
                     }
                     populate(currentRestaurant);
                     btnSave.setEnabled(AppSession.getInstance()
                             .hasPermission(Permission.EDIT_OWN_RESTAURANT));
                 } catch (Exception ex) {
-                    showMsg("Lỗi tải dữ liệu: " + ex.getMessage(), false);
+                    showMsg("Lỗi tải dữ liệu: " + ex.getMessage(), UIConstants.DANGER);
                 }
             }
         }.execute();
@@ -210,6 +274,20 @@ public class MyRestaurantInfoPanel extends JPanel {
 
     /** Đẩy dữ liệu từ model vào các field. */
     private void populate(Restaurant r) {
+        // Reset pending logo mỗi khi populate lại từ DB
+        pendingLogoUrl = null;
+
+        // Load logo hiện tại nếu có
+        logoPreview.setIcon(null);
+        logoPreview.setText("");
+        if (r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
+            File f = new File(r.getLogoUrl());
+            if (f.exists()) {
+                logoPreview.setIcon(new ImageIcon(new ImageIcon(f.getPath())
+                        .getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH)));
+            }
+        }
+
         tfName.setText(r.getName()    != null ? r.getName()    : "");
         tfAddress.setText(r.getAddress() != null ? r.getAddress() : "");
         tfPhone.setText(r.getPhone()   != null ? r.getPhone()   : "");
@@ -240,7 +318,7 @@ public class MyRestaurantInfoPanel extends JPanel {
         String email   = tfEmail.getText().trim();
 
         if (name.isEmpty()) {
-            showMsg("Tên nhà hàng không được để trống.", false);
+            showMsg("Tên nhà hàng không được để trống.", UIConstants.DANGER);
             tfName.requestFocus();
             return;
         }
@@ -251,6 +329,13 @@ public class MyRestaurantInfoPanel extends JPanel {
                 name, address, phone, email,
                 currentRestaurant.getStatus(),
                 currentRestaurant.getCreatedAt());
+
+        // Gộp logoUrl: ưu tiên logo mới đang chờ, fallback về logo cũ
+        if (pendingLogoUrl != null) {
+            updated.setLogoUrl(pendingLogoUrl);
+        } else {
+            updated.setLogoUrl(currentRestaurant.getLogoUrl());
+        }
 
         btnSave.setEnabled(false);
         lblMsg.setText("Đang lưu…");
@@ -268,13 +353,16 @@ public class MyRestaurantInfoPanel extends JPanel {
                 try {
                     get();
                     currentRestaurant = updated;
-                    showMsg("Lưu thay đổi thành công!", true);
+                    // Invalidate cache để các panel/poll khác nhận thông tin mới
+                    DataManager.getInstance().invalidateRestaurantCache();
+                    pendingLogoUrl = null;
+                    showMsg("Lưu thay đổi thành công!", UIConstants.SUCCESS);
                     ToastNotification.show(
                             MyRestaurantInfoPanel.this,
                             "Thông tin nhà hàng đã được cập nhật.",
                             ToastNotification.Type.SUCCESS);
                 } catch (Exception ex) {
-                    showMsg("Lỗi khi lưu: " + ex.getMessage(), false);
+                    showMsg("Lỗi khi lưu: " + ex.getMessage(), UIConstants.DANGER);
                     ToastNotification.show(
                             MyRestaurantInfoPanel.this,
                             "Lưu thất bại: " + ex.getMessage(),
@@ -307,8 +395,8 @@ public class MyRestaurantInfoPanel extends JPanel {
         return tf;
     }
 
-    private void showMsg(String msg, boolean success) {
+    private void showMsg(String msg, Color color) {
         lblMsg.setText(msg);
-        lblMsg.setForeground(success ? UIConstants.SUCCESS : UIConstants.DANGER);
+        lblMsg.setForeground(color);
     }
 }
