@@ -15,11 +15,14 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -40,8 +43,6 @@ import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import javax.swing.border.AbstractBorder;
 import javax.swing.border.MatteBorder;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -54,25 +55,25 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 
 /**
- * Màn hình phục vụ bàn dành cho role WAITER — Phase 5D (Polish).
- * <p>
- * Gồm 3 tab:
+ * Màn hình phục vụ bàn dành cho role WAITER — Phase 7C (Polling + Toast delta).
+ *
+ * <p>Gồm 3 tab:
  * <ol>
- *   <li><b>Phục vụ bàn</b> – danh sách lượt bàn có món READY, cho phép
- *       chuyển sang DELIVERING / DELIVERED.</li>
- *   <li><b>Dọn bàn</b>     – danh sách bàn DIRTY / CLEANING, cho phép
- *       chuyển sang CLEANING / RANH.</li>
- *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày, kèm thống kê.
- *       Refresh riêng khi tab được chọn.</li>
+ *   <li><b>Phục vụ bàn</b> – danh sách lượt bàn có món READY.</li>
+ *   <li><b>Dọn bàn</b>     – danh sách bàn DIRTY / CLEANING.</li>
+ *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày.</li>
  * </ol>
- * Auto-refresh mỗi 5 giây. Timer chỉ chạy khi panel đang hiển thị
- * (kiểm soát qua {@link AncestorListener}).
- * <p>
- * Polish (Phase 5E):
+ *
+ * <h3>Phase 7C changes</h3>
  * <ul>
- *   <li>{@link #showInlineError(String)} – hiển thị lỗi inline 5 giây rồi tự ẩn.</li>
- *   <li>Tab change listener – refresh tab "Đã hủy" khi người dùng chuyển sang.</li>
+ *   <li>Thay {@code AncestorListener} bằng {@link ComponentAdapter} để
+ *       register/unregister PollManager chính xác hơn.</li>
+ *   <li>Poll key đổi thành {@code "waiter_v2"} (tránh conflict với key cũ).</li>
+ *   <li>{@link #doPoll()} tách riêng khỏi {@link #loadData()} — chỉ fetch
+ *       serve + clean, không fetch cancelled (tránh query thừa).</li>
+ *   <li>Toast delta: chỉ hiện khi count TĂNG; reset về 0 khi panel ẩn.</li>
  * </ul>
+ *
  * RBAC: yêu cầu {@link Permission#VIEW_WAITER_SERVICE}.
  */
 public class WaiterServicePanel extends JPanel {
@@ -82,11 +83,24 @@ public class WaiterServicePanel extends JPanel {
     private final KitchenDAO kitchenDAO = new KitchenDAO();
     private final TableDAO   tableDAO   = new TableDAO();
 
-    // ─── Fields ───────────────────────────────────────────────────────────────
+    // ─── Polling state ────────────────────────────────────────────────────────
+
+    /**
+     * Số lượt bàn cần phục vụ (READY) ở lần poll gần nhất.
+     * Dùng để tính delta toast. Reset về -1 khi panel ẩn để
+     * lần hiện lại đầu tiên không bao giờ trigger toast.
+     */
+    private int lastServeCount = -1;
+
+    /**
+     * Số bàn cần dọn (DIRTY / CLEANING) ở lần poll gần nhất.
+     * Reset về -1 khi panel ẩn.
+     */
+    private int lastCleanCount = -1;
+
+    // ─── UI panels ────────────────────────────────────────────────────────────
 
     private JPanel deliveryCardsPanel;
-    private int    lastReadyCount = 0;
-
     private JPanel cleanTablePanel;
     private JPanel cancelledPanel;
 
@@ -107,7 +121,7 @@ public class WaiterServicePanel extends JPanel {
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildTabs(),   BorderLayout.CENTER);
-        setupAncestorListener();
+        setupComponentListener();
     }
 
     // ─── Header ───────────────────────────────────────────────────────────────
@@ -189,7 +203,7 @@ public class WaiterServicePanel extends JPanel {
         tabs.addTab("🧹  Dọn bàn",     buildCleanTab());
         tabs.addTab("🚫  Đã hủy",      buildCancelledTab());
 
-        // ── 1c: Tab change listener – refresh tab "Đã hủy" khi chuyển sang ──
+        // Refresh tab "Đã hủy" khi người dùng chuyển sang
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 2) {
                 new SwingWorker<List<KitchenDAO.KitchenTicket>, Void>() {
@@ -251,23 +265,22 @@ public class WaiterServicePanel extends JPanel {
         return cancelledPanel;
     }
 
-    // ─── 1a: showInlineError ─────────────────────────────────────────────────
+    // ─── showInlineError ──────────────────────────────────────────────────────
 
     /**
      * Hiển thị banner lỗi inline ở phía dưới panel, tự động ẩn sau 5 giây.
-     *
-     * @param msg nội dung lỗi cần hiển thị
      */
     private void showInlineError(String msg) {
         // Xóa banner lỗi cũ nếu có
         for (Component c : getComponents()) {
-            if (Boolean.TRUE.equals(((JPanel) (c instanceof JPanel ? c : null)) == null
-                    ? null : ((JPanel) c).getClientProperty("inlineError"))) {
+            if (c instanceof JLabel
+                    && Boolean.TRUE.equals(((JLabel) c).getClientProperty("inlineError"))) {
                 remove(c);
             }
         }
 
         JLabel errLabel = new JLabel("⚠  " + msg);
+        errLabel.putClientProperty("inlineError", Boolean.TRUE);
         errLabel.setFont(UIConstants.FONT_SMALL);
         errLabel.setForeground(UIConstants.DANGER);
         errLabel.setOpaque(true);
@@ -289,11 +302,110 @@ public class WaiterServicePanel extends JPanel {
         hideTimer.start();
     }
 
-    // ─── Data loading ─────────────────────────────────────────────────────────
+    // ─── ComponentListener — Phase 7C ─────────────────────────────────────────
 
     /**
-     * Public entry-point – được gọi từ MainFrame.navigateTo() và PollManager.
-     * Kick-off SwingWorker để không block EDT.
+     * Đăng ký {@link ComponentAdapter} để:
+     * <ul>
+     *   <li>{@code componentShown} – load ngay + register PollManager.</li>
+     *   <li>{@code componentHidden} – unregister PollManager + reset counts.</li>
+     * </ul>
+     * Dùng ComponentListener thay AncestorListener để tránh trigger sai
+     * khi panel bị reparent trong card layout.
+     */
+    private void setupComponentListener() {
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                // Load dữ liệu đầy đủ (cả cancelled) lần đầu
+                loadData();
+                // Sau đó đặt polling chỉ cho serve + clean
+                PollManager.getInstance().register(
+                        "waiter_v2",
+                        WaiterServicePanel.this::doPoll,
+                        5_000);
+            }
+
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                PollManager.getInstance().unregister("waiter_v2");
+                // Reset về -1 để lần hiện lại tiếp theo không trigger toast ngay
+                lastServeCount = -1;
+                lastCleanCount = -1;
+            }
+        });
+    }
+
+    // ─── doPoll — Phase 7C ───────────────────────────────────────────────────
+
+    /**
+     * Polling task đăng ký với PollManager (key {@code "waiter_v2"}).
+     *
+     * <p>Chỉ fetch serve-queue và clean-table (không fetch cancelled để
+     * tránh query nặng mỗi 5 giây). Toast delta chỉ hiện khi count TĂNG.
+     *
+     * <p><b>Quan trọng:</b> Method này được gọi từ EDT bởi PollManager;
+     * toàn bộ I/O được thực hiện trong {@link SwingWorker#doInBackground()}.
+     */
+    private void doPoll() {
+        new SwingWorker<WaiterPollData, Void>() {
+
+            @Override
+            protected WaiterPollData doInBackground() {
+                long rid = AppSession.getInstance().getRestaurantId();
+                Map<String, List<KitchenDAO.KitchenTicket>> readyMap =
+                        kitchenDAO.getReadyByTable(rid);
+                List<TableItem> dirtyList = kitchenDAO.getDirtyTables(rid);
+                return new WaiterPollData(readyMap, dirtyList);
+            }
+
+            @Override
+            protected void done() {
+                WaiterPollData data;
+                try {
+                    data = get();
+                } catch (ExecutionException | InterruptedException ex) {
+                    showInlineError("Lỗi tải dữ liệu: " + ex.getMessage());
+                    return;
+                }
+
+                // Rebuild UI (không có toast bên trong rebuildXxx)
+                rebuildDeliveryCards(data.readyMap);
+                rebuildCleanCards(data.dirtyList);
+
+                // ── Toast delta: "Phục vụ bàn" ──
+                int newServe = (data.readyMap != null) ? data.readyMap.size() : 0;
+                if (lastServeCount >= 0 && newServe > lastServeCount) {
+                    int diff = newServe - lastServeCount;
+                    ToastNotification.show(
+                            WaiterServicePanel.this,
+                            "Có " + diff + " bàn cần phục vụ!",
+                            ToastNotification.Type.INFO);
+                }
+                lastServeCount = newServe;
+
+                // ── Toast delta: "Dọn bàn" ──
+                int newClean = (data.dirtyList != null) ? data.dirtyList.size() : 0;
+                if (lastCleanCount >= 0 && newClean > lastCleanCount) {
+                    int diff = newClean - lastCleanCount;
+                    ToastNotification.show(
+                            WaiterServicePanel.this,
+                            "Có " + diff + " bàn cần dọn!",
+                            ToastNotification.Type.INFO);
+                }
+                lastCleanCount = newClean;
+            }
+        }.execute();
+    }
+
+    // ─── loadData (full load, gọi lần đầu) ───────────────────────────────────
+
+    /**
+     * Load đầy đủ cả 3 tab (serve + clean + cancelled).
+     * Được gọi khi panel hiện lần đầu ({@code componentShown}) hoặc
+     * khi cần refresh thủ công từ action button.
+     *
+     * <p>Không thực hiện delta-toast (vì đây là load ban đầu).
      */
     public void loadData() {
         new SwingWorker<Void, Void>() {
@@ -312,12 +424,16 @@ public class WaiterServicePanel extends JPanel {
 
             @Override
             protected void done() {
-                // ── 1b: thay System.err bằng showInlineError() ──
                 try {
                     get();
                     rebuildDeliveryCards(readyMap);
                     rebuildCleanCards(dirtyList);
                     rebuildCancelledTab(cancelledList);
+
+                    // Seed baseline counts sau load đầu (không toast)
+                    lastServeCount = (readyMap  != null) ? readyMap.size()  : 0;
+                    lastCleanCount = (dirtyList != null) ? dirtyList.size() : 0;
+
                 } catch (Exception ex) {
                     showInlineError("Lỗi tải dữ liệu: " + ex.getMessage());
                 }
@@ -327,6 +443,10 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Rebuild delivery cards (Tab 1) ──────────────────────────────────────
 
+    /**
+     * Rebuild danh sách card phục vụ bàn.
+     * Không chứa logic delta-toast — đã chuyển vào {@link #doPoll()}.
+     */
     private void rebuildDeliveryCards(
             Map<String, List<KitchenDAO.KitchenTicket>> map) {
 
@@ -343,18 +463,6 @@ public class WaiterServicePanel extends JPanel {
         }
 
         deliveryCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 14, 14));
-
-        int currentCount = map.size();
-        if (currentCount > lastReadyCount && lastReadyCount >= 0) {
-            int diff = currentCount - lastReadyCount;
-            if (diff > 0) {
-                ToastNotification.show(
-                        this,
-                        "Có " + diff + " lượt bàn mới cần phục vụ!",
-                        ToastNotification.Type.INFO);
-            }
-        }
-        lastReadyCount = currentCount;
 
         for (Map.Entry<String, List<KitchenDAO.KitchenTicket>> entry : map.entrySet()) {
             deliveryCardsPanel.add(buildDeliveryCard(entry.getValue()));
@@ -439,12 +547,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Rebuild cancelled tab (Tab 3) ───────────────────────────────────────
 
-    /**
-     * Dựng lại toàn bộ nội dung tab "Đã hủy".
-     * Hiển thị thanh thống kê và bảng chi tiết các món bị hủy hôm nay.
-     *
-     * @param items danh sách KitchenTicket thuộc đơn hủy trong ngày
-     */
     private void rebuildCancelledTab(List<KitchenDAO.KitchenTicket> items) {
         cancelledPanel.removeAll();
 
@@ -485,12 +587,6 @@ public class WaiterServicePanel extends JPanel {
         cancelledPanel.repaint();
     }
 
-    /**
-     * Tạo JScrollPane chứa bảng danh sách món bị hủy.
-     *
-     * @param items danh sách KitchenTicket cần hiển thị
-     * @return JScrollPane đã được style
-     */
     private JScrollPane buildCancelledTable(List<KitchenDAO.KitchenTicket> items) {
         String[] cols = {"Bàn", "Tên món", "SL", "Lượt", "Thời gian hủy"};
         DefaultTableModel model = new DefaultTableModel(cols, 0) {
@@ -502,11 +598,7 @@ public class WaiterServicePanel extends JPanel {
         for (KitchenDAO.KitchenTicket t : items) {
             String timeStr = (t.createdAt != null) ? t.createdAt.format(fmt) : "—";
             model.addRow(new Object[]{
-                    t.tableName,
-                    t.itemName,
-                    t.quantity,
-                    t.roundNumber,
-                    timeStr
+                    t.tableName, t.itemName, t.quantity, t.roundNumber, timeStr
             });
         }
 
@@ -517,7 +609,6 @@ public class WaiterServicePanel extends JPanel {
         table.getColumnModel().getColumn(3).setPreferredWidth(60);
         table.getColumnModel().getColumn(4).setPreferredWidth(150);
 
-        // Center align cột SL (2) và Lượt (3)
         DefaultTableCellRenderer centerR = new DefaultTableCellRenderer();
         centerR.setHorizontalAlignment(SwingConstants.CENTER);
         table.getColumnModel().getColumn(2).setCellRenderer(centerR);
@@ -588,9 +679,7 @@ public class WaiterServicePanel extends JPanel {
                     return null;
                 }
                 @Override protected void done() {
-                    try {
-                        get();
-                    } catch (Exception ex) {
+                    try { get(); } catch (Exception ex) {
                         showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     loadData();
@@ -613,9 +702,7 @@ public class WaiterServicePanel extends JPanel {
                     return null;
                 }
                 @Override protected void done() {
-                    try {
-                        get();
-                    } catch (Exception ex) {
+                    try { get(); } catch (Exception ex) {
                         showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     ToastNotification.show(
@@ -654,7 +741,7 @@ public class WaiterServicePanel extends JPanel {
         JLabel nameQty = new JLabel(t.itemName + " × " + t.quantity);
         nameQty.setFont(UIConstants.FONT_BODY);
 
-        row.add(nameQty,               BorderLayout.WEST);
+        row.add(nameQty,                BorderLayout.WEST);
         row.add(makeBadge(t.itemStatus), BorderLayout.EAST);
         return row;
     }
@@ -724,20 +811,21 @@ public class WaiterServicePanel extends JPanel {
         return p;
     }
 
-    // ─── AncestorListener ─────────────────────────────────────────────────────
+    // ─── Inner DTO: WaiterPollData ────────────────────────────────────────────
 
-    private void setupAncestorListener() {
-        addAncestorListener(new AncestorListener() {
-            @Override public void ancestorAdded(AncestorEvent e) {
-                loadData();
-                PollManager.getInstance().register("waiter",
-                        WaiterServicePanel.this::loadData, 5_000);
-            }
-            @Override public void ancestorRemoved(AncestorEvent e) {
-                PollManager.getInstance().unregister("waiter");
-            }
-            @Override public void ancestorMoved(AncestorEvent e) {}
-        });
+    /**
+     * DTO trả về từ {@link SwingWorker#doInBackground()} trong {@link #doPoll()}.
+     * Gom hai kết quả query thành một object để tránh field access không an toàn.
+     */
+    private static final class WaiterPollData {
+        final Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
+        final List<TableItem>                              dirtyList;
+
+        WaiterPollData(Map<String, List<KitchenDAO.KitchenTicket>> readyMap,
+                       List<TableItem> dirtyList) {
+            this.readyMap  = readyMap;
+            this.dirtyList = dirtyList;
+        }
     }
 
     // ─── Inner classes ────────────────────────────────────────────────────────

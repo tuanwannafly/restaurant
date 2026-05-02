@@ -11,6 +11,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +30,6 @@ import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
 
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.dao.TableDAO;
@@ -38,23 +38,22 @@ import com.restaurant.model.TableItem;
 import com.restaurant.ui.dialog.CashierPaymentDialog;
 
 /**
- * CashierPanel — Phase 5A–5E
+ * CashierPanel — Phase 7C (Polling + Toast delta)
  *
  * <p>Màn hình thu ngân chia thành hai cột:
  * <ul>
- *   <li><b>Chờ thanh toán</b> – Orders đang active (PENDING / ACCEPTED / COOKING /
- *       READY / DELIVERING / DELIVERED). Nhấn card → mở {@link CashierPaymentDialog}.</li>
- *   <li><b>Đang xử lý</b> – Card vừa được xác nhận, chờ complete.
- *       Nhấn "Hoàn tất" → {@code OrderDAO.completeOrder()} +
- *       {@code TableDAO.updateStatus(DIRTY)} → card biến mất.</li>
+ *   <li><b>Chờ thanh toán</b> – Orders đang active. Nhấn card → mở dialog.</li>
+ *   <li><b>Đang xử lý</b>    – Card vừa xác nhận. Nhấn "Hoàn tất" → complete.</li>
  * </ul>
  *
- * <h3>Phase 5E – DB Integration</h3>
+ * <h3>Phase 7C changes</h3>
  * <ul>
- *   <li>{@link #loadData()} dùng {@link SwingWorker} query {@link OrderDAO}.</li>
- *   <li>Auto-refresh 10 giây qua {@link PollManager} (key = {@code "cashier"}).</li>
- *   <li>{@link AncestorListener} register/unregister PollManager khi panel show/hide.</li>
- *   <li>{@link ToastNotification} thông báo kết quả thao tác.</li>
+ *   <li>Thay {@code AncestorListener} bằng {@link ComponentAdapter}.</li>
+ *   <li>{@link #doPoll()} tách riêng: fetch pending-list qua SwingWorker,
+ *       tính delta, hiện toast khi count tăng.</li>
+ *   <li>Field {@link #lastPaymentCount} reset về {@code -1} khi panel ẩn
+ *       — lần hiện đầu tiên không trigger toast nhầm.</li>
+ *   <li>Cột phải (processingList) là UI-only state, không bị poll override.</li>
  * </ul>
  */
 public class CashierPanel extends JPanel {
@@ -63,7 +62,6 @@ public class CashierPanel extends JPanel {
 
     /**
      * DTO đại diện cho một đơn hàng chờ thanh toán.
-     * Được tạo từ {@link Order} khi load từ DB.
      */
     public static class PaymentRequest {
 
@@ -94,7 +92,6 @@ public class CashierPanel extends JPanel {
             this.paymentMethod = paymentMethod;
         }
 
-        /** Nhãn hiển thị của phương thức thanh toán. */
         public String getPaymentMethodLabel() {
             return paymentMethod != null ? paymentMethod.getLabel() : "Tiền mặt";
         }
@@ -102,8 +99,8 @@ public class CashierPanel extends JPanel {
 
     // ─── Constants ───────────────────────────────────────────────────────────
 
-    private static final int POLL_INTERVAL_MS = 10_000;
-    private static final String POLL_KEY      = "cashier";
+    private static final int    POLL_INTERVAL_MS = 5_000;
+    private static final String POLL_KEY         = "cashier";
 
     // ─── UI components ───────────────────────────────────────────────────────
 
@@ -114,8 +111,17 @@ public class CashierPanel extends JPanel {
 
     /** Danh sách request ở cột trái */
     private final List<PaymentRequest> pendingList    = new ArrayList<>();
-    /** Danh sách request ở cột phải */
+    /** Danh sách request ở cột phải (UI-only state, không bị poll reset) */
     private final List<PaymentRequest> processingList = new ArrayList<>();
+
+    // ─── Polling state ────────────────────────────────────────────────────────
+
+    /**
+     * Số đơn chờ thanh toán ở lần poll gần nhất.
+     * {@code -1} = belum pernah di-poll (initial state / setelah panel disembunyikan).
+     * Toast chỉ hiện khi count tăng VÀ giá trị này ≥ 0.
+     */
+    private int lastPaymentCount = -1;
 
     // ─── DAO ─────────────────────────────────────────────────────────────────
 
@@ -128,7 +134,7 @@ public class CashierPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(UIConstants.BG_WHITE);
         buildUI();
-        registerAncestorListener();
+        setupComponentListener();
     }
 
     // ─── UI Construction ─────────────────────────────────────────────────────
@@ -138,7 +144,6 @@ public class CashierPanel extends JPanel {
         add(buildTwoColumns(), BorderLayout.CENTER);
     }
 
-    /** Thanh tiêu đề "Thu ngân – Thanh toán" */
     private JPanel buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(UIConstants.BG_WHITE);
@@ -183,7 +188,6 @@ public class CashierPanel extends JPanel {
         return btn;
     }
 
-    /** Layout hai cột chính */
     private JPanel buildTwoColumns() {
         JPanel wrapper = new JPanel(new GridLayout(1, 2, 16, 0));
         wrapper.setBackground(UIConstants.BG_WHITE);
@@ -197,21 +201,11 @@ public class CashierPanel extends JPanel {
         return wrapper;
     }
 
-    /**
-     * Tạo một cột với tiêu đề màu sắc và scroll pane chứa cards.
-     *
-     * @param title      Tiêu đề cột
-     * @param headerBg   Màu nền của header badge
-     * @param headerFg   Màu chữ / viền header
-     * @param isPending  {@code true} → gán vào {@link #pendingColumn};
-     *                   {@code false} → gán vào {@link #processingColumn}
-     */
     private JPanel buildColumnPanel(String title, Color headerBg, Color headerFg,
                                     boolean isPending) {
         JPanel outer = new JPanel(new BorderLayout(0, 12));
         outer.setBackground(UIConstants.BG_WHITE);
 
-        // ── Header badge ──
         JLabel badge = new JLabel(title, SwingConstants.CENTER);
         badge.setFont(new Font("Segoe UI", Font.BOLD, 14));
         badge.setForeground(headerFg);
@@ -222,7 +216,6 @@ public class CashierPanel extends JPanel {
                 BorderFactory.createLineBorder(headerFg, 1, true),
                 BorderFactory.createEmptyBorder(4, 16, 4, 16)));
 
-        // ── Cards container ──
         JPanel cards = new JPanel();
         cards.setLayout(new BoxLayout(cards, BoxLayout.Y_AXIS));
         cards.setBackground(UIConstants.BG_WHITE);
@@ -241,44 +234,118 @@ public class CashierPanel extends JPanel {
         return outer;
     }
 
-    // ─── Phase 5E: AncestorListener – register / unregister PollManager ──────
+    // ─── Phase 7C: ComponentListener ─────────────────────────────────────────
 
-    private void registerAncestorListener() {
-        addAncestorListener(new AncestorListener() {
+    /**
+     * Đăng ký {@link ComponentAdapter}:
+     * <ul>
+     *   <li>{@code componentShown} – load đầy đủ + register PollManager.</li>
+     *   <li>{@code componentHidden} – unregister PollManager + reset count.</li>
+     * </ul>
+     *
+     * <p>Dùng ComponentListener thay AncestorListener vì:
+     * <ol>
+     *   <li>Chính xác hơn: chỉ fire khi panel thực sự visible/hidden.</li>
+     *   <li>Không fire khi parent window bị reparent / drag.</li>
+     * </ol>
+     */
+    private void setupComponentListener() {
+        addComponentListener(new ComponentAdapter() {
             @Override
-            public void ancestorAdded(AncestorEvent event) {
-                loadData();   // load ngay khi panel hiển thị lần đầu
-                PollManager.getInstance().register(POLL_KEY,
-                        CashierPanel.this::loadData, POLL_INTERVAL_MS);
+            public void componentShown(ComponentEvent e) {
+                loadData();   // load đầy đủ lần đầu (seeding lastPaymentCount)
+                PollManager.getInstance().register(
+                        POLL_KEY,
+                        CashierPanel.this::doPoll,
+                        POLL_INTERVAL_MS);
             }
 
             @Override
-            public void ancestorRemoved(AncestorEvent event) {
+            public void componentHidden(ComponentEvent e) {
                 PollManager.getInstance().unregister(POLL_KEY);
+                // Reset baseline → lần hiện lại tiếp không trigger toast nhầm
+                lastPaymentCount = -1;
             }
-
-            @Override
-            public void ancestorMoved(AncestorEvent event) { /* không dùng */ }
         });
     }
 
-    // ─── Phase 5E: loadData – SwingWorker query OrderDAO ─────────────────────
+    // ─── Phase 7C: doPoll ─────────────────────────────────────────────────────
 
     /**
-     * Tải danh sách đơn hàng active từ DB và rebuild cột trái.
+     * Polling task gọi bởi PollManager mỗi {@value #POLL_INTERVAL_MS} ms.
      *
-     * <p>Strategy: query tất cả đơn có status không phải COMPLETED / CANCELLED
-     * thông qua {@link OrderDAO#getAll()}, sau đó lọc client-side.
-     * Không override cột phải (processingList) — đó là UI-only state cho đến
-     * khi hoàn tất.
+     * <p>Chỉ cập nhật cột trái (pending). Cột phải là UI-only state và
+     * <em>không</em> bị reset bởi poll — tránh card "đang xử lý" biến mất
+     * trước khi nhân viên nhấn "Hoàn tất".
+     *
+     * <p>Toast delta chỉ hiện khi {@link #lastPaymentCount} ≥ 0 (đã seed)
+     * VÀ count mới &gt; count cũ — không hiện khi giảm.
+     */
+    private void doPoll() {
+        new SwingWorker<List<PaymentRequest>, Void>() {
+
+            @Override
+            protected List<PaymentRequest> doInBackground() {
+                return orderDAO.getAll().stream()
+                        .filter(CashierPanel::isActiveForCashier)
+                        .map(CashierPanel::toPaymentRequest)
+                        .collect(Collectors.toList());
+            }
+
+            @Override
+            protected void done() {
+                List<PaymentRequest> loaded;
+                try {
+                    loaded = get();
+                } catch (ExecutionException | InterruptedException ex) {
+                    System.err.println("[CashierPanel] doPoll lỗi: " + ex.getMessage());
+                    ToastNotification.show(CashierPanel.this,
+                            "Lỗi tải dữ liệu: " + ex.getMessage(),
+                            ToastNotification.Type.ERROR);
+                    return;
+                }
+
+                // Loại bỏ các order đang ở cột phải khỏi cột trái
+                List<String> processingIds = processingList.stream()
+                        .map(r -> r.orderId)
+                        .collect(Collectors.toList());
+
+                List<PaymentRequest> filtered = loaded.stream()
+                        .filter(r -> !processingIds.contains(r.orderId))
+                        .collect(Collectors.toList());
+
+                pendingList.clear();
+                pendingList.addAll(filtered);
+                rebuildPendingColumn();
+
+                // ── Toast delta ──
+                int newCount = pendingList.size();
+                if (lastPaymentCount >= 0 && newCount > lastPaymentCount) {
+                    int diff = newCount - lastPaymentCount;
+                    ToastNotification.show(
+                            CashierPanel.this,
+                            "Có " + diff + " yêu cầu thanh toán mới!",
+                            ToastNotification.Type.INFO);
+                }
+                lastPaymentCount = newCount;
+            }
+        }.execute();
+    }
+
+    // ─── loadData (full initial load) ────────────────────────────────────────
+
+    /**
+     * Load đầy đủ từ DB và seed {@link #lastPaymentCount}.
+     * Không trigger toast (vì là load ban đầu, bất kể count là bao nhiêu).
+     *
+     * <p>Được gọi từ {@code componentShown} và nút "Làm mới".
      */
     public void loadData() {
         new SwingWorker<List<PaymentRequest>, Void>() {
 
             @Override
             protected List<PaymentRequest> doInBackground() {
-                List<Order> allOrders = orderDAO.getAll();
-                return allOrders.stream()
+                return orderDAO.getAll().stream()
                         .filter(CashierPanel::isActiveForCashier)
                         .map(CashierPanel::toPaymentRequest)
                         .collect(Collectors.toList());
@@ -289,8 +356,6 @@ public class CashierPanel extends JPanel {
                 try {
                     List<PaymentRequest> loaded = get();
 
-                    // Loại bỏ những order đang ở cột phải khỏi cột trái
-                    // (tránh hiện lại card đang xử lý)
                     List<String> processingIds = processingList.stream()
                             .map(r -> r.orderId)
                             .collect(Collectors.toList());
@@ -303,7 +368,10 @@ public class CashierPanel extends JPanel {
                     pendingList.addAll(filtered);
                     rebuildPendingColumn();
 
-                } catch (InterruptedException | ExecutionException e) {
+                    // Seed baseline — không toast
+                    lastPaymentCount = pendingList.size();
+
+                } catch (ExecutionException | InterruptedException e) {
                     System.err.println("[CashierPanel] loadData lỗi: " + e.getMessage());
                     ToastNotification.show(CashierPanel.this,
                             "Lỗi tải dữ liệu: " + e.getMessage(),
@@ -313,34 +381,24 @@ public class CashierPanel extends JPanel {
         }.execute();
     }
 
-    // ─── Phase 5E: Dialog callback → moveToInProgress ────────────────────────
+    // ─── Dialog callback → moveToInProgress ──────────────────────────────────
 
     /**
-     * Chuyển card từ cột trái sang cột phải ngay lập tức (không đợi poll).
-     * Được gọi từ callback {@link CashierPaymentDialog} khi nhân viên xác nhận.
-     *
-     * @param req          request được xác nhận
-     * @param employeeName tên nhân viên phụ trách (hiển thị trên card phải)
+     * Chuyển card từ cột trái sang cột phải ngay lập tức.
+     * Được gọi từ callback {@link CashierPaymentDialog}.
      */
     private void moveToInProgress(PaymentRequest req, String employeeName) {
-        // Xóa khỏi cột trái
         pendingList.removeIf(r -> r.orderId.equals(req.orderId));
         rebuildPendingColumn();
 
-        // Thêm vào cột phải
         processingList.add(req);
         rebuildProcessingColumn(employeeName, req);
     }
 
-    // ─── Phase 5E: Complete payment ──────────────────────────────────────────
+    // ─── Complete payment ─────────────────────────────────────────────────────
 
     /**
-     * Hoàn thành thanh toán:
-     * {@code OrderDAO.completeOrder()} + {@code TableDAO.updateStatus(DIRTY)}.
-     * Nếu thành công → xóa card khỏi cột phải + toast SUCCESS.
-     * Nếu lỗi → toast ERROR.
-     *
-     * @param req request cần hoàn tất
+     * Hoàn thành thanh toán: {@code completeOrder()} + {@code updateStatus(DIRTY)}.
      */
     private void completePayment(PaymentRequest req) {
         new SwingWorker<Boolean, Void>() {
@@ -369,7 +427,7 @@ public class CashierPanel extends JPanel {
                                 "Không thể hoàn tất đơn #" + req.orderId,
                                 ToastNotification.Type.ERROR);
                     }
-                } catch (InterruptedException | ExecutionException e) {
+                } catch (ExecutionException | InterruptedException e) {
                     System.err.println("[CashierPanel] completePayment lỗi: " + e.getMessage());
                     ToastNotification.show(CashierPanel.this,
                             "Lỗi thanh toán: " + e.getMessage(),
@@ -381,7 +439,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Rebuild columns ─────────────────────────────────────────────────────
 
-    /** Rebuild cột trái từ {@link #pendingList}. */
     private void rebuildPendingColumn() {
         pendingColumn.removeAll();
 
@@ -398,10 +455,6 @@ public class CashierPanel extends JPanel {
         pendingColumn.repaint();
     }
 
-    /**
-     * Rebuild toàn bộ cột phải từ {@link #processingList}.
-     * Dùng khi một card bị xóa (hoàn tất / lỗi).
-     */
     private void rebuildProcessingColumnFull() {
         processingColumn.removeAll();
 
@@ -418,14 +471,10 @@ public class CashierPanel extends JPanel {
         processingColumn.repaint();
     }
 
-    /**
-     * Thêm một card mới vào cột phải ngay lập tức (không rebuild toàn bộ).
-     * Gọi khi vừa confirm từ dialog → trải nghiệm UI mượt hơn.
-     */
     private void rebuildProcessingColumn(String employeeName, PaymentRequest newReq) {
-        // Nếu trước đó đang hiển thị empty state thì xóa đi
-        if (processingColumn.getComponentCount() == 1 &&
-                processingColumn.getComponent(0) instanceof EmptyStatePanel) {
+        // Xóa empty-state cũ nếu có
+        if (processingColumn.getComponentCount() == 1
+                && processingColumn.getComponent(0) instanceof EmptyStatePanel) {
             processingColumn.removeAll();
         }
 
@@ -438,10 +487,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Card builders ────────────────────────────────────────────────────────
 
-    /**
-     * Card ở cột trái: tên bàn, tổng tiền, phương thức.
-     * Nhấn vào → mở {@link CashierPaymentDialog}.
-     */
     private JPanel buildPendingCard(PaymentRequest req) {
         JPanel card = new CardPanel(UIConstants.BG_WHITE, UIConstants.BORDER_COLOR);
         card.setLayout(new BorderLayout(0, 8));
@@ -449,12 +494,10 @@ public class CashierPanel extends JPanel {
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        // ── Table name ──
         JLabel tableLabel = new JLabel(req.tableName);
         tableLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
         tableLabel.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // ── Amount + method ──
         JPanel info = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         info.setOpaque(false);
 
@@ -473,7 +516,6 @@ public class CashierPanel extends JPanel {
         info.add(sepLabel);
         info.add(methodLabel);
 
-        // ── "Thanh toán" pill ──
         JLabel pill = buildStatusPill("Chờ thanh toán",
                 new Color(0xFFF8E1), new Color(0xF59E0B));
 
@@ -481,7 +523,6 @@ public class CashierPanel extends JPanel {
         card.add(info,        BorderLayout.CENTER);
         card.add(pill,        BorderLayout.SOUTH);
 
-        // Click → open dialog
         card.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -492,19 +533,12 @@ public class CashierPanel extends JPanel {
         return card;
     }
 
-    /**
-     * Card ở cột phải: tên bàn, nhân viên, tổng tiền + nút "Hoàn tất".
-     *
-     * @param req          request
-     * @param employeeName tên nhân viên (nullable khi rebuild toàn bộ)
-     */
     private JPanel buildProcessingCard(PaymentRequest req, String employeeName) {
         JPanel card = new CardPanel(UIConstants.BG_WHITE, new Color(0x2E7D32));
         card.setLayout(new BorderLayout(0, 8));
         card.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
 
-        // ── Header row: table name + amount ──
         JPanel headerRow = new JPanel(new BorderLayout());
         headerRow.setOpaque(false);
 
@@ -519,7 +553,6 @@ public class CashierPanel extends JPanel {
         headerRow.add(tableLabel,  BorderLayout.WEST);
         headerRow.add(amountLabel, BorderLayout.EAST);
 
-        // ── Staff info ──
         String staffText = (employeeName != null && !employeeName.isBlank())
                 ? "Nhân viên: " + employeeName
                 : req.getPaymentMethodLabel();
@@ -527,7 +560,6 @@ public class CashierPanel extends JPanel {
         staffLabel.setFont(UIConstants.FONT_BODY);
         staffLabel.setForeground(UIConstants.TEXT_SECONDARY);
 
-        // ── "Hoàn tất" button ──
         JButton btnDone = new JButton("✓  Hoàn tất") {
             @Override
             protected void paintComponent(Graphics g) {
@@ -561,9 +593,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Dialog ───────────────────────────────────────────────────────────────
 
-    /**
-     * Mở {@link CashierPaymentDialog}; callback gọi {@link #moveToInProgress}.
-     */
     public void openPaymentDialog(PaymentRequest req) {
         CashierPaymentDialog.show(
                 SwingUtilities.getWindowAncestor(this),
@@ -574,13 +603,10 @@ public class CashierPanel extends JPanel {
 
     // ─── Empty state ─────────────────────────────────────────────────────────
 
-    /** Panel empty-state có icon và message. */
     private Component buildEmptyState(String message) {
-        EmptyStatePanel panel = new EmptyStatePanel(message);
-        return panel;
+        return new EmptyStatePanel(message);
     }
 
-    /** Marker class để nhận dạng empty state panel khi cần thay thế. */
     private static class EmptyStatePanel extends JPanel {
         EmptyStatePanel(String message) {
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -613,7 +639,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Utility components ───────────────────────────────────────────────────
 
-    /** Card có viền bo góc và shadow nhẹ. */
     private static class CardPanel extends JPanel {
         private final Color border;
 
@@ -628,20 +653,16 @@ public class CashierPanel extends JPanel {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
-            // Shadow
             g2.setColor(new Color(0, 0, 0, 18));
             g2.fillRoundRect(2, 3, getWidth() - 2, getHeight() - 2, 12, 12);
-            // Background
             g2.setColor(getBackground());
             g2.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 2, 12, 12);
-            // Border
             g2.setColor(border);
             g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, 12, 12);
             g2.dispose();
         }
     }
 
-    /** Pill badge màu sắc cho trạng thái. */
     private JLabel buildStatusPill(String text, Color bg, Color fg) {
         JLabel pill = new JLabel(text, SwingConstants.CENTER) {
             @Override
@@ -665,10 +686,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Static helpers ───────────────────────────────────────────────────────
 
-    /**
-     * Lọc đơn active cho màn hình thu ngân:
-     * bỏ COMPLETED và CANCELLED, giữ tất cả trạng thái còn lại.
-     */
     private static boolean isActiveForCashier(Order o) {
         Order.Status s = o.getStatus();
         return s != Order.Status.COMPLETED
@@ -677,25 +694,18 @@ public class CashierPanel extends JPanel {
             && s != Order.Status.HOAN_THANH;
     }
 
-    /**
-     * Ánh xạ {@link Order} → {@link PaymentRequest}.
-     * Phương thức thanh toán mặc định là CASH (Phase 5F sẽ thêm field thực).
-     */
     private static PaymentRequest toPaymentRequest(Order o) {
         String tableName = o.getTableName() != null && !o.getTableName().isBlank()
                 ? "Bàn " + o.getTableName()
                 : "Bàn #" + o.getTableId();
-
         return new PaymentRequest(
                 o.getId(),
                 o.getTableId(),
                 tableName,
                 o.getTotalAmount(),
-                PaymentRequest.PaymentMethod.CASH   // default; Phase 5F: đọc từ DB
-        );
+                PaymentRequest.PaymentMethod.CASH);
     }
 
-    /** Định dạng tiền tệ VND với dấu chấm ngàn. */
     private static String formatAmount(double amount) {
         NumberFormat nf = NumberFormat.getNumberInstance(new Locale("vi", "VN"));
         nf.setMaximumFractionDigits(0);
