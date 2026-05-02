@@ -1,19 +1,22 @@
 package com.restaurant.ui;
 
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.dao.KitchenDAO.KitchenTicket;
-import com.restaurant.data.DataManager;
-import com.restaurant.model.MenuItem;
-import com.restaurant.model.Order;
-import com.restaurant.session.AppSession;
-import com.restaurant.session.Permission;
-
-import javax.swing.*;
-import javax.swing.border.AbstractBorder;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
-
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.Window;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.Duration;
@@ -25,17 +28,42 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JToggleButton;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.border.AbstractBorder;
+
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.KitchenDAO.KitchenTicket;
+import com.restaurant.data.DataManager;
+import com.restaurant.model.MenuItem;
+import com.restaurant.session.AppSession;
+import com.restaurant.session.Permission;
+
 /**
- * Màn hình bếp (Chef view) – Phase 3B: Card UI hoàn chỉnh.
+ * Màn hình bếp (Chef view) – Phase 7B: Polling via ComponentListener + Toast delta.
  * <p>
  * Layout: Header | JSplitPane(Chờ chế biến | Đang chế biến)
- * Auto-refresh via {@link PollManager}.
+ * Auto-refresh via {@link PollManager} key {@code "kitchen_v2"}.
+ * Toast được hiện khi số ticket PENDING tăng so với lần poll trước.
  */
 public class KitchenPanel extends JPanel {
 
     // ─── Constants ────────────────────────────────────────────────────────────
 
-    private static final int REFRESH_MS = 5_000;
+    private static final int    REFRESH_MS = 5_000;
+    private static final String POLL_KEY   = "kitchen_v2";
 
     // Wait-time color thresholds
     private static final Color COLOR_SUCCESS = new Color(0x10B981); // < 10 phút
@@ -61,6 +89,12 @@ public class KitchenPanel extends JPanel {
     private Map<String, List<KitchenTicket>> allPendingGroups = new LinkedHashMap<>();
     private Map<String, List<KitchenTicket>> allCookingGroups = new LinkedHashMap<>();
 
+    /**
+     * Phase 7B: Tổng số ticket PENDING từ lần poll trước.
+     * Dùng để phát hiện món mới và show toast.
+     */
+    private int lastPendingCount = 0;
+
     // ─── Constructor ──────────────────────────────────────────────────────────
 
     public KitchenPanel() {
@@ -81,7 +115,7 @@ public class KitchenPanel extends JPanel {
         } catch (Exception ignored) {}
 
         buildUI();
-        setupAncestorListener();
+        setupComponentListener(); // Phase 7B: replaces AncestorListener
     }
 
     // ─── UI Construction ──────────────────────────────────────────────────────
@@ -97,8 +131,6 @@ public class KitchenPanel extends JPanel {
         split.setResizeWeight(0.5);
 
         add(split, BorderLayout.CENTER);
-
-        // Set divider to 50% after layout
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
     }
 
@@ -112,7 +144,6 @@ public class KitchenPanel extends JPanel {
                 BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 BorderFactory.createEmptyBorder(0, 24, 0, 24)));
 
-        // ── Left: icon + system name + role badge ──
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
 
@@ -144,7 +175,6 @@ public class KitchenPanel extends JPanel {
         left.add(sysName);
         left.add(badge);
 
-        // ── Right: globe + restaurant name + "Kết ca" button ──
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         right.setOpaque(false);
 
@@ -187,7 +217,6 @@ public class KitchenPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
 
-        // Sub-NORTH
         JPanel north = new JPanel(new BorderLayout());
         north.setBackground(UIConstants.BG_WHITE);
         north.setBorder(BorderFactory.createCompoundBorder(
@@ -199,7 +228,6 @@ public class KitchenPanel extends JPanel {
         title.setForeground(UIConstants.PRIMARY);
         north.add(title, BorderLayout.NORTH);
 
-        // Filter bar
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         filterBar.setOpaque(false);
         filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
@@ -217,10 +245,8 @@ public class KitchenPanel extends JPanel {
             filterBar.add(tb);
         }
         north.add(filterBar, BorderLayout.CENTER);
-
         panel.add(north, BorderLayout.NORTH);
 
-        // Cards area
         pendingCardsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
         pendingCardsPanel.setBackground(UIConstants.BG_PAGE);
         pendingCardsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -241,7 +267,6 @@ public class KitchenPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
 
-        // Sub-NORTH
         JPanel north = new JPanel(new BorderLayout());
         north.setBackground(UIConstants.BG_WHITE);
         north.setBorder(BorderFactory.createCompoundBorder(
@@ -253,7 +278,6 @@ public class KitchenPanel extends JPanel {
         title.setForeground(UIConstants.PRIMARY);
         north.add(title, BorderLayout.NORTH);
 
-        // Filter bar
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         filterBar.setOpaque(false);
         filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
@@ -271,10 +295,8 @@ public class KitchenPanel extends JPanel {
             filterBar.add(tb);
         }
         north.add(filterBar, BorderLayout.CENTER);
-
         panel.add(north, BorderLayout.NORTH);
 
-        // Cards area
         cookingCardsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
         cookingCardsPanel.setBackground(UIConstants.BG_PAGE);
         cookingCardsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -325,58 +347,122 @@ public class KitchenPanel extends JPanel {
         return tb;
     }
 
-    // ─── Data Loading ─────────────────────────────────────────────────────────
+    // ─── Phase 7B: ComponentListener ─────────────────────────────────────────
 
-    public void loadData() {
+    /**
+     * Đăng ký / huỷ polling dựa trên visibility của panel trong MainFrame.
+     * <ul>
+     *   <li>{@code componentShown} → {@link PollManager#register} → {@link #doPoll()} mỗi 5s</li>
+     *   <li>{@code componentHidden} → {@link PollManager#unregister}</li>
+     * </ul>
+     * Dùng key {@value #POLL_KEY} để tránh xung đột với key "kitchen" từ các phase cũ.
+     */
+    private void setupComponentListener() {
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                // PollManager.register có initialDelay=0 → doPoll() chạy ngay lần đầu
+                PollManager.getInstance().register(POLL_KEY, KitchenPanel.this::doPoll, REFRESH_MS);
+            }
+
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                PollManager.getInstance().unregister(POLL_KEY);
+            }
+        });
+    }
+
+    // ─── Phase 7B: doPoll() ───────────────────────────────────────────────────
+
+    /**
+     * Polling task được PollManager gọi định kỳ.
+     * <p>
+     * Luồng thực thi:
+     * <ol>
+     *   <li>SwingWorker.doInBackground(): gọi DAO trên non-EDT thread</li>
+     *   <li>Tách kết quả thành 2 danh sách pending / cooking</li>
+     *   <li>SwingWorker.done(): cập nhật UI + kiểm tra delta → toast</li>
+     * </ol>
+     */
+    private void doPoll() {
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
-        SwingWorker<List<KitchenTicket>, Void> worker =
-                new SwingWorker<List<KitchenTicket>, Void>() {
-                    @Override
-                    protected List<KitchenTicket> doInBackground() {
-                        return dao.getActiveTickets(restaurantId);
+        new SwingWorker<KitchenData, Void>() {
+            @Override
+            protected KitchenData doInBackground() {
+                List<KitchenTicket> all = dao.getActiveTickets(restaurantId);
+
+                List<KitchenTicket> pending = new ArrayList<>();
+                List<KitchenTicket> cooking = new ArrayList<>();
+
+                for (KitchenTicket ticket : all) {
+                    switch (ticket.itemStatus) {
+                        case PENDING:
+                        case ACCEPTED:
+                            pending.add(ticket);
+                            break;
+                        case COOKING:
+                            cooking.add(ticket);
+                            break;
+                        default:
+                            break;
                     }
+                }
+                return new KitchenData(pending, cooking);
+            }
 
-                    @Override
-                    protected void done() {
-                        try {
-                            List<KitchenTicket> tickets = get();
+            @Override
+            protected void done() {
+                try {
+                    KitchenData data = get();
 
-                            Map<String, List<KitchenTicket>> pending = new LinkedHashMap<>();
-                            Map<String, List<KitchenTicket>> cooking = new LinkedHashMap<>();
+                    // Rebuild grouped maps và cập nhật UI
+                    allPendingGroups = groupByItem(data.pending);
+                    allCookingGroups = groupByItem(data.cooking);
+                    applyPendingFilter();
+                    applyCookingFilter();
 
-                            for (KitchenTicket ticket : tickets) {
-                                switch (ticket.itemStatus) {
-                                    case PENDING:
-                                    case ACCEPTED:
-                                        pending.computeIfAbsent(ticket.itemName,
-                                                k -> new ArrayList<>()).add(ticket);
-                                        break;
-                                    case COOKING:
-                                        cooking.computeIfAbsent(ticket.itemName,
-                                                k -> new ArrayList<>()).add(ticket);
-                                        break;
-                                    default:
-                                        break;
-                                }
-                            }
-
-                            allPendingGroups = pending;
-                            allCookingGroups = cooking;
-
-                            applyPendingFilter();
-                            applyCookingFilter();
-
-                        } catch (Exception ex) {
-                            System.err.println("[KitchenPanel] loadData error: " + ex.getMessage());
-                            ToastNotification.show(
-                                    KitchenPanel.this,
-                                    "Lỗi tải dữ liệu bếp: " + ex.getMessage(),
-                                    ToastNotification.Type.ERROR);
-                        }
+                    // ── Toast delta detection ─────────────────────────────────
+                    int newCount = data.pending.size();
+                    if (newCount > lastPendingCount) {
+                        int diff = newCount - lastPendingCount;
+                        ToastNotification.show(
+                                KitchenPanel.this,
+                                "Có " + diff + " món mới cần chế biến!",
+                                ToastNotification.Type.INFO);
                     }
-                };
-        worker.execute();
+                    lastPendingCount = newCount;
+
+                } catch (Exception ex) {
+                    System.err.println("[KitchenPanel] doPoll error: " + ex.getMessage());
+                    ToastNotification.show(
+                            KitchenPanel.this,
+                            "Lỗi tải dữ liệu bếp: " + ex.getMessage(),
+                            ToastNotification.Type.ERROR);
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Nhóm danh sách ticket theo {@code itemName} → LinkedHashMap (giữ thứ tự insert).
+     */
+    private static Map<String, List<KitchenTicket>> groupByItem(List<KitchenTicket> tickets) {
+        Map<String, List<KitchenTicket>> map = new LinkedHashMap<>();
+        for (KitchenTicket t : tickets) {
+            map.computeIfAbsent(t.itemName, k -> new ArrayList<>()).add(t);
+        }
+        return map;
+    }
+
+    // ─── Data Loading (public API – delegates to doPoll) ─────────────────────
+
+    /**
+     * Tương thích ngược cho các caller bên ngoài (e.g. MainFrame refresh).
+     * Delegate sang {@link #doPoll()}.
+     */
+    public void loadData() {
+        doPoll();
     }
 
     // ─── Filter ───────────────────────────────────────────────────────────────
@@ -463,7 +549,7 @@ public class KitchenPanel extends JPanel {
         cookingCardsPanel.repaint();
     }
 
-    // ─── buildPendingCard (Phase 3B) ──────────────────────────────────────────
+    // ─── Card builders ────────────────────────────────────────────────────────
 
     private JPanel buildPendingCard(String itemName, List<KitchenTicket> tickets) {
         JPanel card = new JPanel();
@@ -476,22 +562,17 @@ public class KitchenPanel extends JPanel {
         card.setMinimumSize(new Dimension(220, 0));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        // 1. Tên món
         JLabel nameLabel = new JLabel(itemName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
         nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // 2. Strut
-        // 3. Số lượng chờ
         int totalQty = sumQuantity(tickets);
         JLabel qtyLabel = new JLabel("Số lượng chờ: " + totalQty);
         qtyLabel.setFont(UIConstants.FONT_BODY);
         qtyLabel.setForeground(UIConstants.TEXT_PRIMARY);
         qtyLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // 4. Strut
-        // 5. Chờ lâu nhất + màu sắc theo thời gian
         long waitMinutes = calcWaitMinutes(tickets);
         JLabel waitLabel = new JLabel("Chờ lâu nhất: " + waitMinutes + " phút");
         waitLabel.setAlignmentX(LEFT_ALIGNMENT);
@@ -503,7 +584,6 @@ public class KitchenPanel extends JPanel {
             waitLabel.setFont(UIConstants.FONT_BODY);
             waitLabel.setForeground(COLOR_WARNING);
         } else {
-            // > 20 phút: DANGER + bold
             waitLabel.setFont(UIConstants.FONT_BODY.deriveFont(Font.BOLD));
             waitLabel.setForeground(COLOR_DANGER);
         }
@@ -514,28 +594,14 @@ public class KitchenPanel extends JPanel {
         card.add(Box.createVerticalStrut(4));
         card.add(waitLabel);
 
-        // HOVER effect
         card.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                card.setBackground(CARD_HOVER_BG);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                card.setBackground(Color.WHITE);
-            }
-
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                openPendingDetailDialog(itemName, tickets);
-            }
+            @Override public void mouseEntered(MouseEvent e) { card.setBackground(CARD_HOVER_BG); }
+            @Override public void mouseExited(MouseEvent e)  { card.setBackground(Color.WHITE); }
+            @Override public void mouseClicked(MouseEvent e) { openPendingDetailDialog(itemName, tickets); }
         });
 
         return card;
     }
-
-    // ─── buildCookingCard (Phase 3B) ──────────────────────────────────────────
 
     private JPanel buildCookingCard(String itemName, List<KitchenTicket> tickets) {
         JPanel card = new JPanel();
@@ -548,14 +614,11 @@ public class KitchenPanel extends JPanel {
         card.setMinimumSize(new Dimension(220, 0));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        // 1. Tên món
         JLabel nameLabel = new JLabel(itemName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
         nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // 2. Strut
-        // 3. Tên nhân viên hoặc "Đang chế biến"
         String assignedTo = "Đang chế biến";
         if (!tickets.isEmpty() && tickets.get(0).assignedTo != null
                 && !tickets.get(0).assignedTo.isBlank()) {
@@ -566,8 +629,6 @@ public class KitchenPanel extends JPanel {
         staffLabel.setForeground(UIConstants.TEXT_SECONDARY);
         staffLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // 4. Strut
-        // 5. Số lượng
         int totalQty = sumQuantity(tickets);
         JLabel qtyLabel = new JLabel("Số lượng: " + totalQty);
         qtyLabel.setFont(UIConstants.FONT_BODY);
@@ -580,22 +641,10 @@ public class KitchenPanel extends JPanel {
         card.add(Box.createVerticalStrut(4));
         card.add(qtyLabel);
 
-        // HOVER effect
         card.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                card.setBackground(CARD_HOVER_BG);
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                card.setBackground(Color.WHITE);
-            }
-
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                openCookingDetailDialog(itemName, tickets);
-            }
+            @Override public void mouseEntered(MouseEvent e) { card.setBackground(CARD_HOVER_BG); }
+            @Override public void mouseExited(MouseEvent e)  { card.setBackground(Color.WHITE); }
+            @Override public void mouseClicked(MouseEvent e) { openCookingDetailDialog(itemName, tickets); }
         });
 
         return card;
@@ -603,9 +652,6 @@ public class KitchenPanel extends JPanel {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    /**
-     * Tính thời gian chờ lâu nhất (tính từ created_at cũ nhất đến hiện tại).
-     */
     private long calcWaitMinutes(List<KitchenTicket> tickets) {
         return tickets.stream()
                 .map(t -> t.createdAt)
@@ -615,52 +661,37 @@ public class KitchenPanel extends JPanel {
                 .orElse(0L);
     }
 
-    /**
-     * Tổng số lượng tất cả ticket trong nhóm.
-     */
     private int sumQuantity(List<KitchenTicket> tickets) {
         return tickets.stream().mapToInt(t -> t.quantity).sum();
     }
 
     // ─── Detail Dialogs (Phase 3C – placeholder) ──────────────────────────────
 
-    /**
-     * Mở dialog chi tiết cho nhóm món đang chờ.
-     * Phase 3C sẽ implement đầy đủ.
-     */
     private void openPendingDetailDialog(String itemName, List<KitchenTicket> tickets) {
         // Phase 3C implement
     }
 
-    /**
-     * Mở dialog chi tiết cho nhóm món đang nấu.
-     * Phase 3C sẽ implement đầy đủ.
-     */
     private void openCookingDetailDialog(String itemName, List<KitchenTicket> tickets) {
         // Phase 3C implement
     }
 
-    // ─── AncestorListener ─────────────────────────────────────────────────────
+    // ─── Phase 7B: KitchenData ────────────────────────────────────────────────
 
-    private void setupAncestorListener() {
-        addAncestorListener(new AncestorListener() {
-            @Override
-            public void ancestorAdded(AncestorEvent e) {
-                loadData();
-                PollManager.getInstance().register("kitchen", KitchenPanel.this::loadData, REFRESH_MS);
-            }
+    /**
+     * Value object để truyền kết quả qua generic boundary của SwingWorker.
+     * Tách biệt rõ ràng hai danh sách để delta detection chỉ cần đọc {@code pending.size()}.
+     */
+    private static final class KitchenData {
+        final List<KitchenTicket> pending;
+        final List<KitchenTicket> cooking;
 
-            @Override
-            public void ancestorRemoved(AncestorEvent e) {
-                PollManager.getInstance().unregister("kitchen");
-            }
-
-            @Override
-            public void ancestorMoved(AncestorEvent e) {}
-        });
+        KitchenData(List<KitchenTicket> pending, List<KitchenTicket> cooking) {
+            this.pending = pending;
+            this.cooking = cooking;
+        }
     }
 
-    // ─── RoundedOutlineButton ─────────────────────────────────────────────────
+    // ─── Inner classes ────────────────────────────────────────────────────────
 
     private static class RoundedOutlineButton extends JButton {
         RoundedOutlineButton(String text, int w, int h) {
@@ -690,8 +721,6 @@ public class KitchenPanel extends JPanel {
         }
     }
 
-    // ─── RoundedBorder inner class ────────────────────────────────────────────
-
     private static class RoundedBorder extends AbstractBorder {
         private final int   radius;
         private final Color color;
@@ -716,8 +745,6 @@ public class KitchenPanel extends JPanel {
             return new Insets(radius / 2, radius / 2, radius / 2, radius / 2);
         }
     }
-
-    // ─── WrapLayout inner class ───────────────────────────────────────────────
 
     private static class WrapLayout extends FlowLayout {
         WrapLayout(int align, int hgap, int vgap) {
