@@ -2,7 +2,6 @@ package com.restaurant.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -54,6 +53,11 @@ import com.restaurant.ui.dialog.CashierPaymentDialog;
  *       không có nút "Kết ca" nên truyền {@code null} cho {@code onEndShift}.</li>
  *   <li>Nút "↻ Làm mới" chuyển sang {@link #buildTitleBar()} — thanh phụ ngay
  *       bên dưới StaffHeader, trước hai cột nội dung.</li>
+ * </ul>
+ *
+ * <h3>Refactor EmptyState</h3>
+ * <ul>
+ *   <li>Dùng {@link EmptyStatePanel} dùng chung — xóa inner-class cũ.</li>
  * </ul>
  */
 public class CashierPanel extends JPanel {
@@ -128,8 +132,7 @@ public class CashierPanel extends JPanel {
     // ─── UI Construction ─────────────────────────────────────────────────────
 
     private void buildUI() {
-        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
-        // CashierPanel không có nút "Kết ca" → truyền null cho onEndShift
+        // ── StaffHeader ───────────────────────────────────────────────────────
         String rName = "";
         try {
             String name = DataManager.getInstance().getMyRestaurant().getName();
@@ -149,9 +152,6 @@ public class CashierPanel extends JPanel {
 
     /**
      * Thanh phụ ngay dưới StaffHeader: tiêu đề màn hình + nút "↻ Làm mới".
-     *
-     * <p>Tách biệt khỏi StaffHeader để CashierPanel vẫn giữ được nút Làm mới
-     * trong khi KitchenPanel / WaiterServicePanel không cần nút này.
      */
     private JPanel buildTitleBar() {
         JPanel bar = new JPanel(new BorderLayout());
@@ -412,7 +412,8 @@ public class CashierPanel extends JPanel {
         pendingColumn.removeAll();
 
         if (pendingList.isEmpty()) {
-            pendingColumn.add(buildEmptyState("Không có bàn nào\nchờ thanh toán"));
+            pendingColumn.add(
+                    new EmptyStatePanel("💳", "Không có bàn nào chờ thanh toán", null));
         } else {
             for (PaymentRequest req : pendingList) {
                 pendingColumn.add(buildPendingCard(req));
@@ -428,7 +429,8 @@ public class CashierPanel extends JPanel {
         processingColumn.removeAll();
 
         if (processingList.isEmpty()) {
-            processingColumn.add(buildEmptyState("Chưa có đơn\nđang xử lý"));
+            processingColumn.add(
+                    new EmptyStatePanel("✅", "Chưa có đơn nào đang xử lý", null));
         } else {
             for (PaymentRequest req : processingList) {
                 processingColumn.add(buildProcessingCard(req, null));
@@ -441,6 +443,7 @@ public class CashierPanel extends JPanel {
     }
 
     private void rebuildProcessingColumn(String employeeName, PaymentRequest newReq) {
+        // Remove empty-state placeholder if present
         if (processingColumn.getComponentCount() == 1
                 && processingColumn.getComponent(0) instanceof EmptyStatePanel) {
             processingColumn.removeAll();
@@ -567,42 +570,6 @@ public class CashierPanel extends JPanel {
                 req,
                 employeeName -> moveToInProgress(req, employeeName)
         );
-    }
-
-    // ─── Empty state ─────────────────────────────────────────────────────────
-
-    private Component buildEmptyState(String message) {
-        return new EmptyStatePanel(message);
-    }
-
-    private static class EmptyStatePanel extends JPanel {
-        EmptyStatePanel(String message) {
-            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            setOpaque(false);
-            setBorder(BorderFactory.createEmptyBorder(40, 0, 0, 0));
-
-            JLabel icon = new JLabel("📋", SwingConstants.CENTER);
-            icon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
-            icon.setAlignmentX(CENTER_ALIGNMENT);
-
-            String[] lines = message.split("\n");
-            JLabel line1 = new JLabel(lines[0], SwingConstants.CENTER);
-            line1.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            line1.setForeground(UIConstants.TEXT_SECONDARY);
-            line1.setAlignmentX(CENTER_ALIGNMENT);
-
-            add(icon);
-            add(Box.createVerticalStrut(10));
-            add(line1);
-
-            if (lines.length > 1) {
-                JLabel line2 = new JLabel(lines[1], SwingConstants.CENTER);
-                line2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-                line2.setForeground(UIConstants.TEXT_SECONDARY);
-                line2.setAlignmentX(CENTER_ALIGNMENT);
-                add(line2);
-            }
-        }
     }
 
     // ─── Utility components ───────────────────────────────────────────────────

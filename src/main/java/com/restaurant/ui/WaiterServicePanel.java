@@ -10,7 +10,6 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
@@ -64,11 +63,12 @@ import com.restaurant.session.Permission;
  *
  * <h3>Refactor StaffHeader</h3>
  * <ul>
- *   <li>Xóa {@code buildHeader()} nội bộ cùng các inner class {@code RoleBadge},
- *       {@code RoundedOutlineButton} từ header.</li>
  *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
- *   <li>Các inner class {@code RoundedBorder}, {@code WrapLayout}, {@code CleanActionRenderer},
- *       {@code CleanActionEditor} giữ nguyên — chúng phục vụ nội dung tab, không phải header.</li>
+ * </ul>
+ *
+ * <h3>Refactor EmptyState</h3>
+ * <ul>
+ *   <li>Dùng {@link EmptyStatePanel} dùng chung — xóa {@code buildEmptyState()}.</li>
  * </ul>
  *
  * RBAC: yêu cầu {@link Permission#VIEW_WAITER_SERVICE}.
@@ -106,7 +106,7 @@ public class WaiterServicePanel extends JPanel {
             return;
         }
 
-        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
+        // ── StaffHeader ───────────────────────────────────────────────────────
         String rName = "";
         try {
             rName = com.restaurant.data.DataManager.getInstance()
@@ -348,7 +348,8 @@ public class WaiterServicePanel extends JPanel {
         if (map == null || map.isEmpty()) {
             deliveryCardsPanel.setLayout(new BorderLayout());
             deliveryCardsPanel.add(
-                    buildEmptyState("🛎", "Không có bàn nào cần phục vụ"),
+                    new EmptyStatePanel("🛎", "Không có bàn nào cần phục vụ",
+                            "Tất cả đang ổn ✓"),
                     BorderLayout.CENTER);
             deliveryCardsPanel.revalidate();
             deliveryCardsPanel.repaint();
@@ -372,7 +373,7 @@ public class WaiterServicePanel extends JPanel {
 
         if (tables == null || tables.isEmpty()) {
             cleanTablePanel.add(
-                    buildEmptyState("🧹", "Không có bàn nào cần dọn"),
+                    new EmptyStatePanel("🧹", "Không có bàn nào cần dọn", null),
                     BorderLayout.CENTER);
         } else {
             cleanTablePanel.add(buildCleanTable(tables), BorderLayout.CENTER);
@@ -445,7 +446,7 @@ public class WaiterServicePanel extends JPanel {
 
         if (items == null || items.isEmpty()) {
             cancelledPanel.add(
-                    buildEmptyState("✅", "Không có món nào bị hủy hôm nay"),
+                    new EmptyStatePanel("✅", "Không có món nào bị hủy hôm nay", null),
                     BorderLayout.CENTER);
             cancelledPanel.revalidate();
             cancelledPanel.repaint();
@@ -674,33 +675,6 @@ public class WaiterServicePanel extends JPanel {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.setPreferredSize(new Dimension(0, UIConstants.BTN_HEIGHT));
         return btn;
-    }
-
-    // ─── Empty state ──────────────────────────────────────────────────────────
-
-    private JPanel buildEmptyState(String icon, String msg) {
-        JPanel p = new JPanel(new GridBagLayout());
-        p.setOpaque(false);
-
-        JPanel inner = new JPanel();
-        inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
-        inner.setOpaque(false);
-
-        JLabel icLbl = new JLabel(icon, SwingConstants.CENTER);
-        icLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 48));
-        icLbl.setAlignmentX(CENTER_ALIGNMENT);
-
-        JLabel msgLbl = new JLabel(msg, SwingConstants.CENTER);
-        msgLbl.setFont(UIConstants.FONT_BODY);
-        msgLbl.setForeground(UIConstants.TEXT_SECONDARY);
-        msgLbl.setAlignmentX(CENTER_ALIGNMENT);
-
-        inner.add(icLbl);
-        inner.add(Box.createVerticalStrut(16));
-        inner.add(msgLbl);
-
-        p.add(inner);
-        return p;
     }
 
     // ─── Inner DTO: WaiterPollData ────────────────────────────────────────────

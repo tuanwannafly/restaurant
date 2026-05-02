@@ -11,7 +11,6 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Window;
@@ -61,6 +60,11 @@ import com.restaurant.session.Permission;
  *   <li>Xóa {@code buildHeader()} nội bộ.</li>
  *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
  *   <li>Callback "Kết ca" unregister poll trước khi dispose window.</li>
+ * </ul>
+ *
+ * <h3>Refactor EmptyState</h3>
+ * <ul>
+ *   <li>Dùng {@link EmptyStatePanel} dùng chung thay cho JLabel inline.</li>
  * </ul>
  */
 public class KitchenPanel extends JPanel {
@@ -146,6 +150,14 @@ public class KitchenPanel extends JPanel {
         split.setBackground(UIConstants.BORDER_COLOR);
         split.setBorder(null);
         split.setResizeWeight(0.5);
+
+        // Responsive: keep divider centred whenever the pane is resized
+        split.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
+            }
+        });
 
         add(split, BorderLayout.CENTER);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
@@ -422,14 +434,11 @@ public class KitchenPanel extends JPanel {
         pendingCardsPanel.removeAll();
 
         if (grouped.isEmpty()) {
-            JLabel empty = new JLabel("Không có món nào đang chờ ✅", SwingConstants.CENTER);
-            empty.setFont(UIConstants.FONT_BODY);
-            empty.setForeground(UIConstants.TEXT_SECONDARY);
-            JPanel wrapper = new JPanel(new GridBagLayout());
-            wrapper.setOpaque(false);
-            wrapper.add(empty);
             pendingCardsPanel.setLayout(new BorderLayout());
-            pendingCardsPanel.add(wrapper, BorderLayout.CENTER);
+            pendingCardsPanel.add(
+                    new EmptyStatePanel("🍽", "Không có món nào đang chờ",
+                            "Tất cả đã được chế biến ✓"),
+                    BorderLayout.CENTER);
         } else {
             pendingCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 12, 12));
             for (Map.Entry<String, List<KitchenTicket>> entry : grouped.entrySet()) {
@@ -445,14 +454,10 @@ public class KitchenPanel extends JPanel {
         cookingCardsPanel.removeAll();
 
         if (grouped.isEmpty()) {
-            JLabel empty = new JLabel("Không có món nào đang chế biến ✅", SwingConstants.CENTER);
-            empty.setFont(UIConstants.FONT_BODY);
-            empty.setForeground(UIConstants.TEXT_SECONDARY);
-            JPanel wrapper = new JPanel(new GridBagLayout());
-            wrapper.setOpaque(false);
-            wrapper.add(empty);
             cookingCardsPanel.setLayout(new BorderLayout());
-            cookingCardsPanel.add(wrapper, BorderLayout.CENTER);
+            cookingCardsPanel.add(
+                    new EmptyStatePanel("👨‍🍳", "Không có món nào đang chế biến", null),
+                    BorderLayout.CENTER);
         } else {
             cookingCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 12, 12));
             for (Map.Entry<String, List<KitchenTicket>> entry : grouped.entrySet()) {
