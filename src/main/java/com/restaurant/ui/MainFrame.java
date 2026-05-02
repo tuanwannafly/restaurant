@@ -48,6 +48,7 @@ public class MainFrame extends JFrame implements SessionListener {
     private RestaurantPanel     restaurantPanel;
     private KitchenPanel        kitchenPanel;
     private WaiterServicePanel  waiterServicePanel;
+    private CashierPanel        cashierPanel;
     private MyRestaurantInfoPanel myRestaurantPanel;
     private AuditLogPanel         auditLogPanel;
     private RestaurantDetailPanel restaurantDetailPanel;
@@ -64,13 +65,13 @@ public class MainFrame extends JFrame implements SessionListener {
 
     private String[] navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
-        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "myrestaurant",
-        "baomat", "adminstats"
+        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "thungan",
+        "myrestaurant", "baomat", "adminstats"
     };
     private String[] navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
         "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"
+        "💳 Thu ngân", "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"
     };
 
     /** Swing Timer kiểm tra session token mỗi 30 phút. */
@@ -196,6 +197,7 @@ public class MainFrame extends JFrame implements SessionListener {
         }
         kitchenPanel       = new KitchenPanel();
         waiterServicePanel = new WaiterServicePanel();
+        cashierPanel       = new CashierPanel();
         if (_guard.isRestaurantAdmin()) {
             myRestaurantPanel = new MyRestaurantInfoPanel();
         }
@@ -215,6 +217,7 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
         contentArea.add(kitchenPanel,       "bep");
         contentArea.add(waiterServicePanel, "phucvu");
+        contentArea.add(cashierPanel,       "thungan");
         contentArea.add(myRestaurantPanel != null ? myRestaurantPanel
                 : buildPlaceholder("Nhà hàng của tôi"), "myrestaurant");
         contentArea.add(adminStatsPanel != null ? adminStatsPanel
@@ -267,6 +270,12 @@ public class MainFrame extends JFrame implements SessionListener {
                     navButtons[i].setVisible(
                             !isSuperAdmin &&
                             perms.contains(com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
+                    break;
+ 
+                case "thungan":
+                    navButtons[i].setVisible(
+                            !isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_CASHIER));
                     break;
 
                 case "thongke":
@@ -475,6 +484,7 @@ public class MainFrame extends JFrame implements SessionListener {
                 break;
             case "bep":       kitchenPanel.loadData();          break;
             case "phucvu":    waiterServicePanel.loadData();    break;
+            case "thungan":   cashierPanel.loadData();          break;
             case "myrestaurant":
                 if (myRestaurantPanel != null) myRestaurantPanel.loadData();
                 break;
