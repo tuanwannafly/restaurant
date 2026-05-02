@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
- * TableOrderFrame — Phase 3B (redesigned with CardLayout)
+ * TableOrderFrame — Phase 6A (tích hợp ImageLoader)
  *
  * JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
  * Dùng CardLayout với 5 card:
@@ -33,9 +33,8 @@ import java.util.stream.Collectors;
 public class TableOrderFrame extends JFrame {
 
     // ─── Card names ───────────────────────────────────────────────────────────
-    private static final String CARD_MENU = "menu";
-    private static final String CARD_CART = "cart";
-    // PHASE 1A — 3 card mới
+    private static final String CARD_MENU    = "menu";
+    private static final String CARD_CART    = "cart";
     private static final String CARD_STATUS  = "status";
     private static final String CARD_PAYMENT = "payment";
     private static final String CARD_WAITING = "waiting";
@@ -69,11 +68,12 @@ public class TableOrderFrame extends JFrame {
     private DefaultTableModel cartTableModel;
     private JTable            cartTable;
     private JLabel            lblCartTotal;
-    private JLabel        lblStatusTotal;
-    private RoundedButton btnRequestPayment;
+    private JLabel            lblStatusTotal;
+    private RoundedButton     btnRequestPayment;
     private DefaultTableModel statusTableModel;
     private JTable            statusTable;
     private String currentCard = CARD_MENU;
+
     // PHASE 1E
     private JLabel         lblPaymentTotal;
     private JToggleButton  tbTransfer;
@@ -136,9 +136,8 @@ public class TableOrderFrame extends JFrame {
         cardPanel  = new JPanel(cardLayout);
         cardPanel.setBackground(UIConstants.BG_PAGE);
 
-        cardPanel.add(buildMenuCard(), CARD_MENU);
-        cardPanel.add(buildCartCard(), CARD_CART);
-        // PHASE 1A — đăng ký 3 card skeleton mới
+        cardPanel.add(buildMenuCard(),    CARD_MENU);
+        cardPanel.add(buildCartCard(),    CARD_CART);
         cardPanel.add(buildStatusCard(),  CARD_STATUS);
         cardPanel.add(buildPaymentCard(), CARD_PAYMENT);
         cardPanel.add(buildWaitingCard(), CARD_WAITING);
@@ -147,9 +146,8 @@ public class TableOrderFrame extends JFrame {
         navigateTo(CARD_MENU);
     }
 
-    // PHASE 1A — Navigate helper (dùng cho các phase sau)
-    // ─── PHASE 1F: navigateTo() cập nhật ─────────────────────────────────────────
-    private void navigateTo(String card) { // PHASE 1D, cập nhật PHASE 1E, PHASE 1F
+    // ─── Navigate helper ──────────────────────────────────────────────────────
+    private void navigateTo(String card) {
         String prev = currentCard;
         currentCard = card;
 
@@ -168,19 +166,16 @@ public class TableOrderFrame extends JFrame {
                     5_000);
         }
 
-        // PHASE 1E: sync tổng tiền khi vào card thanh toán
         if (CARD_PAYMENT.equals(card)) {
             syncPaymentTotal();
             updateToggleStyle();
         }
 
-        // PHASE 1F: register poll kiểm tra order hoàn tất mỗi 5s
         if (CARD_WAITING.equals(card)) {
             PollManager.getInstance().register(
                     "order_waiting_" + tableId,
                     this::checkOrderCompleted,
                     5_000);
-            // Check ngay lập tức
             checkOrderCompleted();
         }
 
@@ -199,25 +194,28 @@ public class TableOrderFrame extends JFrame {
         return p;
     }
 
-    // PHASE 1A — 3 card skeleton builders
-    private JPanel buildStatusCard() { // PHASE 1C
+    // ─── Card builders ────────────────────────────────────────────────────────
+
+    private JPanel buildStatusCard() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
         panel.add(buildStatusHeader(), BorderLayout.NORTH);
-        panel.add(buildStatusCenter(), BorderLayout.CENTER); // PHASE 1C: thay placeholder
+        panel.add(buildStatusCenter(), BorderLayout.CENTER);
         panel.add(buildStatusFooter(), BorderLayout.SOUTH);
-        refreshStatusTable(); // PHASE 1C: load dữ liệu ngay khi build
+        refreshStatusTable();
         return panel;
     }
-    private JPanel buildPaymentCard() { // PHASE 1E
-    JPanel panel = new JPanel(new BorderLayout());
+
+    private JPanel buildPaymentCard() {
+        JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
-        panel.add(buildPaymentHeader(),  BorderLayout.NORTH);
-        panel.add(buildPaymentCenter(),  BorderLayout.CENTER);
-        panel.add(buildPaymentFooter(),  BorderLayout.SOUTH);
+        panel.add(buildPaymentHeader(), BorderLayout.NORTH);
+        panel.add(buildPaymentCenter(), BorderLayout.CENTER);
+        panel.add(buildPaymentFooter(), BorderLayout.SOUTH);
         return panel;
     }
-    private JPanel buildStatusHeader() { // PHASE 1B
+
+    private JPanel buildStatusHeader() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setPreferredSize(new Dimension(0, 56));
@@ -225,7 +223,6 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // LEFT — logo + system name
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
         JLabel logo = new JLabel("⛁");
@@ -237,12 +234,10 @@ public class TableOrderFrame extends JFrame {
         left.add(logo);
         left.add(sysName);
 
-        // CENTER — title
         JLabel title = new JLabel("Đơn hàng của bạn", SwingConstants.CENTER);
         title.setFont(UIConstants.FONT_TITLE);
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // RIGHT — table badge
         JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -270,7 +265,7 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    private JPanel buildStatusFooter() { // PHASE 1B
+    private JPanel buildStatusFooter() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setPreferredSize(new Dimension(0, 56));
@@ -278,7 +273,6 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // LEFT side
         JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 11));
         leftPanel.setOpaque(false);
 
@@ -299,7 +293,6 @@ public class TableOrderFrame extends JFrame {
         leftPanel.add(Box.createHorizontalStrut(16));
         leftPanel.add(btnBackToMenu);
 
-        // RIGHT side
         btnRequestPayment = new RoundedButton("Yêu cầu thanh toán");
         btnRequestPayment.setPreferredSize(new Dimension(180, UIConstants.BTN_HEIGHT + 4));
         btnRequestPayment.addActionListener(e -> navigateTo(CARD_PAYMENT));
@@ -313,7 +306,7 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    private JPanel buildPaymentHeader() { // PHASE 1E
+    private JPanel buildPaymentHeader() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setPreferredSize(new Dimension(0, 56));
@@ -363,7 +356,7 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    private JScrollPane buildPaymentCenter() { // PHASE 1E
+    private JScrollPane buildPaymentCenter() {
         JPanel outer = new JPanel();
         outer.setLayout(new BoxLayout(outer, BoxLayout.Y_AXIS));
         outer.setBackground(UIConstants.BG_PAGE);
@@ -421,7 +414,7 @@ public class TableOrderFrame extends JFrame {
         return scroll;
     }
 
-    private JPanel buildPaymentFooter() { // PHASE 1E
+    private JPanel buildPaymentFooter() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setPreferredSize(new Dimension(0, 60));
@@ -455,18 +448,17 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    // ─── PHASE 1F: buildWaitingCard() ────────────────────────────────────────────
-    private JPanel buildWaitingCard() { // PHASE 1F
+    // ─── PHASE 1F: buildWaitingCard() ────────────────────────────────────────
+
+    private JPanel buildWaitingCard() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
         panel.add(buildWaitingHeader(), BorderLayout.NORTH);
         panel.add(buildWaitingCenter(), BorderLayout.CENTER);
-        // KHÔNG có SOUTH footer
         return panel;
     }
 
-    // ─── PHASE 1F: buildWaitingHeader() ──────────────────────────────────────────
-    private JPanel buildWaitingHeader() { // PHASE 1F
+    private JPanel buildWaitingHeader() {
         JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setPreferredSize(new Dimension(0, 56));
@@ -474,7 +466,6 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // LEFT — logo + system name
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
         JLabel logo = new JLabel("⛁");
@@ -486,12 +477,10 @@ public class TableOrderFrame extends JFrame {
         left.add(logo);
         left.add(sysName);
 
-        // CENTER — title
         JLabel title = new JLabel("Đang xử lý yêu cầu", SwingConstants.CENTER);
         title.setFont(UIConstants.FONT_TITLE);
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // RIGHT — chỉ có nút logout (không có tableBadge)
         JButton btnLogout = new JButton("⏻");
         btnLogout.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
         btnLogout.setForeground(UIConstants.TEXT_SECONDARY);
@@ -516,13 +505,10 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    // ─── PHASE 1F: buildWaitingCenter() ──────────────────────────────────────────
-    private JPanel buildWaitingCenter() { // PHASE 1F
-        // Wrapper để căn giữa card
+    private JPanel buildWaitingCenter() {
         JPanel wrapper = new JPanel(new GridBagLayout());
         wrapper.setBackground(UIConstants.BG_PAGE);
 
-        // Inner card
         JPanel card = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -542,14 +528,12 @@ public class TableOrderFrame extends JFrame {
         card.setBorder(BorderFactory.createEmptyBorder(48, 64, 48, 64));
         card.setPreferredSize(new Dimension(480, 280));
 
-        // Icon (animated feel — emoji)
         JLabel lblIcon = new JLabel("⏳", SwingConstants.CENTER);
         lblIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 48));
         lblIcon.setAlignmentX(CENTER_ALIGNMENT);
         card.add(lblIcon);
         card.add(Box.createVerticalStrut(20));
 
-        // Main message
         JLabel lblMain = new JLabel("Đang xử lý", SwingConstants.CENTER);
         lblMain.setFont(new Font("Segoe UI", Font.BOLD, 18));
         lblMain.setForeground(UIConstants.TEXT_PRIMARY);
@@ -557,7 +541,6 @@ public class TableOrderFrame extends JFrame {
         card.add(lblMain);
         card.add(Box.createVerticalStrut(12));
 
-        // Sub message
         JLabel lblSub = new JLabel(
                 "<html><div style='text-align:center;width:300px'>"
                 + "Nhân viên đang đến để thực hiện yêu cầu thanh toán"
@@ -568,7 +551,6 @@ public class TableOrderFrame extends JFrame {
         card.add(lblSub);
         card.add(Box.createVerticalStrut(10));
 
-        // Hint
         JLabel lblHint = new JLabel("Vui lòng chờ trong giây lát.", SwingConstants.CENTER);
         lblHint.setFont(UIConstants.FONT_BODY);
         lblHint.setForeground(UIConstants.TEXT_SECONDARY);
@@ -579,12 +561,10 @@ public class TableOrderFrame extends JFrame {
         return wrapper;
     }
 
-    // ─── PHASE 1F: checkOrderCompleted() ─────────────────────────────────────────
-    private void checkOrderCompleted() { // PHASE 1F
+    private void checkOrderCompleted() {
         new SwingWorker<Boolean, Void>() {
             @Override
             protected Boolean doInBackground() {
-                // Nếu getActiveOrderByTable trả về null → order đã COMPLETED/CANCELLED
                 Order active = new OrderDAO().getActiveOrderByTable(tableId);
                 return (active == null);
             }
@@ -599,7 +579,6 @@ public class TableOrderFrame extends JFrame {
                         ToastNotification.show(TableOrderFrame.this,
                                 "Thanh toán hoàn tất! Cảm ơn quý khách.",
                                 ToastNotification.Type.SUCCESS);
-                        // Delay 2s để user thấy toast rồi đóng
                         javax.swing.Timer delay = new javax.swing.Timer(2000, e -> dispose());
                         delay.setRepeats(false);
                         delay.start();
@@ -619,11 +598,9 @@ public class TableOrderFrame extends JFrame {
     private JPanel buildMenuCard() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
-
-        panel.add(buildMenuHeader(),  BorderLayout.NORTH);
-        panel.add(buildMenuCenter(),  BorderLayout.CENTER);
-        panel.add(buildMenuFooter(),  BorderLayout.SOUTH);
-
+        panel.add(buildMenuHeader(), BorderLayout.NORTH);
+        panel.add(buildMenuCenter(), BorderLayout.CENTER);
+        panel.add(buildMenuFooter(), BorderLayout.SOUTH);
         return panel;
     }
 
@@ -637,7 +614,6 @@ public class TableOrderFrame extends JFrame {
                 new MatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 new EmptyBorder(0, 24, 0, 24)));
 
-        // LEFT — logo + system name
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
         JLabel logo = new JLabel("⛁");
@@ -649,7 +625,6 @@ public class TableOrderFrame extends JFrame {
         left.add(logo);
         left.add(sysName);
 
-        // CENTER — table badge (rounded pill, PRIMARY background)
         JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -671,7 +646,6 @@ public class TableOrderFrame extends JFrame {
         center.setOpaque(false);
         center.add(tableBadge);
 
-        // RIGHT — globe icon + restaurant name + logout button
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         right.setOpaque(false);
 
@@ -711,7 +685,6 @@ public class TableOrderFrame extends JFrame {
         JPanel content = new JPanel(new BorderLayout(0, 0));
         content.setBackground(UIConstants.BG_PAGE);
 
-        // Sub-NORTH: search bar
         JPanel searchBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 12));
         searchBar.setBackground(UIConstants.BG_PAGE);
         searchBar.setBorder(new EmptyBorder(8, 16, 0, 16));
@@ -744,10 +717,8 @@ public class TableOrderFrame extends JFrame {
 
         searchBar.add(tfSearch);
 
-        // Sub-CENTER: category filter + grid
         JPanel centerContent = new JPanel(new BorderLayout(0, 0));
         centerContent.setBackground(UIConstants.BG_PAGE);
-
         centerContent.add(buildCategoryFilterBar(), BorderLayout.NORTH);
 
         menuGridPanel = new JPanel(new GridLayout(0, 6, 12, 12));
@@ -760,7 +731,6 @@ public class TableOrderFrame extends JFrame {
         menuGridPanel.add(loading);
 
         centerContent.add(menuGridPanel, BorderLayout.CENTER);
-
         content.add(searchBar,     BorderLayout.NORTH);
         content.add(centerContent, BorderLayout.CENTER);
 
@@ -785,7 +755,8 @@ public class TableOrderFrame extends JFrame {
 
     private void updateCategoryBar(List<String> categories) {
         Container centerContent = menuGridPanel.getParent();
-        Component north = ((BorderLayout) centerContent.getLayout()).getLayoutComponent(BorderLayout.NORTH);
+        Component north = ((BorderLayout) centerContent.getLayout())
+                .getLayoutComponent(BorderLayout.NORTH);
         if (!(north instanceof JPanel filterBar)) return;
 
         filterBar.removeAll();
@@ -841,7 +812,6 @@ public class TableOrderFrame extends JFrame {
         lblSubtotal.setFont(UIConstants.FONT_BODY);
         lblSubtotal.setForeground(UIConstants.TEXT_PRIMARY);
 
-        // PHASE 1D — nút chuyển sang card status
         JButton btnViewStatus = new JButton("📋 Trạng thái đơn");
         btnViewStatus.setFont(UIConstants.FONT_BODY);
         btnViewStatus.setForeground(UIConstants.PRIMARY);
@@ -854,8 +824,8 @@ public class TableOrderFrame extends JFrame {
         JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 11));
         leftPanel.setOpaque(false);
         leftPanel.add(lblSubtotal);
-        leftPanel.add(Box.createHorizontalStrut(16)); // PHASE 1D
-        leftPanel.add(btnViewStatus);                 // PHASE 1D
+        leftPanel.add(Box.createHorizontalStrut(16));
+        leftPanel.add(btnViewStatus);
 
         btnShowCart = new RoundedButton("🛒  Giỏ hàng (0 món)");
         btnShowCart.setPreferredSize(new Dimension(200, UIConstants.BTN_HEIGHT + 4));
@@ -891,6 +861,7 @@ public class TableOrderFrame extends JFrame {
         menuGridPanel.repaint();
     }
 
+    // ─── Phase 6A: buildMenuItemCard — dùng ImageLoader thay JPanel placeholder ───
     private JPanel buildMenuItemCard(MenuItem item) {
         JPanel card = new JPanel(new BorderLayout(0, 0)) {
             @Override
@@ -911,29 +882,16 @@ public class TableOrderFrame extends JFrame {
         card.setPreferredSize(new Dimension(0, 180));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        // Image placeholder (120x120)
-        JPanel imgPlaceholder = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xF3F4F6));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight() + 12, 12, 12);
-                g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
-                g2.setColor(new Color(0xD1D5DB));
-                String emoji = pickFoodEmoji(item.getCategory());
-                FontMetrics fm = g2.getFontMetrics();
-                int ex = (getWidth()  - fm.stringWidth(emoji)) / 2;
-                int ey = (getHeight() + fm.getAscent()) / 2 - 4;
-                g2.drawString(emoji, ex, ey);
-                g2.dispose();
-            }
-        };
-        imgPlaceholder.setOpaque(false);
-        imgPlaceholder.setPreferredSize(new Dimension(0, 100));
+        // ── Phase 6A: JLabel ảnh async thay cho JPanel vẽ emoji ──────────────
+        JLabel imgLabel = new JLabel();
+        imgLabel.setPreferredSize(new Dimension(ImageLoader.IMG_W, 100));
+        imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        imgLabel.setVerticalAlignment(SwingConstants.CENTER);
+        // ImageLoader tự hiện PLACEHOLDER khi imageUrl null/blank/lỗi
+        ImageLoader.loadAsync(item.getImageUrl(), imgLabel);
+        // ─────────────────────────────────────────────────────────────────────
 
-        // Info section
+        // Info section — giữ nguyên như cũ
         JPanel info = new JPanel(new BorderLayout(0, 2));
         info.setOpaque(false);
         info.setBorder(new EmptyBorder(6, 10, 0, 10));
@@ -946,7 +904,6 @@ public class TableOrderFrame extends JFrame {
         lblPrice.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         lblPrice.setForeground(UIConstants.TEXT_SECONDARY);
 
-        // "+" add-to-cart button
         JButton btnAdd = new JButton("+") {
             @Override
             protected void paintComponent(Graphics g) {
@@ -978,8 +935,8 @@ public class TableOrderFrame extends JFrame {
         info.add(lblPrice, BorderLayout.CENTER);
         info.add(btnRow,   BorderLayout.SOUTH);
 
-        card.add(imgPlaceholder, BorderLayout.CENTER);
-        card.add(info,           BorderLayout.SOUTH);
+        card.add(imgLabel, BorderLayout.CENTER); // ← Phase 6A: dùng imgLabel
+        card.add(info,     BorderLayout.SOUTH);
 
         card.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { addToCart(item); }
@@ -991,17 +948,17 @@ public class TableOrderFrame extends JFrame {
     private String pickFoodEmoji(String category) {
         if (category == null) return "🍽";
         String c = category.toLowerCase();
-        if (c.contains("uống") || c.contains("drink"))   return "🥤";
-        if (c.contains("tráng") || c.contains("dessert")) return "🍮";
+        if (c.contains("uống") || c.contains("drink"))     return "🥤";
+        if (c.contains("tráng") || c.contains("dessert"))  return "🍮";
         if (c.contains("hải sản") || c.contains("seafood")) return "🦐";
-        if (c.contains("thịt") || c.contains("meat"))    return "🥩";
-        if (c.contains("cơm") || c.contains("rice"))     return "🍚";
-        if (c.contains("phở") || c.contains("soup"))     return "🍜";
-        if (c.contains("gà") || c.contains("chicken"))   return "🍗";
+        if (c.contains("thịt") || c.contains("meat"))      return "🥩";
+        if (c.contains("cơm") || c.contains("rice"))       return "🍚";
+        if (c.contains("phở") || c.contains("soup"))       return "🍜";
+        if (c.contains("gà") || c.contains("chicken"))     return "🍗";
         return "🍽";
     }
 
-    private JToggleButton buildPaymentToggle(String text) { // PHASE 1E
+    private JToggleButton buildPaymentToggle(String text) {
         JToggleButton btn = new JToggleButton(text);
         btn.setFont(UIConstants.FONT_BOLD);
         btn.setPreferredSize(new Dimension(180, 44));
@@ -1013,14 +970,14 @@ public class TableOrderFrame extends JFrame {
         return btn;
     }
 
-    private void updateToggleStyle() { // PHASE 1E
+    private void updateToggleStyle() {
         tbTransfer.setBackground(tbTransfer.isSelected() ? UIConstants.PRIMARY : Color.WHITE);
         tbTransfer.setForeground(tbTransfer.isSelected() ? Color.WHITE : UIConstants.PRIMARY);
         tbCash.setBackground(tbCash.isSelected() ? UIConstants.PRIMARY : Color.WHITE);
         tbCash.setForeground(tbCash.isSelected() ? Color.WHITE : UIConstants.PRIMARY);
     }
 
-    private JPanel buildCashInputPanel() { // PHASE 1E
+    private JPanel buildCashInputPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(new Color(0xF9FAFB));
@@ -1061,15 +1018,11 @@ public class TableOrderFrame extends JFrame {
     private JPanel buildCartCard() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
-
-        panel.add(buildCartHeader(),  BorderLayout.NORTH);
-        panel.add(buildCartCenter(),  BorderLayout.CENTER);
-        panel.add(buildCartFooter(),  BorderLayout.SOUTH);
-
+        panel.add(buildCartHeader(), BorderLayout.NORTH);
+        panel.add(buildCartCenter(), BorderLayout.CENTER);
+        panel.add(buildCartFooter(), BorderLayout.SOUTH);
         return panel;
     }
-
-    // ── CART HEADER ───────────────────────────────────────────────────────────
 
     private JPanel buildCartHeader() {
         JPanel bar = new JPanel(new BorderLayout());
@@ -1121,12 +1074,10 @@ public class TableOrderFrame extends JFrame {
         return bar;
     }
 
-    // ── CART CENTER ───────────────────────────────────────────────────────────
-
     private JScrollPane buildCartCenter() {
         cartTableModel = new DefaultTableModel(CART_COLS, 0) {
             @Override public boolean isCellEditable(int row, int col) {
-                return col == 4 || col == 5; // Ghi chú + Số lượng editable
+                return col == 4 || col == 5;
             }
         };
 
@@ -1162,7 +1113,6 @@ public class TableOrderFrame extends JFrame {
 
         cartTable.getColumnModel().getColumn(4).setCellRenderer(new NoteRenderer());
         cartTable.getColumnModel().getColumn(4).setCellEditor(new NoteEditor(cartItems));
-
         cartTable.getColumnModel().getColumn(5).setCellRenderer(new QtyRenderer());
         cartTable.getColumnModel().getColumn(5).setCellEditor(
                 new QtyEditor(cartItems, this::refreshCartTable));
@@ -1173,7 +1123,7 @@ public class TableOrderFrame extends JFrame {
         return scroll;
     }
 
-    private JScrollPane buildStatusCenter() { // PHASE 1C
+    private JScrollPane buildStatusCenter() {
         String[] cols = {"STT", "Tên món", "Trạng thái"};
         statusTableModel = new DefaultTableModel(cols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
@@ -1200,7 +1150,6 @@ public class TableOrderFrame extends JFrame {
         statusTable.getColumnModel().getColumn(0).setMaxWidth(60);
         statusTable.getColumnModel().getColumn(1).setPreferredWidth(250);
         statusTable.getColumnModel().getColumn(2).setPreferredWidth(150);
-
         statusTable.getColumnModel().getColumn(2).setCellRenderer(new StatusCellRenderer());
 
         JScrollPane scroll = new JScrollPane(statusTable);
@@ -1209,7 +1158,7 @@ public class TableOrderFrame extends JFrame {
         return scroll;
     }
 
-    public void refreshStatusTable() { // PHASE 1C
+    public void refreshStatusTable() {
         new SwingWorker<List<Order.OrderItem>, Void>() {
             @Override
             protected List<Order.OrderItem> doInBackground() {
@@ -1236,13 +1185,12 @@ public class TableOrderFrame extends JFrame {
                         lblStatusTotal.setText("Tổng cộng: " + formatPrice(total) + " đ");
                     }
                 } catch (Exception ex) {
-                    System.err.println("[TableOrderFrame] refreshStatusTable lỗi: " + ex.getMessage());
+                    System.err.println("[TableOrderFrame] refreshStatusTable lỗi: "
+                            + ex.getMessage());
                 }
             }
         }.execute();
     }
-
-    
 
     // ── CART FOOTER ───────────────────────────────────────────────────────────
 
@@ -1321,7 +1269,7 @@ public class TableOrderFrame extends JFrame {
         }.execute();
     }
 
-    private String mapItemStatus(Order.OrderItem.ItemStatus status) { // PHASE 1C
+    private String mapItemStatus(Order.OrderItem.ItemStatus status) {
         if (status == null) return "Đang chờ";
         return switch (status) {
             case PENDING    -> "Đang chờ";
@@ -1336,7 +1284,6 @@ public class TableOrderFrame extends JFrame {
 
     private void filterMenu() {
         String query = tfSearch.getText().trim().toLowerCase();
-        // Skip if placeholder text is still showing
         if (query.equals("🔍  tìm kiếm món ăn...")) query = "";
 
         final String q = query;
@@ -1361,7 +1308,8 @@ public class TableOrderFrame extends JFrame {
                 .findFirst()
                 .ifPresentOrElse(
                         c -> c.quantity++,
-                        () -> cartItems.add(new CartItem(item.getId(), item.getName(), item.getPrice()))
+                        () -> cartItems.add(new CartItem(item.getId(), item.getName(),
+                                item.getPrice()))
                 );
         refreshCartSummary();
         int total = cartItems.stream().mapToInt(c -> c.quantity).sum();
@@ -1402,7 +1350,8 @@ public class TableOrderFrame extends JFrame {
 
     private void showCart() {
         if (cartItems.isEmpty()) {
-            ToastNotification.show(this, "Giỏ hàng đang trống, hãy thêm món!", ToastNotification.Type.INFO);
+            ToastNotification.show(this, "Giỏ hàng đang trống, hãy thêm món!",
+                    ToastNotification.Type.INFO);
             return;
         }
         refreshCartTable();
@@ -1450,25 +1399,26 @@ public class TableOrderFrame extends JFrame {
                     refreshCartTable();
                     showMenu();
                     ToastNotification.show(TableOrderFrame.this,
-                            "✅  Đã gửi order! Bếp đang xử lý.", ToastNotification.Type.SUCCESS);
+                            "✅  Đã gửi order! Bếp đang xử lý.",
+                            ToastNotification.Type.SUCCESS);
                 } else {
                     ToastNotification.show(TableOrderFrame.this,
-                            "❌  Gửi order thất bại, vui lòng thử lại.", ToastNotification.Type.ERROR);
+                            "❌  Gửi order thất bại, vui lòng thử lại.",
+                            ToastNotification.Type.ERROR);
                 }
             }
         }.execute();
     }
 
     // ── Window lifecycle ──────────────────────────────────────────────────────
-    // ─── PHASE 1F: setupWindowLifecycle() cập nhật ───────────────────────────────
-    private void setupWindowLifecycle() { // PHASE 1D, cập nhật PHASE 1F
-        final String key = "tableorder_" + tableId;
+
+    private void setupWindowLifecycle() {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 PollManager.getInstance().unregister("tableorder_"    + tableId);
                 PollManager.getInstance().unregister("order_status_"  + tableId);
-                PollManager.getInstance().unregister("order_waiting_" + tableId); // PHASE 1F
+                PollManager.getInstance().unregister("order_waiting_" + tableId);
             }
         });
     }
@@ -1477,7 +1427,6 @@ public class TableOrderFrame extends JFrame {
     // CELL RENDERERS / EDITORS
     // ═════════════════════════════════════════════════════════════════════════
 
-    /** Renderer cột Ghi chú — italic xám khi trống */
     private static class NoteRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable t, Object value,
@@ -1498,7 +1447,7 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    private static class StatusCellRenderer extends DefaultTableCellRenderer { // PHASE 1C
+    private static class StatusCellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                 boolean isSelected, boolean hasFocus, int row, int col) {
@@ -1534,7 +1483,6 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Editor cột Ghi chú */
     private static class NoteEditor extends DefaultCellEditor {
         private final List<CartItem> items;
         private final JTextField     tf;
@@ -1565,7 +1513,6 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Renderer cột Số lượng — [−] [N] [+] */
     private static class QtyRenderer extends JPanel implements TableCellRenderer {
         private final JLabel lblMinus = pill("−");
         private final JLabel lblQty   = new JLabel("1", SwingConstants.CENTER);
@@ -1615,7 +1562,6 @@ public class TableOrderFrame extends JFrame {
         }
     }
 
-    /** Editor cột Số lượng — click [−]/[+] thực sự thay đổi quantity */
     private class QtyEditor extends AbstractCellEditor implements TableCellEditor {
         private final List<CartItem> items;
         private final Runnable       onRefresh;
@@ -1725,7 +1671,8 @@ public class TableOrderFrame extends JFrame {
             return "Nhà hàng";
         }
     }
-    private void submitPaymentRequest() { // PHASE 1E
+
+    private void submitPaymentRequest() {
         System.out.println("[TableOrderFrame] Payment request:"
                 + " orderId=" + orderId
                 + " method=" + selectedPaymentMethod
@@ -1740,7 +1687,7 @@ public class TableOrderFrame extends JFrame {
         navigateTo(CARD_WAITING);
     }
 
-    private void syncPaymentTotal() { // PHASE 1E
+    private void syncPaymentTotal() {
         new SwingWorker<List<Order.OrderItem>, Void>() {
             @Override
             protected List<Order.OrderItem> doInBackground() {
@@ -1754,7 +1701,8 @@ public class TableOrderFrame extends JFrame {
                     if (lblPaymentTotal != null)
                         lblPaymentTotal.setText("Tổng cộng: " + formatPrice(total) + " đ");
                 } catch (Exception ex) {
-                    System.err.println("[TableOrderFrame] syncPaymentTotal lỗi: " + ex.getMessage());
+                    System.err.println("[TableOrderFrame] syncPaymentTotal lỗi: "
+                            + ex.getMessage());
                 }
             }
         }.execute();
