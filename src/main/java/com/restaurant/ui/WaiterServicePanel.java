@@ -1,6 +1,5 @@
 package com.restaurant.ui;
 
-import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -31,7 +30,6 @@ import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
@@ -64,14 +62,13 @@ import com.restaurant.session.Permission;
  *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày.</li>
  * </ol>
  *
- * <h3>Phase 7C changes</h3>
+ * <h3>Refactor StaffHeader</h3>
  * <ul>
- *   <li>Thay {@code AncestorListener} bằng {@link ComponentAdapter} để
- *       register/unregister PollManager chính xác hơn.</li>
- *   <li>Poll key đổi thành {@code "waiter_v2"} (tránh conflict với key cũ).</li>
- *   <li>{@link #doPoll()} tách riêng khỏi {@link #loadData()} — chỉ fetch
- *       serve + clean, không fetch cancelled (tránh query thừa).</li>
- *   <li>Toast delta: chỉ hiện khi count TĂNG; reset về 0 khi panel ẩn.</li>
+ *   <li>Xóa {@code buildHeader()} nội bộ cùng các inner class {@code RoleBadge},
+ *       {@code RoundedOutlineButton} từ header.</li>
+ *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
+ *   <li>Các inner class {@code RoundedBorder}, {@code WrapLayout}, {@code CleanActionRenderer},
+ *       {@code CleanActionEditor} giữ nguyên — chúng phục vụ nội dung tab, không phải header.</li>
  * </ul>
  *
  * RBAC: yêu cầu {@link Permission#VIEW_WAITER_SERVICE}.
@@ -85,17 +82,7 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Polling state ────────────────────────────────────────────────────────
 
-    /**
-     * Số lượt bàn cần phục vụ (READY) ở lần poll gần nhất.
-     * Dùng để tính delta toast. Reset về -1 khi panel ẩn để
-     * lần hiện lại đầu tiên không bao giờ trigger toast.
-     */
     private int lastServeCount = -1;
-
-    /**
-     * Số bàn cần dọn (DIRTY / CLEANING) ở lần poll gần nhất.
-     * Reset về -1 khi panel ẩn.
-     */
     private int lastCleanCount = -1;
 
     // ─── UI panels ────────────────────────────────────────────────────────────
@@ -119,77 +106,21 @@ public class WaiterServicePanel extends JPanel {
             return;
         }
 
-        add(buildHeader(), BorderLayout.NORTH);
-        add(buildTabs(),   BorderLayout.CENTER);
-        setupComponentListener();
-    }
-
-    // ─── Header ───────────────────────────────────────────────────────────────
-
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UIConstants.BG_WHITE);
-        header.setPreferredSize(new Dimension(0, 56));
-        header.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(0, 24, 0, 24)));
-
-        // ── LEFT ──
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        left.setOpaque(false);
-
-        JLabel iconLabel = new JLabel("⛁");
-        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
-        iconLabel.setForeground(UIConstants.PRIMARY);
-
-        JLabel appName = new JLabel("SmartRestaurant");
-        appName.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        appName.setForeground(UIConstants.PRIMARY);
-
-        JLabel roleBadge = new RoleBadge("Phục vụ");
-
-        left.add(iconLabel);
-        left.add(appName);
-        left.add(roleBadge);
-        header.add(left, BorderLayout.WEST);
-
-        // ── RIGHT ──
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-        right.setOpaque(false);
-
-        JLabel globeIcon = new JLabel("🌐");
-        globeIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
-
-        String restaurantName = "";
+        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
+        String rName = "";
         try {
-            restaurantName = com.restaurant.data.DataManager.getInstance()
+            rName = com.restaurant.data.DataManager.getInstance()
                     .getMyRestaurant().getName();
         } catch (Exception ignored) {}
 
-        JLabel restaurantLabel = new JLabel(restaurantName);
-        restaurantLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        restaurantLabel.setForeground(UIConstants.PRIMARY);
+        add(StaffHeader.create("Phục vụ", rName, () -> {
+            PollManager.getInstance().unregister("waiter_v2");
+            java.awt.Window w = SwingUtilities.getWindowAncestor(WaiterServicePanel.this);
+            if (w != null) w.dispose();
+        }), BorderLayout.NORTH);
 
-        JButton endShiftBtn = new RoundedOutlineButton("Kết ca");
-        endShiftBtn.addActionListener(e -> {
-            int result = JOptionPane.showConfirmDialog(
-                    this,
-                    "Xác nhận kết ca?",
-                    "Kết ca",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-            if (result == JOptionPane.YES_OPTION) {
-                java.awt.Window w = SwingUtilities.getWindowAncestor(this);
-                if (w != null) w.dispose();
-            }
-        });
-
-        right.add(globeIcon);
-        right.add(restaurantLabel);
-        right.add(endShiftBtn);
-        header.add(right, BorderLayout.EAST);
-
-        return header;
+        add(buildTabs(), BorderLayout.CENTER);
+        setupComponentListener();
     }
 
     // ─── Tabs ─────────────────────────────────────────────────────────────────
@@ -267,11 +198,7 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── showInlineError ──────────────────────────────────────────────────────
 
-    /**
-     * Hiển thị banner lỗi inline ở phía dưới panel, tự động ẩn sau 5 giây.
-     */
     private void showInlineError(String msg) {
-        // Xóa banner lỗi cũ nếu có
         for (Component c : getComponents()) {
             if (c instanceof JLabel
                     && Boolean.TRUE.equals(((JLabel) c).getClientProperty("inlineError"))) {
@@ -304,22 +231,11 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── ComponentListener — Phase 7C ─────────────────────────────────────────
 
-    /**
-     * Đăng ký {@link ComponentAdapter} để:
-     * <ul>
-     *   <li>{@code componentShown} – load ngay + register PollManager.</li>
-     *   <li>{@code componentHidden} – unregister PollManager + reset counts.</li>
-     * </ul>
-     * Dùng ComponentListener thay AncestorListener để tránh trigger sai
-     * khi panel bị reparent trong card layout.
-     */
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                // Load dữ liệu đầy đủ (cả cancelled) lần đầu
                 loadData();
-                // Sau đó đặt polling chỉ cho serve + clean
                 PollManager.getInstance().register(
                         "waiter_v2",
                         WaiterServicePanel.this::doPoll,
@@ -329,7 +245,6 @@ public class WaiterServicePanel extends JPanel {
             @Override
             public void componentHidden(ComponentEvent e) {
                 PollManager.getInstance().unregister("waiter_v2");
-                // Reset về -1 để lần hiện lại tiếp theo không trigger toast ngay
                 lastServeCount = -1;
                 lastCleanCount = -1;
             }
@@ -338,15 +253,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── doPoll — Phase 7C ───────────────────────────────────────────────────
 
-    /**
-     * Polling task đăng ký với PollManager (key {@code "waiter_v2"}).
-     *
-     * <p>Chỉ fetch serve-queue và clean-table (không fetch cancelled để
-     * tránh query nặng mỗi 5 giây). Toast delta chỉ hiện khi count TĂNG.
-     *
-     * <p><b>Quan trọng:</b> Method này được gọi từ EDT bởi PollManager;
-     * toàn bộ I/O được thực hiện trong {@link SwingWorker#doInBackground()}.
-     */
     private void doPoll() {
         new SwingWorker<WaiterPollData, Void>() {
 
@@ -369,7 +275,6 @@ public class WaiterServicePanel extends JPanel {
                     return;
                 }
 
-                // Rebuild UI (không có toast bên trong rebuildXxx)
                 rebuildDeliveryCards(data.readyMap);
                 rebuildCleanCards(data.dirtyList);
 
@@ -400,13 +305,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── loadData (full load, gọi lần đầu) ───────────────────────────────────
 
-    /**
-     * Load đầy đủ cả 3 tab (serve + clean + cancelled).
-     * Được gọi khi panel hiện lần đầu ({@code componentShown}) hoặc
-     * khi cần refresh thủ công từ action button.
-     *
-     * <p>Không thực hiện delta-toast (vì đây là load ban đầu).
-     */
     public void loadData() {
         new SwingWorker<Void, Void>() {
             Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
@@ -430,7 +328,6 @@ public class WaiterServicePanel extends JPanel {
                     rebuildCleanCards(dirtyList);
                     rebuildCancelledTab(cancelledList);
 
-                    // Seed baseline counts sau load đầu (không toast)
                     lastServeCount = (readyMap  != null) ? readyMap.size()  : 0;
                     lastCleanCount = (dirtyList != null) ? dirtyList.size() : 0;
 
@@ -443,10 +340,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Rebuild delivery cards (Tab 1) ──────────────────────────────────────
 
-    /**
-     * Rebuild danh sách card phục vụ bàn.
-     * Không chứa logic delta-toast — đã chuyển vào {@link #doPoll()}.
-     */
     private void rebuildDeliveryCards(
             Map<String, List<KitchenDAO.KitchenTicket>> map) {
 
@@ -559,7 +452,6 @@ public class WaiterServicePanel extends JPanel {
             return;
         }
 
-        // ── Stats bar ──
         int totalQty = items.stream().mapToInt(t -> t.quantity).sum();
 
         JPanel statsBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
@@ -813,10 +705,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Inner DTO: WaiterPollData ────────────────────────────────────────────
 
-    /**
-     * DTO trả về từ {@link SwingWorker#doInBackground()} trong {@link #doPoll()}.
-     * Gom hai kết quả query thành một object để tránh field access không an toàn.
-     */
     private static final class WaiterPollData {
         final Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
         final List<TableItem>                              dirtyList;
@@ -829,57 +717,6 @@ public class WaiterServicePanel extends JPanel {
     }
 
     // ─── Inner classes ────────────────────────────────────────────────────────
-
-    /** Badge role với nền bo tròn màu PRIMARY. */
-    private static class RoleBadge extends JLabel {
-        RoleBadge(String text) {
-            super(text);
-            setFont(new Font("Segoe UI", Font.BOLD, 13));
-            setForeground(UIConstants.TEXT_WHITE);
-            setOpaque(false);
-            setPreferredSize(new Dimension(80, 28));
-            setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
-            setHorizontalAlignment(SwingConstants.CENTER);
-        }
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(UIConstants.PRIMARY);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    }
-
-    /** Nút bo tròn viền PRIMARY, nền trắng — "Kết ca". */
-    private static class RoundedOutlineButton extends JButton {
-        RoundedOutlineButton(String text) {
-            super(text);
-            setFont(UIConstants.FONT_BODY);
-            setForeground(UIConstants.PRIMARY);
-            setContentAreaFilled(false);
-            setBorderPainted(false);
-            setFocusPainted(false);
-            setOpaque(false);
-            setPreferredSize(new Dimension(80, 32));
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        }
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-            g2.setColor(UIConstants.PRIMARY);
-            g2.setStroke(new BasicStroke(1.5f));
-            g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    }
 
     /** Viền bo tròn cho card. */
     private static class RoundedBorder extends AbstractBorder {

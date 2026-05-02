@@ -32,9 +32,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
-import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -54,9 +52,16 @@ import com.restaurant.session.Permission;
 /**
  * Màn hình bếp (Chef view) – Phase 7B: Polling via ComponentListener + Toast delta.
  * <p>
- * Layout: Header | JSplitPane(Chờ chế biến | Đang chế biến)
+ * Layout: StaffHeader | JSplitPane(Chờ chế biến | Đang chế biến)
  * Auto-refresh via {@link PollManager} key {@code "kitchen_v2"}.
  * Toast được hiện khi số ticket PENDING tăng so với lần poll trước.
+ *
+ * <h3>Refactor StaffHeader</h3>
+ * <ul>
+ *   <li>Xóa {@code buildHeader()} nội bộ.</li>
+ *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
+ *   <li>Callback "Kết ca" unregister poll trước khi dispose window.</li>
+ * </ul>
  */
 public class KitchenPanel extends JPanel {
 
@@ -121,8 +126,20 @@ public class KitchenPanel extends JPanel {
     // ─── UI Construction ──────────────────────────────────────────────────────
 
     private void buildUI() {
-        add(buildHeader(), BorderLayout.NORTH);
+        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
+        String rName = "";
+        try {
+            String name = DataManager.getInstance().getMyRestaurant().getName();
+            if (name != null && !name.isEmpty()) rName = name;
+        } catch (Exception ignored) {}
 
+        add(StaffHeader.create("Đầu bếp", rName, () -> {
+            PollManager.getInstance().unregister(POLL_KEY);
+            Window w = SwingUtilities.getWindowAncestor(KitchenPanel.this);
+            if (w != null) w.dispose();
+        }), BorderLayout.NORTH);
+
+        // ── Body ──────────────────────────────────────────────────────────────
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 buildPendingPanel(), buildCookingPanel());
         split.setDividerSize(1);
@@ -132,83 +149,6 @@ public class KitchenPanel extends JPanel {
 
         add(split, BorderLayout.CENTER);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
-    }
-
-    // ─── Header ───────────────────────────────────────────────────────────────
-
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UIConstants.BG_WHITE);
-        header.setPreferredSize(new Dimension(0, 56));
-        header.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(0, 24, 0, 24)));
-
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        left.setOpaque(false);
-
-        JLabel iconLabel = new JLabel("🍴");
-        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
-
-        JLabel sysName = new JLabel("Tên hệ thống");
-        sysName.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        sysName.setForeground(UIConstants.PRIMARY);
-
-        JLabel badge = new JLabel("Đầu bếp") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(UIConstants.PRIMARY);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        badge.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        badge.setForeground(Color.WHITE);
-        badge.setOpaque(false);
-        badge.setBorder(BorderFactory.createEmptyBorder(4, 14, 4, 14));
-
-        left.add(iconLabel);
-        left.add(sysName);
-        left.add(badge);
-
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-        right.setOpaque(false);
-
-        JLabel globeIcon = new JLabel("🌐");
-        globeIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
-
-        String restaurantName = "Nhà hàng";
-        try {
-            String name = DataManager.getInstance().getMyRestaurant().getName();
-            if (name != null && !name.isEmpty()) restaurantName = name;
-        } catch (Exception ignored) {}
-
-        JLabel restaurantLabel = new JLabel(restaurantName);
-        restaurantLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        restaurantLabel.setForeground(UIConstants.PRIMARY);
-
-        JButton btnEndShift = new RoundedOutlineButton("Kết ca", 80, 32);
-        btnEndShift.addActionListener(e -> {
-            int choice = JOptionPane.showConfirmDialog(
-                    this, "Xác nhận kết ca?", "Kết ca",
-                    JOptionPane.YES_NO_OPTION);
-            if (choice == JOptionPane.YES_OPTION) {
-                Window w = SwingUtilities.getWindowAncestor(this);
-                if (w != null) w.dispose();
-            }
-        });
-
-        right.add(globeIcon);
-        right.add(restaurantLabel);
-        right.add(btnEndShift);
-
-        header.add(left, BorderLayout.WEST);
-        header.add(right, BorderLayout.EAST);
-        return header;
     }
 
     // ─── Pending Panel ────────────────────────────────────────────────────────
@@ -351,17 +291,11 @@ public class KitchenPanel extends JPanel {
 
     /**
      * Đăng ký / huỷ polling dựa trên visibility của panel trong MainFrame.
-     * <ul>
-     *   <li>{@code componentShown} → {@link PollManager#register} → {@link #doPoll()} mỗi 5s</li>
-     *   <li>{@code componentHidden} → {@link PollManager#unregister}</li>
-     * </ul>
-     * Dùng key {@value #POLL_KEY} để tránh xung đột với key "kitchen" từ các phase cũ.
      */
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                // PollManager.register có initialDelay=0 → doPoll() chạy ngay lần đầu
                 PollManager.getInstance().register(POLL_KEY, KitchenPanel.this::doPoll, REFRESH_MS);
             }
 
@@ -374,16 +308,6 @@ public class KitchenPanel extends JPanel {
 
     // ─── Phase 7B: doPoll() ───────────────────────────────────────────────────
 
-    /**
-     * Polling task được PollManager gọi định kỳ.
-     * <p>
-     * Luồng thực thi:
-     * <ol>
-     *   <li>SwingWorker.doInBackground(): gọi DAO trên non-EDT thread</li>
-     *   <li>Tách kết quả thành 2 danh sách pending / cooking</li>
-     *   <li>SwingWorker.done(): cập nhật UI + kiểm tra delta → toast</li>
-     * </ol>
-     */
     private void doPoll() {
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
@@ -416,13 +340,11 @@ public class KitchenPanel extends JPanel {
                 try {
                     KitchenData data = get();
 
-                    // Rebuild grouped maps và cập nhật UI
                     allPendingGroups = groupByItem(data.pending);
                     allCookingGroups = groupByItem(data.cooking);
                     applyPendingFilter();
                     applyCookingFilter();
 
-                    // ── Toast delta detection ─────────────────────────────────
                     int newCount = data.pending.size();
                     if (newCount > lastPendingCount) {
                         int diff = newCount - lastPendingCount;
@@ -444,9 +366,6 @@ public class KitchenPanel extends JPanel {
         }.execute();
     }
 
-    /**
-     * Nhóm danh sách ticket theo {@code itemName} → LinkedHashMap (giữ thứ tự insert).
-     */
     private static Map<String, List<KitchenTicket>> groupByItem(List<KitchenTicket> tickets) {
         Map<String, List<KitchenTicket>> map = new LinkedHashMap<>();
         for (KitchenTicket t : tickets) {
@@ -457,10 +376,6 @@ public class KitchenPanel extends JPanel {
 
     // ─── Data Loading (public API – delegates to doPoll) ─────────────────────
 
-    /**
-     * Tương thích ngược cho các caller bên ngoài (e.g. MainFrame refresh).
-     * Delegate sang {@link #doPoll()}.
-     */
     public void loadData() {
         doPoll();
     }
@@ -677,10 +592,6 @@ public class KitchenPanel extends JPanel {
 
     // ─── Phase 7B: KitchenData ────────────────────────────────────────────────
 
-    /**
-     * Value object để truyền kết quả qua generic boundary của SwingWorker.
-     * Tách biệt rõ ràng hai danh sách để delta detection chỉ cần đọc {@code pending.size()}.
-     */
     private static final class KitchenData {
         final List<KitchenTicket> pending;
         final List<KitchenTicket> cooking;
@@ -692,34 +603,6 @@ public class KitchenPanel extends JPanel {
     }
 
     // ─── Inner classes ────────────────────────────────────────────────────────
-
-    private static class RoundedOutlineButton extends JButton {
-        RoundedOutlineButton(String text, int w, int h) {
-            super(text);
-            setFont(UIConstants.FONT_BODY);
-            setForeground(UIConstants.PRIMARY);
-            setBackground(Color.WHITE);
-            setPreferredSize(new Dimension(w, h));
-            setBorderPainted(false);
-            setContentAreaFilled(false);
-            setFocusPainted(false);
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-            g2.setColor(UIConstants.PRIMARY);
-            g2.setStroke(new BasicStroke(1.5f));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    }
 
     private static class RoundedBorder extends AbstractBorder {
         private final int   radius;

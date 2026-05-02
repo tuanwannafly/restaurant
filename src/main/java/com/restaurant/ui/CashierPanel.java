@@ -33,6 +33,7 @@ import javax.swing.SwingWorker;
 
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.dao.TableDAO;
+import com.restaurant.data.DataManager;
 import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
 import com.restaurant.ui.dialog.CashierPaymentDialog;
@@ -46,23 +47,19 @@ import com.restaurant.ui.dialog.CashierPaymentDialog;
  *   <li><b>Đang xử lý</b>    – Card vừa xác nhận. Nhấn "Hoàn tất" → complete.</li>
  * </ul>
  *
- * <h3>Phase 7C changes</h3>
+ * <h3>Refactor StaffHeader</h3>
  * <ul>
- *   <li>Thay {@code AncestorListener} bằng {@link ComponentAdapter}.</li>
- *   <li>{@link #doPoll()} tách riêng: fetch pending-list qua SwingWorker,
- *       tính delta, hiện toast khi count tăng.</li>
- *   <li>Field {@link #lastPaymentCount} reset về {@code -1} khi panel ẩn
- *       — lần hiện đầu tiên không trigger toast nhầm.</li>
- *   <li>Cột phải (processingList) là UI-only state, không bị poll override.</li>
+ *   <li>Xóa {@code buildHeader()} nội bộ.</li>
+ *   <li>Dùng {@link StaffHeader#create(String, String, null)} — CashierPanel
+ *       không có nút "Kết ca" nên truyền {@code null} cho {@code onEndShift}.</li>
+ *   <li>Nút "↻ Làm mới" chuyển sang {@link #buildTitleBar()} — thanh phụ ngay
+ *       bên dưới StaffHeader, trước hai cột nội dung.</li>
  * </ul>
  */
 public class CashierPanel extends JPanel {
 
     // ─── Inner model: PaymentRequest ─────────────────────────────────────────
 
-    /**
-     * DTO đại diện cho một đơn hàng chờ thanh toán.
-     */
     public static class PaymentRequest {
 
         public enum PaymentMethod {
@@ -104,23 +101,14 @@ public class CashierPanel extends JPanel {
 
     // ─── UI components ───────────────────────────────────────────────────────
 
-    /** Cột trái – Chờ thanh toán */
     private JPanel pendingColumn;
-    /** Cột phải – Đang xử lý */
     private JPanel processingColumn;
 
-    /** Danh sách request ở cột trái */
     private final List<PaymentRequest> pendingList    = new ArrayList<>();
-    /** Danh sách request ở cột phải (UI-only state, không bị poll reset) */
     private final List<PaymentRequest> processingList = new ArrayList<>();
 
     // ─── Polling state ────────────────────────────────────────────────────────
 
-    /**
-     * Số đơn chờ thanh toán ở lần poll gần nhất.
-     * {@code -1} = belum pernah di-poll (initial state / setelah panel disembunyikan).
-     * Toast chỉ hiện khi count tăng VÀ giá trị này ≥ 0.
-     */
     private int lastPaymentCount = -1;
 
     // ─── DAO ─────────────────────────────────────────────────────────────────
@@ -140,16 +128,37 @@ public class CashierPanel extends JPanel {
     // ─── UI Construction ─────────────────────────────────────────────────────
 
     private void buildUI() {
-        add(buildHeader(),     BorderLayout.NORTH);
-        add(buildTwoColumns(), BorderLayout.CENTER);
+        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
+        // CashierPanel không có nút "Kết ca" → truyền null cho onEndShift
+        String rName = "";
+        try {
+            String name = DataManager.getInstance().getMyRestaurant().getName();
+            if (name != null && !name.isEmpty()) rName = name;
+        } catch (Exception ignored) {}
+
+        add(StaffHeader.create("Thu ngân", rName, null), BorderLayout.NORTH);
+
+        // ── Khu vực center: TitleBar (với nút làm mới) + hai cột ─────────────
+        JPanel centerArea = new JPanel(new BorderLayout());
+        centerArea.setBackground(UIConstants.BG_WHITE);
+        centerArea.add(buildTitleBar(),   BorderLayout.NORTH);
+        centerArea.add(buildTwoColumns(), BorderLayout.CENTER);
+
+        add(centerArea, BorderLayout.CENTER);
     }
 
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UIConstants.BG_WHITE);
-        header.setBorder(BorderFactory.createCompoundBorder(
+    /**
+     * Thanh phụ ngay dưới StaffHeader: tiêu đề màn hình + nút "↻ Làm mới".
+     *
+     * <p>Tách biệt khỏi StaffHeader để CashierPanel vẫn giữ được nút Làm mới
+     * trong khi KitchenPanel / WaiterServicePanel không cần nút này.
+     */
+    private JPanel buildTitleBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(UIConstants.BG_WHITE);
+        bar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(16, 24, 16, 24)));
+                BorderFactory.createEmptyBorder(12, 24, 12, 24)));
 
         JLabel title = new JLabel("Thu ngân – Thanh toán");
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
@@ -157,9 +166,9 @@ public class CashierPanel extends JPanel {
 
         JButton btnRefresh = buildRefreshButton();
 
-        header.add(title,      BorderLayout.WEST);
-        header.add(btnRefresh, BorderLayout.EAST);
-        return header;
+        bar.add(title,      BorderLayout.WEST);
+        bar.add(btnRefresh, BorderLayout.EAST);
+        return bar;
     }
 
     private JButton buildRefreshButton() {
@@ -236,24 +245,11 @@ public class CashierPanel extends JPanel {
 
     // ─── Phase 7C: ComponentListener ─────────────────────────────────────────
 
-    /**
-     * Đăng ký {@link ComponentAdapter}:
-     * <ul>
-     *   <li>{@code componentShown} – load đầy đủ + register PollManager.</li>
-     *   <li>{@code componentHidden} – unregister PollManager + reset count.</li>
-     * </ul>
-     *
-     * <p>Dùng ComponentListener thay AncestorListener vì:
-     * <ol>
-     *   <li>Chính xác hơn: chỉ fire khi panel thực sự visible/hidden.</li>
-     *   <li>Không fire khi parent window bị reparent / drag.</li>
-     * </ol>
-     */
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                loadData();   // load đầy đủ lần đầu (seeding lastPaymentCount)
+                loadData();
                 PollManager.getInstance().register(
                         POLL_KEY,
                         CashierPanel.this::doPoll,
@@ -263,7 +259,6 @@ public class CashierPanel extends JPanel {
             @Override
             public void componentHidden(ComponentEvent e) {
                 PollManager.getInstance().unregister(POLL_KEY);
-                // Reset baseline → lần hiện lại tiếp không trigger toast nhầm
                 lastPaymentCount = -1;
             }
         });
@@ -271,16 +266,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Phase 7C: doPoll ─────────────────────────────────────────────────────
 
-    /**
-     * Polling task gọi bởi PollManager mỗi {@value #POLL_INTERVAL_MS} ms.
-     *
-     * <p>Chỉ cập nhật cột trái (pending). Cột phải là UI-only state và
-     * <em>không</em> bị reset bởi poll — tránh card "đang xử lý" biến mất
-     * trước khi nhân viên nhấn "Hoàn tất".
-     *
-     * <p>Toast delta chỉ hiện khi {@link #lastPaymentCount} ≥ 0 (đã seed)
-     * VÀ count mới &gt; count cũ — không hiện khi giảm.
-     */
     private void doPoll() {
         new SwingWorker<List<PaymentRequest>, Void>() {
 
@@ -305,7 +290,6 @@ public class CashierPanel extends JPanel {
                     return;
                 }
 
-                // Loại bỏ các order đang ở cột phải khỏi cột trái
                 List<String> processingIds = processingList.stream()
                         .map(r -> r.orderId)
                         .collect(Collectors.toList());
@@ -318,7 +302,6 @@ public class CashierPanel extends JPanel {
                 pendingList.addAll(filtered);
                 rebuildPendingColumn();
 
-                // ── Toast delta ──
                 int newCount = pendingList.size();
                 if (lastPaymentCount >= 0 && newCount > lastPaymentCount) {
                     int diff = newCount - lastPaymentCount;
@@ -334,12 +317,6 @@ public class CashierPanel extends JPanel {
 
     // ─── loadData (full initial load) ────────────────────────────────────────
 
-    /**
-     * Load đầy đủ từ DB và seed {@link #lastPaymentCount}.
-     * Không trigger toast (vì là load ban đầu, bất kể count là bao nhiêu).
-     *
-     * <p>Được gọi từ {@code componentShown} và nút "Làm mới".
-     */
     public void loadData() {
         new SwingWorker<List<PaymentRequest>, Void>() {
 
@@ -368,7 +345,6 @@ public class CashierPanel extends JPanel {
                     pendingList.addAll(filtered);
                     rebuildPendingColumn();
 
-                    // Seed baseline — không toast
                     lastPaymentCount = pendingList.size();
 
                 } catch (ExecutionException | InterruptedException e) {
@@ -383,10 +359,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Dialog callback → moveToInProgress ──────────────────────────────────
 
-    /**
-     * Chuyển card từ cột trái sang cột phải ngay lập tức.
-     * Được gọi từ callback {@link CashierPaymentDialog}.
-     */
     private void moveToInProgress(PaymentRequest req, String employeeName) {
         pendingList.removeIf(r -> r.orderId.equals(req.orderId));
         rebuildPendingColumn();
@@ -397,9 +369,6 @@ public class CashierPanel extends JPanel {
 
     // ─── Complete payment ─────────────────────────────────────────────────────
 
-    /**
-     * Hoàn thành thanh toán: {@code completeOrder()} + {@code updateStatus(DIRTY)}.
-     */
     private void completePayment(PaymentRequest req) {
         new SwingWorker<Boolean, Void>() {
 
@@ -472,7 +441,6 @@ public class CashierPanel extends JPanel {
     }
 
     private void rebuildProcessingColumn(String employeeName, PaymentRequest newReq) {
-        // Xóa empty-state cũ nếu có
         if (processingColumn.getComponentCount() == 1
                 && processingColumn.getComponent(0) instanceof EmptyStatePanel) {
             processingColumn.removeAll();
