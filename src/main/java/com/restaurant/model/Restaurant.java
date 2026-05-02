@@ -29,6 +29,8 @@ public class Restaurant {
     private String        email;
     private Status        status;
     private LocalDateTime createdAt;
+    // Phase 6C: URL logo nhà hàng (có thể null nếu chưa cấu hình)
+    private String        logoUrl;
 
     // ── Constructors ──────────────────────────────────────────────────────────
 
@@ -68,6 +70,10 @@ public class Restaurant {
 
     public LocalDateTime getCreatedAt()                 { return createdAt; }
     public void          setCreatedAt(LocalDateTime t)  { this.createdAt = t; }
+
+    // Phase 6C: logoUrl getter/setter
+    public String        getLogoUrl()                   { return logoUrl; }
+    public void          setLogoUrl(String logoUrl)     { this.logoUrl = logoUrl; }
 
     @Override
     public String toString() {

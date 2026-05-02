@@ -325,6 +325,30 @@ public class MainFrame extends JFrame implements SessionListener {
         left.add(icon);
         left.add(sysName);
 
+        // Phase 6C: Hiển thị logo nhà hàng cho non-SUPER_ADMIN
+        com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
+        if (!guard.isSuperAdmin()) {
+            JLabel logoLabel = new JLabel();
+            logoLabel.setPreferredSize(new Dimension(32, 32));
+            logoLabel.setBorder(BorderFactory.createLineBorder(
+                    UIConstants.BORDER_COLOR, 1, true));
+            logoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            logoLabel.setVerticalAlignment(SwingConstants.CENTER);
+            // Thêm logoLabel vào đầu panel LEFT (index 0, trước icon ⛁)
+            left.add(logoLabel, 0);
+            // Load async sau khi UI build xong để không block EDT
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    Restaurant r = com.restaurant.data.DataManager.getInstance().getMyRestaurant();
+                    if (r != null && r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
+                        ImageLoader.loadAsync(r.getLogoUrl(), logoLabel);
+                    }
+                } catch (Exception ignored) {
+                    // logoUrl null/blank hoặc lỗi mạng → giữ nguyên label trống
+                }
+            });
+        }
+
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
         AppSession session = AppSession.getInstance();

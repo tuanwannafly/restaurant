@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
- * TableOrderFrame — Phase 6A (tích hợp ImageLoader)
+ * TableOrderFrame — Phase 6C (thêm logo nhà hàng vào buildMenuHeader)
  *
  * JFrame fullscreen giả lập màn hình tablet tại bàn ăn.
  * Dùng CardLayout với 5 card:
@@ -604,7 +604,7 @@ public class TableOrderFrame extends JFrame {
         return panel;
     }
 
-    // ── MENU HEADER ──────────────────────────────────────────────────────────
+    // ── MENU HEADER — Phase 6C: thêm logoLabel nhà hàng ─────────────────────
 
     private JPanel buildMenuHeader() {
         JPanel bar = new JPanel(new BorderLayout());
@@ -616,6 +616,29 @@ public class TableOrderFrame extends JFrame {
 
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
+
+        // Phase 6C: logoLabel nhà hàng — load async, fallback về icon "⛁"
+        JLabel logoLabel = new JLabel();
+        logoLabel.setPreferredSize(new Dimension(36, 36));
+        logoLabel.setBorder(BorderFactory.createLineBorder(
+                new Color(0xBFDBFE), 1, true));
+        logoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        logoLabel.setVerticalAlignment(SwingConstants.CENTER);
+        // Thêm logoLabel vào đầu panel LEFT
+        left.add(logoLabel);
+        // Load async sau khi frame visible; nếu null/blank → label trống, icon ⛁ vẫn hiển thị
+        SwingUtilities.invokeLater(() -> {
+            try {
+                com.restaurant.model.Restaurant r =
+                        com.restaurant.data.DataManager.getInstance().getMyRestaurant();
+                if (r != null && r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
+                    ImageLoader.loadAsync(r.getLogoUrl(), logoLabel);
+                }
+            } catch (Exception ignored) {
+                // logoUrl null/blank hoặc lỗi → giữ label trống, không crash
+            }
+        });
+
         JLabel logo = new JLabel("⛁");
         logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
         logo.setForeground(UIConstants.PRIMARY);

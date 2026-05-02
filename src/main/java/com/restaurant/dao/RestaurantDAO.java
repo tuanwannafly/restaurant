@@ -23,6 +23,10 @@ import com.restaurant.session.RbacGuard;
  * <p><b>Ràng buộc xóa:</b> {@link #delete(long)} kiểm tra xem còn user nào
  * thuộc nhà hàng không trước khi xóa; nếu còn thì ném
  * {@link IllegalStateException} với thông báo rõ ràng.
+ *
+ * <p><b>Phase 6C:</b> Thêm cột {@code logo_url} vào SELECT/INSERT/UPDATE.
+ * Đọc cột bằng {@link #safeGetString(ResultSet, String)} để không crash
+ * nếu DB cũ chưa có cột này.
  */
 public class RestaurantDAO {
 
@@ -51,7 +55,7 @@ public class RestaurantDAO {
         requireSuperAdmin();
 
         List<Restaurant> list = new ArrayList<>();
-        String sql = "SELECT restaurant_id, name, address, phone, email, status"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status, logo_url"
                    + " FROM restaurants ORDER BY name";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -79,7 +83,7 @@ public class RestaurantDAO {
     public Restaurant findById(long id) {
         requireSuperAdmin();
 
-        String sql = "SELECT restaurant_id, name, address, phone, email, status"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status, logo_url"
                    + " FROM restaurants WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -105,7 +109,7 @@ public class RestaurantDAO {
      * @return Restaurant nếu tìm thấy, null nếu không có
      */
     public Restaurant findByIdPublic(long id) {
-        String sql = "SELECT restaurant_id, name, address, phone, email, status"
+        String sql = "SELECT restaurant_id, name, address, phone, email, status, logo_url"
                    + " FROM restaurants WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -143,8 +147,9 @@ public class RestaurantDAO {
             throw new SecurityException("Không có quyền cập nhật nhà hàng");
         }
 
+        // Phase 6C: thêm logo_url vào UPDATE
         String sql = "UPDATE restaurants"
-                   + " SET name = ?, address = ?, phone = ?, email = ?, status = ?"
+                   + " SET name = ?, address = ?, phone = ?, email = ?, status = ?, logo_url = ?"
                    + " WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -155,7 +160,8 @@ public class RestaurantDAO {
             ps.setString(3, nvl(r.getPhone()));
             ps.setString(4, nvl(r.getEmail()));
             ps.setString(5, r.getStatus() != null ? r.getStatus().name() : Status.ACTIVE.name());
-            ps.setLong  (6, r.getRestaurantId());
+            ps.setString(6, nvl(r.getLogoUrl()));   // Phase 6C
+            ps.setLong  (7, r.getRestaurantId());
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
@@ -182,8 +188,9 @@ public class RestaurantDAO {
     public void add(Restaurant r) {
         requireSuperAdmin();
 
-        String sql = "INSERT INTO restaurants (name, address, phone, email, status)"
-                   + " VALUES (?, ?, ?, ?, ?)";
+        // Phase 6C: thêm logo_url vào INSERT
+        String sql = "INSERT INTO restaurants (name, address, phone, email, status, logo_url)"
+                   + " VALUES (?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, new String[]{"restaurant_id"})) {
@@ -193,6 +200,7 @@ public class RestaurantDAO {
             ps.setString(3, nvl(r.getPhone()));
             ps.setString(4, nvl(r.getEmail()));
             ps.setString(5, r.getStatus() != null ? r.getStatus().name() : Status.ACTIVE.name());
+            ps.setString(6, nvl(r.getLogoUrl()));   // Phase 6C
 
             ps.executeUpdate();
 
@@ -210,7 +218,7 @@ public class RestaurantDAO {
     // ── UPDATE ────────────────────────────────────────────────────────────────
 
     /**
-     * Cập nhật thông tin nhà hàng (name, address, phone, email, status).
+     * Cập nhật thông tin nhà hàng (name, address, phone, email, status, logo_url).
      *
      * @param r nhà hàng cần cập nhật (phải có restaurantId hợp lệ)
      * @throws SecurityException nếu không phải SUPER_ADMIN
@@ -219,8 +227,9 @@ public class RestaurantDAO {
     public void update(Restaurant r) {
         requireSuperAdmin();
 
+        // Phase 6C: thêm logo_url vào UPDATE
         String sql = "UPDATE restaurants"
-                   + " SET name = ?, address = ?, phone = ?, email = ?, status = ?"
+                   + " SET name = ?, address = ?, phone = ?, email = ?, status = ?, logo_url = ?"
                    + " WHERE restaurant_id = ?";
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -231,7 +240,8 @@ public class RestaurantDAO {
             ps.setString(3, nvl(r.getPhone()));
             ps.setString(4, nvl(r.getEmail()));
             ps.setString(5, r.getStatus() != null ? r.getStatus().name() : Status.ACTIVE.name());
-            ps.setLong  (6, r.getRestaurantId());
+            ps.setString(6, nvl(r.getLogoUrl()));   // Phase 6C
+            ps.setLong  (7, r.getRestaurantId());
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
@@ -338,8 +348,26 @@ public class RestaurantDAO {
         r.setPhone  (nvl(rs.getString("phone")));
         r.setEmail  (nvl(rs.getString("email")));
         r.setStatus (Status.from(rs.getString("status")));
+        // Phase 6C: đọc logo_url — dùng safeGetString để không crash nếu cột chưa tồn tại
+        r.setLogoUrl(safeGetString(rs, "logo_url"));
         // created_at không tồn tại trong schema hiện tại — để null
         return r;
+    }
+
+    /**
+     * Đọc cột String an toàn — trả về null thay vì ném exception
+     * nếu cột không tồn tại trong ResultSet (DB cũ chưa migrate).
+     *
+     * @param rs         ResultSet hiện tại
+     * @param columnName tên cột cần đọc
+     * @return giá trị String hoặc null nếu cột không có
+     */
+    private String safeGetString(ResultSet rs, String columnName) {
+        try {
+            return rs.getString(columnName);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Null-safe: trả về chuỗi rỗng thay vì null. */
