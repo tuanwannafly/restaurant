@@ -43,23 +43,25 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 
 /**
- * Màn hình Thu ngân (Cashier view) – Phase 5B: Payment Card + Pending column.
+ * Màn hình Thu ngân (Cashier view) – Phase 5C: In-Progress Card + moveToInProgress.
  * <p>
  * Layout: Header (56px) | JSplitPane 50/50 (Chờ thanh toán | Đang thanh toán)
  * <p>
- * Phase 5B adds:
+ * Phase 5C adds:
  * <ul>
- *   <li>{@link PaymentRequest} inner data class</li>
- *   <li>{@link #buildPaymentCard(PaymentRequest)} – card UI cho cột trái</li>
- *   <li>Filter buttons hoạt động (Tất cả / Tiền mặt / Chuyển khoản)</li>
- *   <li>Mock data để test UI trước khi kết nối DB (Phase 5E)</li>
+ *   <li>{@link #buildInProgressCard(PaymentRequest, String)} – card UI cho cột phải với
+ *       status label màu WARNING và nút "Hoàn thành"</li>
+ *   <li>{@link #moveToInProgress(PaymentRequest)} – chuyển card từ cột trái sang cột phải</li>
+ *   <li>{@link #completePayment(PaymentRequest)} – confirm dialog, nếu OK chuyển trạng thái
+ *       về WAITING và reload UI (mock logic, Phase 5E sẽ gọi DAO)</li>
+ *   <li>{@link #allInProgressRequests} – cache riêng cho cột phải</li>
  * </ul>
  */
 public class CashierPanel extends JPanel {
 
     // ─── Constants ────────────────────────────────────────────────────────────
 
-    private static final int   REFRESH_MS   = 5_000;
+    private static final int   REFRESH_MS    = 5_000;
     private static final Color CARD_HOVER_BG = new Color(0xF0F9FF);
 
     // ─── Inner class: PaymentRequest ──────────────────────────────────────────
@@ -121,10 +123,16 @@ public class CashierPanel extends JPanel {
     private String selectedPaymentFilter = null;
 
     /**
-     * Toàn bộ danh sách WAITING – cache để filter re-apply không cần reload.
+     * Cache danh sách WAITING – filter re-apply không cần reload.
      * Phase 5E sẽ thay bằng data từ DAO.
      */
-    private List<PaymentRequest> allPendingRequests = new ArrayList<>();
+    private List<PaymentRequest> allPendingRequests    = new ArrayList<>();
+
+    /**
+     * Cache danh sách IN_PROGRESS – cột phải.
+     * Phase 5E sẽ thay bằng data từ DAO.
+     */
+    private List<PaymentRequest> allInProgressRequests = new ArrayList<>();
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -333,14 +341,7 @@ public class CashierPanel extends JPanel {
 
     /**
      * Tạo card UI cho một {@link PaymentRequest} trong cột "Chờ thanh toán".
-     * <p>
-     * Card hiển thị:
-     * <ol>
-     *   <li>Tên bàn (bold 14px)</li>
-     *   <li>Phương thức thanh toán (Tiền mặt / Chuyển khoản)</li>
-     *   <li>Trạng thái: "Chờ thanh toán" (TEXT_SECONDARY)</li>
-     * </ol>
-     * Bo góc 8px, border BORDER_COLOR, hover effect, click → {@link #openPaymentDialog(PaymentRequest)}.
+     * Click → {@link #openPaymentDialog(PaymentRequest)}.
      *
      * @param req dữ liệu đơn cần hiển thị
      * @return JPanel card đã style
@@ -390,127 +391,208 @@ public class CashierPanel extends JPanel {
         return card;
     }
 
-    // ─── buildProcessingCard (cột phải – tham chiếu Image 2: "Bàn 07") ───────
+    // ─── buildInProgressCard (Phase 5C) ──────────────────────────────────────
 
     /**
-     * Card cho cột "Đang thanh toán".
-     * Hiển thị: tên bàn, "Đang thanh toán", tên nhân viên, nút "Hoàn thành".
+     * Tạo card UI cho một {@link PaymentRequest} trong cột "Đang thanh toán".
+     * <p>
+     * Card hiển thị:
+     * <ol>
+     *   <li>Tên bàn (bold 14px, TEXT_PRIMARY)</li>
+     *   <li>Label "Đang thanh toán" (màu {@link UIConstants#WARNING})</li>
+     *   <li>Tên nhân viên đang xử lý (TEXT_PRIMARY)</li>
+     *   <li>Nút "Hoàn thành" (PRIMARY, full-width) → {@link #completePayment(PaymentRequest)}</li>
+     * </ol>
+     * Bo góc 8px, border BORDER_COLOR. Tham chiếu Image 2 card "Bàn 07".
+     *
+     * @param req          dữ liệu đơn hàng đang xử lý
+     * @param employeeName tên nhân viên đang phụ trách (hiển thị ở row 3)
+     * @return JPanel card đã style
      */
-    private JPanel buildProcessingCard(PaymentRequest req) {
+    private JPanel buildInProgressCard(PaymentRequest req, String employeeName) {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 new RoundedBorder(8, UIConstants.BORDER_COLOR),
                 BorderFactory.createEmptyBorder(14, 16, 14, 16)));
-        card.setPreferredSize(new Dimension(180, 148));
+        card.setPreferredSize(new Dimension(180, 158));
         card.setMinimumSize(new Dimension(160, 0));
 
-        // Row 1: Tên bàn
+        // Row 1: Tên bàn (bold)
         JLabel nameLabel = new JLabel(req.tableName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
         nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // Row 2: Trạng thái
-        JLabel statusLabel = new JLabel(req.getStatusLabel());
+        // Row 2: Trạng thái – WARNING color (amber) để phân biệt với cột trái
+        JLabel statusLabel = new JLabel("Đang thanh toán");
         statusLabel.setFont(UIConstants.FONT_BODY);
-        statusLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        statusLabel.setForeground(UIConstants.WARNING);
         statusLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // Row 3: Nhân viên
-        String staffText = (req.assignedStaff != null && !req.assignedStaff.isBlank())
-                ? req.assignedStaff : "—";
-        JLabel staffLabel = new JLabel(staffText);
+        // Row 3: Tên nhân viên
+        String displayName = (employeeName != null && !employeeName.isBlank())
+                ? employeeName : "—";
+        JLabel staffLabel = new JLabel(displayName);
         staffLabel.setFont(UIConstants.FONT_BODY);
         staffLabel.setForeground(UIConstants.TEXT_PRIMARY);
         staffLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // Row 4: Nút "Hoàn thành"
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        btnRow.setOpaque(false);
-        btnRow.setAlignmentX(LEFT_ALIGNMENT);
-        btnRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-
+        // Row 4: Nút "Hoàn thành" – full width, PRIMARY fill
         JButton btnDone = new JButton("Hoàn thành") {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(UIConstants.PRIMARY);
+                // Hover: sáng hơn một chút khi nhấn
+                g2.setColor(getModel().isPressed()
+                        ? UIConstants.PRIMARY_DARK : UIConstants.PRIMARY);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                 g2.dispose();
                 super.paintComponent(g);
             }
         };
-        btnDone.setFont(UIConstants.FONT_BODY);
+        btnDone.setFont(new Font("Segoe UI", Font.BOLD, 13));
         btnDone.setForeground(Color.WHITE);
         btnDone.setBorderPainted(false);
         btnDone.setContentAreaFilled(false);
         btnDone.setFocusPainted(false);
         btnDone.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btnDone.setPreferredSize(new Dimension(120, 30));
-        // Phase 5D: sẽ gọi OrderDAO.completeOrder
-        btnDone.addActionListener(e -> {
-            int choice = JOptionPane.showConfirmDialog(
-                    CashierPanel.this,
-                    "Xác nhận hoàn thành thanh toán cho " + req.tableName + "?",
-                    "Hoàn thành",
-                    JOptionPane.YES_NO_OPTION);
-            if (choice == JOptionPane.YES_OPTION) {
-                loadData();
-            }
-        });
-
-        btnRow.add(btnDone);
+        // full width: dùng maximumSize + alignmentX
+        btnDone.setAlignmentX(LEFT_ALIGNMENT);
+        btnDone.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        btnDone.setPreferredSize(new Dimension(148, 32));
+        btnDone.addActionListener(e -> completePayment(req));
 
         card.add(nameLabel);
         card.add(Box.createVerticalStrut(6));
         card.add(statusLabel);
         card.add(Box.createVerticalStrut(4));
         card.add(staffLabel);
-        card.add(Box.createVerticalStrut(10));
-        card.add(btnRow);
+        card.add(Box.createVerticalStrut(12));
+        card.add(btnDone);
 
         return card;
     }
 
-    // ─── openPaymentDialog (placeholder – Phase 5D) ───────────────────────────
+    // ─── moveToInProgress (Phase 5C) ─────────────────────────────────────────
 
     /**
-     * Mở dialog thanh toán chi tiết cho đơn được chọn.
-     * Phase 5D sẽ implement đầy đủ (chọn nhân viên, in hóa đơn, xác nhận).
+     * Chuyển một đơn từ cột "Chờ thanh toán" sang cột "Đang thanh toán".
+     * <p>
+     * Luồng xử lý (mock – Phase 5E sẽ gọi DAO):
+     * <ol>
+     *   <li>Cập nhật {@code req.status = IN_PROGRESS}</li>
+     *   <li>Xóa khỏi {@link #allPendingRequests}, thêm vào {@link #allInProgressRequests}</li>
+     *   <li>Gán {@code req.assignedStaff} nếu chưa có (dùng tên người dùng hiện tại)</li>
+     *   <li>Rebuild cả hai cột</li>
+     * </ol>
+     * Được gọi từ dialog Phase 5D khi nhấn "Thực hiện".
+     *
+     * @param req đơn hàng cần chuyển sang trạng thái IN_PROGRESS
+     */
+    public void moveToInProgress(PaymentRequest req) {
+        // Bước 1: Cập nhật trạng thái
+        req.status = PaymentRequest.Status.IN_PROGRESS;
+
+        // Bước 2: Di chuyển giữa hai danh sách
+        allPendingRequests.removeIf(r -> r.orderId.equals(req.orderId));
+        if (allInProgressRequests.stream().noneMatch(r -> r.orderId.equals(req.orderId))) {
+            allInProgressRequests.add(req);
+        }
+
+        // Bước 3: Gán tên nhân viên nếu chưa có
+        if (req.assignedStaff == null || req.assignedStaff.isBlank()) {
+            try {
+                String currentUser = AppSession.getInstance().getUsername();
+                req.assignedStaff = (currentUser != null && !currentUser.isBlank())
+                        ? currentUser : "Nhân viên";
+            } catch (Exception ignored) {
+                req.assignedStaff = "Nhân viên";
+            }
+        }
+
+        // Bước 4: Refresh UI
+        applyPendingFilter();
+        rebuildInProgressCards(allInProgressRequests);
+    }
+
+    // ─── completePayment (Phase 5C) ───────────────────────────────────────────
+
+    /**
+     * Xác nhận hoàn thành thanh toán cho một đơn trong cột phải.
+     * <p>
+     * Luồng xử lý (mock – Phase 5E sẽ gọi {@code OrderDAO.completeOrder}):
+     * <ol>
+     *   <li>Hiện JOptionPane xác nhận</li>
+     *   <li>Nếu OK: xóa khỏi {@link #allInProgressRequests}, rebuild cột phải</li>
+     *   <li>Phase 5E TODO: gọi {@code OrderDAO.completeOrder(req.orderId)} rồi loadData()</li>
+     * </ol>
+     *
+     * @param req đơn hàng vừa hoàn thành thanh toán
+     */
+    private void completePayment(PaymentRequest req) {
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Xác nhận hoàn thành thanh toán cho " + req.tableName + "?",
+                "Hoàn thành thanh toán",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+
+        if (choice != JOptionPane.YES_OPTION) return;
+
+        // Mock: chỉ xóa khỏi danh sách in-progress và rebuild
+        // Phase 5E: OrderDAO.completeOrder(req.orderId) → loadData()
+        allInProgressRequests.removeIf(r -> r.orderId.equals(req.orderId));
+        rebuildInProgressCards(allInProgressRequests);
+
+        JOptionPane.showMessageDialog(
+                this,
+                req.tableName + " đã thanh toán thành công.",
+                "Thành công",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // ─── openPaymentDialog (Phase 5D) ─────────────────────────────────────────
+
+    /**
+     * Mở dialog thanh toán chi tiết cho đơn được chọn từ cột trái.
+     * Phase 5D sẽ implement đầy đủ (chọn nhân viên, in hóa đơn, xác nhận "Thực hiện"
+     * → gọi {@link #moveToInProgress(PaymentRequest)}).
      *
      * @param req đơn hàng được click
      */
     private void openPaymentDialog(PaymentRequest req) {
-        // Phase 5D implement
+        // Phase 5D implement:
+        // PaymentDialog dialog = new PaymentDialog(SwingUtilities.getWindowAncestor(this), req);
+        // dialog.setOnConfirm(() -> moveToInProgress(req));
+        // dialog.setVisible(true);
     }
 
     // ─── Data Loading ─────────────────────────────────────────────────────────
 
     /**
-     * Điểm vào duy nhất để load/reload dữ liệu.
+     * Điểm vào duy nhất để load/reload toàn bộ dữ liệu cả hai cột.
      * <p>
-     * Phase 5B: dùng mock data để test UI.
+     * Phase 5B/5C: dùng mock data để test UI.
      * Phase 5E: thay bằng SwingWorker + OrderDAO.
      */
     public void loadData() {
-        allPendingRequests = buildMockData();
+        allPendingRequests    = buildMockPendingData();
+        allInProgressRequests = buildMockInProgressData();
         applyPendingFilter();
-        rebuildProcessingCards(buildMockProcessingData());
+        rebuildInProgressCards(allInProgressRequests);
     }
 
-    // ─── Mock data (Phase 5B – xóa khi kết nối DB ở Phase 5E) ───────────────
+    // ─── Mock data (Phase 5B/5C – xóa khi kết nối DB ở Phase 5E) ────────────
 
     /**
-     * Tạo 3 PaymentRequest cứng để test UI cột trái.
-     * <p>
-     * <strong>TODO Phase 5E:</strong> Xóa method này và thay bằng
-     * {@code OrderDAO.getPendingPaymentOrders(restaurantId)}.
+     * Mock data cột trái (WAITING).
+     * <strong>TODO Phase 5E:</strong> Thay bằng {@code OrderDAO.getPendingPaymentOrders(restaurantId)}.
      */
-    private List<PaymentRequest> buildMockData() {
+    private List<PaymentRequest> buildMockPendingData() {
         List<PaymentRequest> list = new ArrayList<>();
         list.add(new PaymentRequest("1", "Bàn 05", "1001",
                 PaymentRequest.PaymentMethod.CASH,     250_000, PaymentRequest.Status.WAITING));
@@ -522,12 +604,10 @@ public class CashierPanel extends JPanel {
     }
 
     /**
-     * Tạo 1 PaymentRequest cứng để test UI cột phải.
-     * <p>
-     * <strong>TODO Phase 5E:</strong> Xóa method này và thay bằng
-     * {@code OrderDAO.getInProgressPaymentOrders(restaurantId)}.
+     * Mock data cột phải (IN_PROGRESS).
+     * <strong>TODO Phase 5E:</strong> Thay bằng {@code OrderDAO.getInProgressPaymentOrders(restaurantId)}.
      */
-    private List<PaymentRequest> buildMockProcessingData() {
+    private List<PaymentRequest> buildMockInProgressData() {
         List<PaymentRequest> list = new ArrayList<>();
         PaymentRequest pr = new PaymentRequest("7", "Bàn 07", "1007",
                 PaymentRequest.PaymentMethod.CASH, 390_000, PaymentRequest.Status.IN_PROGRESS);
@@ -579,7 +659,13 @@ public class CashierPanel extends JPanel {
         pendingCardsPanel.repaint();
     }
 
-    private void rebuildProcessingCards(List<PaymentRequest> list) {
+    /**
+     * Rebuild cột phải "Đang thanh toán" từ danh sách {@code list}.
+     * Mỗi card được tạo bởi {@link #buildInProgressCard(PaymentRequest, String)}.
+     *
+     * @param list danh sách đơn đang xử lý
+     */
+    private void rebuildInProgressCards(List<PaymentRequest> list) {
         processingCardsPanel.removeAll();
 
         if (list.isEmpty()) {
@@ -594,7 +680,9 @@ public class CashierPanel extends JPanel {
         } else {
             processingCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 12, 12));
             for (PaymentRequest req : list) {
-                processingCardsPanel.add(buildProcessingCard(req));
+                String staff = (req.assignedStaff != null && !req.assignedStaff.isBlank())
+                        ? req.assignedStaff : "—";
+                processingCardsPanel.add(buildInProgressCard(req, staff));
             }
         }
 
