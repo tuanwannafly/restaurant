@@ -6,6 +6,10 @@ import java.util.Map;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.OrderDAO;
+import com.restaurant.session.AppSession;
+
 /**
  * PollManager — Phase 7A: Quản lý tập trung tất cả javax.swing.Timer.
  *
@@ -38,6 +42,28 @@ public final class PollManager {
     // ── Singleton ─────────────────────────────────────────────────────────────
 
     private static PollManager instance;
+    private KitchenDAO kitchenDAO = new KitchenDAO();
+    private OrderDAO   orderDAO   = new OrderDAO();
+    private MainFrame  mainFrame;  // inject qua constructor hoặc getter
+
+    private void refreshBadges() {
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+
+        int pendingKitchen  = kitchenDAO.getPendingCount(restaurantId);
+        int readyWaiter     = kitchenDAO.getReadyCount(restaurantId);
+        int paymentRequests = orderDAO.getPaymentRequestedCount(restaurantId);
+
+        SwingUtilities.invokeLater(() -> {
+            if (mainFrame.getBtnKitchen()  != null) mainFrame.getBtnKitchen().setBadgeCount(pendingKitchen);
+            if (mainFrame.getBtnWaiter()   != null) mainFrame.getBtnWaiter().setBadgeCount(readyWaiter);
+            if (mainFrame.getBtnCashier()  != null) mainFrame.getBtnCashier().setBadgeCount(paymentRequests);
+        });
+    }
+
+    // PollManager.getInstance().register("home_stats", () -> {
+    //     loadDashboardData();  // logic cũ
+    //     refreshBadges();      // thêm mới
+    // }, 10_000);
 
     private PollManager() {}
 
@@ -163,5 +189,37 @@ public final class PollManager {
                 "[PollManager] WARN: %s() được gọi ngoài EDT! " +
                 "Hãy dùng SwingUtilities.invokeLater().%n", method);
         }
+    }
+
+    public static void setInstance(PollManager instance) {
+        PollManager.instance = instance;
+    }
+
+    public KitchenDAO getKitchenDAO() {
+        return kitchenDAO;
+    }
+
+    public void setKitchenDAO(KitchenDAO kitchenDAO) {
+        this.kitchenDAO = kitchenDAO;
+    }
+
+    public OrderDAO getOrderDAO() {
+        return orderDAO;
+    }
+
+    public void setOrderDAO(OrderDAO orderDAO) {
+        this.orderDAO = orderDAO;
+    }
+
+    public MainFrame getMainFrame() {
+        return mainFrame;
+    }
+
+    public void setMainFrame(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
+    }
+
+    public Map<String, Timer> getTimers() {
+        return timers;
     }
 }

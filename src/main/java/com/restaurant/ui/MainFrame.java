@@ -7,7 +7,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
@@ -52,32 +51,33 @@ public class MainFrame extends JFrame implements SessionListener {
     private MyRestaurantInfoPanel myRestaurantPanel;
     private AuditLogPanel         auditLogPanel;
     private RestaurantDetailPanel restaurantDetailPanel;
-
-    private AdminStatsPanel adminStatsPanel;
+    private AdminStatsPanel       adminStatsPanel;
 
     private JButton[] navButtons;
 
-    // ── BadgeButton fields cho Bếp và Phục vụ ────────────────────────────────
-    /** Badge trên nút "🍳 Bếp" – hiển thị số món đang chờ bếp. */
-    BadgeButton kitchenBadgeBtn;
-    /** Badge trên nút "🛎 Phục vụ" – hiển thị số món READY chờ phục vụ. */
-    BadgeButton waiterBadgeBtn;
+    // ── Phase 7D: BadgeButton fields cho Bếp, Phục vụ, Thu ngân ─────────────
+    /** Badge trên nút "🍳 Bếp" – số món PENDING chờ bếp. */
+    private BadgeButton kitchenBadgeBtn;
+    /** Badge trên nút "🛎 Phục vụ" – số món READY chờ giao. */
+    private BadgeButton waiterBadgeBtn;
+    /** Badge trên nút "💳 Thu ngân" – số yêu cầu thanh toán. */
+    private BadgeButton cashierBadgeBtn;
 
     private String[] navPages  = {
         "home", "menu", "ban", "nhanvien", "donhang",
-        "chedomlamviec", "baocao", "thongke", "nhahangs", "bep", "phucvu", "thungan",
+        "chedomlamviec", "baocao", "thongke", "nhahangs",
+        "bep", "phucvu", "thungan",
         "myrestaurant", "baomat", "adminstats"
     };
     private String[] navLabels = {
         "🏠 Home", "Menu", "Bàn", "Nhân viên", "Đơn hàng",
-        "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng", "🍳 Bếp", "🛎 Phục vụ",
-        "💳 Thu ngân", "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"
+        "Chế độ làm việc", "Báo cáo", "📈 Thống kê", "🏪 Nhà hàng",
+        "🍳 Bếp", "🛎 Phục vụ", "💳 Thu ngân",
+        "🏪 Nhà hàng của tôi", "🔐 Bảo mật", "📊 Thống kê (Admin)"
     };
 
     /** Swing Timer kiểm tra session token mỗi 30 phút. */
     private Timer sessionCheckTimer;
-
-    /** Khoảng thời gian kiểm tra token (ms): 30 phút. */
     private static final int SESSION_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
     public MainFrame() {
@@ -94,6 +94,17 @@ public class MainFrame extends JFrame implements SessionListener {
         startSessionCheckTimer();
     }
 
+    // ── Phase 7D: Getters cho BadgeButton ────────────────────────────────────
+
+    /** Trả về BadgeButton nút Bếp để cập nhật badge từ poll. */
+    public BadgeButton getBtnKitchen()  { return kitchenBadgeBtn; }
+
+    /** Trả về BadgeButton nút Phục vụ để cập nhật badge từ poll. */
+    public BadgeButton getBtnWaiter()   { return waiterBadgeBtn; }
+
+    /** Trả về BadgeButton nút Thu ngân để cập nhật badge từ poll. */
+    public BadgeButton getBtnCashier()  { return cashierBadgeBtn; }
+
     // ── SessionListener ───────────────────────────────────────────────────────
 
     @Override
@@ -101,7 +112,6 @@ public class MainFrame extends JFrame implements SessionListener {
         SwingUtilities.invokeLater(() -> {
             try {
                 stopSessionCheckTimer();
-                // Phase 7A: dừng toàn bộ polling timer trước khi đóng frame
                 PollManager.getInstance().stopAll();
                 this.dispose();
             } catch (Exception cleanupEx) {
@@ -148,17 +158,11 @@ public class MainFrame extends JFrame implements SessionListener {
         sessionCheckTimer = new Timer(SESSION_CHECK_INTERVAL_MS, e -> {
             String token = AppSession.getInstance().getSessionToken();
             boolean valid = TokenService.getInstance().validateToken(token);
-
-            new Thread(() -> TokenService.getInstance().cleanExpiredTokens(),
-                       "token-cleanup").start();
-
+            new Thread(() -> TokenService.getInstance().cleanExpiredTokens(), "token-cleanup").start();
             if (!valid) {
-                JOptionPane.showMessageDialog(
-                    this,
+                JOptionPane.showMessageDialog(this,
                     "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.",
-                    "Hết phiên",
-                    JOptionPane.WARNING_MESSAGE
-                );
+                    "Hết phiên", JOptionPane.WARNING_MESSAGE);
                 AppSession.getInstance().logout();
             }
         });
@@ -175,27 +179,15 @@ public class MainFrame extends JFrame implements SessionListener {
     // ── Logout ────────────────────────────────────────────────────────────────
 
     /**
-     * Phase 7A: Xử lý đăng xuất theo đúng thứ tự:
-     * <ol>
-     *   <li>Xác nhận từ người dùng.</li>
-     *   <li>Dừng toàn bộ polling timer qua {@link PollManager#stopAll()}.</li>
-     *   <li>Gọi {@link AppSession#logout()} → kích hoạt {@link #onLogout()}.</li>
-     * </ol>
-     *
-     * <p>Đây là entry point duy nhất cho mọi nút logout / kết ca trong app.
+     * Phase 7A: Xử lý đăng xuất theo đúng thứ tự.
+     * Entry point duy nhất cho mọi nút logout trong app.
      */
     private void handleLogout() {
-        int confirm = JOptionPane.showConfirmDialog(
-                this,
+        int confirm = JOptionPane.showConfirmDialog(this,
                 "Bạn có chắc muốn đăng xuất?",
-                "Xác nhận đăng xuất",
-                JOptionPane.YES_NO_OPTION);
+                "Xác nhận đăng xuất", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
-
-        // 1. Dừng toàn bộ polling timer ngay lập tức
         PollManager.getInstance().stopAll();
-
-        // 2. Clear session → sẽ trigger onLogout() qua SessionListener
         AppSession.getInstance().logout();
     }
 
@@ -204,7 +196,6 @@ public class MainFrame extends JFrame implements SessionListener {
     private void buildUI() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(UIConstants.BG_WHITE);
-
         root.add(buildHeader(), BorderLayout.NORTH);
 
         JPanel nav = buildNavBar();
@@ -213,13 +204,13 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea = new JPanel(cardLayout);
         contentArea.setBackground(UIConstants.BG_PAGE);
 
-        homePanel          = new HomePanel();
-        menuPanel          = new MenuPanel();
-        tablePanel         = new TablePanel();
-        employeePanel      = new EmployeePanel();
-        orderPanel         = new OrderPanel();
-        reportPanel        = new ReportPanel();
-        statsPanel         = new StatsPanel();
+        homePanel     = new HomePanel();
+        menuPanel     = new MenuPanel();
+        tablePanel    = new TablePanel();
+        employeePanel = new EmployeePanel();
+        orderPanel    = new OrderPanel();
+        reportPanel   = new ReportPanel();
+        statsPanel    = new StatsPanel();
 
         com.restaurant.session.RbacGuard _guard = com.restaurant.session.RbacGuard.getInstance();
         if (_guard.isSuperAdmin()) {
@@ -245,8 +236,10 @@ public class MainFrame extends JFrame implements SessionListener {
         contentArea.add(buildPlaceholder("Che do lam viec"), "chedomlamviec");
         contentArea.add(reportPanel,        "baocao");
         contentArea.add(statsPanel,         "thongke");
-        contentArea.add(restaurantPanel != null ? restaurantPanel : buildPlaceholder("Nha hang"), "nhahangs");
-        contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
+        contentArea.add(restaurantPanel != null ? restaurantPanel
+                : buildPlaceholder("Nha hang"), "nhahangs");
+        contentArea.add(restaurantDetailPanel != null ? restaurantDetailPanel
+                : buildPlaceholder("Chi tiet nha hang"), "restaurant_detail");
         contentArea.add(kitchenPanel,       "bep");
         contentArea.add(waiterServicePanel, "phucvu");
         contentArea.add(cashierPanel,       "thungan");
@@ -273,67 +266,33 @@ public class MainFrame extends JFrame implements SessionListener {
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
         boolean isSuperAdmin = guard.isSuperAdmin();
         String userRole = session.getUserRole();
-
         java.util.Set<com.restaurant.session.Permission> perms =
                 com.restaurant.session.Permission.forRole(userRole);
 
         for (int i = 0; i < navPages.length; i++) {
             switch (navPages[i]) {
-                case "menu":
-                case "ban":
-                case "donhang":
-                case "chedomlamviec":
-                    navButtons[i].setVisible(!isSuperAdmin);
-                    break;
-
+                case "menu": case "ban": case "donhang": case "chedomlamviec":
+                    navButtons[i].setVisible(!isSuperAdmin); break;
                 case "nhanvien":
-                    navButtons[i].setVisible(
-                            !isSuperAdmin &&
-                            perms.contains(com.restaurant.session.Permission.VIEW_EMPLOYEE));
-                    break;
-
+                    navButtons[i].setVisible(!isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_EMPLOYEE)); break;
                 case "bep":
-                    navButtons[i].setVisible(
-                            !isSuperAdmin &&
-                            perms.contains(com.restaurant.session.Permission.VIEW_KITCHEN));
-                    break;
-
+                    navButtons[i].setVisible(!isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_KITCHEN)); break;
                 case "phucvu":
-                    navButtons[i].setVisible(
-                            !isSuperAdmin &&
-                            perms.contains(com.restaurant.session.Permission.VIEW_WAITER_SERVICE));
-                    break;
-
+                    navButtons[i].setVisible(!isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_WAITER_SERVICE)); break;
                 case "thungan":
-                    navButtons[i].setVisible(
-                            !isSuperAdmin &&
-                            perms.contains(com.restaurant.session.Permission.VIEW_CASHIER));
-                    break;
-
+                    navButtons[i].setVisible(!isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_CASHIER)); break;
                 case "thongke":
-                    navButtons[i].setVisible(
-                            !isSuperAdmin &&
-                            perms.contains(com.restaurant.session.Permission.VIEW_STATS));
-                    break;
-
-                case "nhahangs":
-                    navButtons[i].setVisible(isSuperAdmin);
-                    break;
-
-                case "myrestaurant":
-                    navButtons[i].setVisible(guard.isRestaurantAdmin());
-                    break;
-
-                case "baomat":
-                    navButtons[i].setVisible(isSuperAdmin);
-                    break;
-
-                case "adminstats":
-                    navButtons[i].setVisible(isSuperAdmin);
-                    break;
-
-                default:
-                    break;
+                    navButtons[i].setVisible(!isSuperAdmin &&
+                            perms.contains(com.restaurant.session.Permission.VIEW_STATS)); break;
+                case "nhahangs":  navButtons[i].setVisible(isSuperAdmin); break;
+                case "myrestaurant": navButtons[i].setVisible(guard.isRestaurantAdmin()); break;
+                case "baomat":    navButtons[i].setVisible(isSuperAdmin); break;
+                case "adminstats": navButtons[i].setVisible(isSuperAdmin); break;
+                default: break;
             }
         }
     }
@@ -357,13 +316,11 @@ public class MainFrame extends JFrame implements SessionListener {
         left.add(icon);
         left.add(sysName);
 
-        // Phase 6C: Hiển thị logo nhà hàng cho non-SUPER_ADMIN
         com.restaurant.session.RbacGuard guard = com.restaurant.session.RbacGuard.getInstance();
         if (!guard.isSuperAdmin()) {
             JLabel logoLabel = new JLabel();
             logoLabel.setPreferredSize(new Dimension(32, 32));
-            logoLabel.setBorder(BorderFactory.createLineBorder(
-                    UIConstants.BORDER_COLOR, 1, true));
+            logoLabel.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true));
             logoLabel.setHorizontalAlignment(SwingConstants.CENTER);
             logoLabel.setVerticalAlignment(SwingConstants.CENTER);
             left.add(logoLabel, 0);
@@ -380,7 +337,6 @@ public class MainFrame extends JFrame implements SessionListener {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
         AppSession session = AppSession.getInstance();
-
         if (session.hasPermission(com.restaurant.session.Permission.EDIT_OWN_PROFILE)) {
             JButton btnProfile = new JButton(session.getUserName() + " ▾");
             btnProfile.setFont(UIConstants.FONT_BODY);
@@ -397,15 +353,13 @@ public class MainFrame extends JFrame implements SessionListener {
             });
             right.add(btnProfile);
         }
-
         JLabel roleLbl = new JLabel("[" + session.getRoleLabel() + "]");
         roleLbl.setFont(UIConstants.FONT_BODY);
         roleLbl.setForeground(UIConstants.TEXT_SECONDARY);
         right.add(roleLbl);
 
         if (session.getRestaurantId() != 0) {
-            com.restaurant.model.Restaurant r =
-                    com.restaurant.data.DataManager.getInstance().getMyRestaurant();
+            Restaurant r = com.restaurant.data.DataManager.getInstance().getMyRestaurant();
             if (r != null && r.getName() != null) {
                 JLabel lblRestaurant = new JLabel("·  " + r.getName());
                 lblRestaurant.setFont(UIConstants.FONT_SMALL);
@@ -436,6 +390,7 @@ public class MainFrame extends JFrame implements SessionListener {
             final String page = navPages[i];
             JButton btn;
 
+            // Phase 7D: BadgeButton cho 3 tab quan trọng
             if ("bep".equals(navPages[i])) {
                 BadgeButton bb = new BadgeButton(navLabels[i]);
                 applyNavStyle(bb);
@@ -445,6 +400,11 @@ public class MainFrame extends JFrame implements SessionListener {
                 BadgeButton bb = new BadgeButton(navLabels[i]);
                 applyNavStyle(bb);
                 waiterBadgeBtn = bb;
+                btn = bb;
+            } else if ("thungan".equals(navPages[i])) {
+                BadgeButton bb = new BadgeButton(navLabels[i]);
+                applyNavStyle(bb);
+                cashierBadgeBtn = bb;
                 btn = bb;
             } else {
                 btn = createNavButton(navLabels[i]);
@@ -458,7 +418,6 @@ public class MainFrame extends JFrame implements SessionListener {
 
         nav.add(Box.createVerticalGlue());
 
-        // Phase 7A: nút Đăng xuất gọi handleLogout() — entry point duy nhất
         JButton btnLogout = createNavButton("⏻  Đăng xuất");
         btnLogout.setForeground(UIConstants.DANGER);
         btnLogout.addActionListener(e -> handleLogout());
@@ -481,9 +440,11 @@ public class MainFrame extends JFrame implements SessionListener {
 
     private JButton createNavButton(String label) {
         JButton btn = new JButton(label) {
-            @Override protected void paintComponent(Graphics g) {
+            @Override
+            protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
                 if (getClientProperty("active") == Boolean.TRUE) {
                     g2.setColor(UIConstants.PRIMARY_LIGHT);
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(),
@@ -517,17 +478,14 @@ public class MainFrame extends JFrame implements SessionListener {
             case "baocao":    reportPanel.loadData();           break;
             case "thongke":   statsPanel.loadAll();             break;
             case "adminstats":
-                if (adminStatsPanel != null) adminStatsPanel.loadStats();
-                break;
+                if (adminStatsPanel != null) adminStatsPanel.loadStats(); break;
             case "nhahangs":
-                if (restaurantPanel != null) restaurantPanel.loadData();
-                break;
+                if (restaurantPanel != null) restaurantPanel.loadData(); break;
             case "bep":       kitchenPanel.loadData();          break;
             case "phucvu":    waiterServicePanel.loadData();    break;
             case "thungan":   cashierPanel.loadData();          break;
             case "myrestaurant":
-                if (myRestaurantPanel != null) myRestaurantPanel.loadData();
-                break;
+                if (myRestaurantPanel != null) myRestaurantPanel.loadData(); break;
         }
         for (int i = 0; i < navPages.length; i++) {
             boolean active = navPages[i].equals(page);
@@ -538,11 +496,6 @@ public class MainFrame extends JFrame implements SessionListener {
         }
     }
 
-    /**
-     * Điều hướng sang màn hình Chi tiết nhà hàng.
-     *
-     * @param r nhà hàng cần hiển thị chi tiết
-     */
     public void showRestaurantDetail(Restaurant r) {
         if (restaurantDetailPanel == null) return;
         restaurantDetailPanel.populate(r);
@@ -564,77 +517,5 @@ public class MainFrame extends JFrame implements SessionListener {
         lbl.setForeground(UIConstants.TEXT_SECONDARY);
         p.add(lbl);
         return p;
-    }
-
-    // ── BadgeButton inner class ───────────────────────────────────────────────
-
-    /**
-     * Nút nav có badge đỏ ở góc trên-phải hiển thị số đếm (≤99, hoặc "99+").
-     */
-    class BadgeButton extends JButton {
-
-        private int badgeCount = 0;
-
-        BadgeButton(String text) {
-            super(text);
-            setOpaque(false);
-            setContentAreaFilled(false);
-        }
-
-        /** Cập nhật số hiển thị trên badge và repaint ngay. */
-        public void setBadgeCount(int n) {
-            this.badgeCount = Math.max(0, n);
-            repaint();
-        }
-
-        /** Trả về giá trị badge hiện tại. */
-        public int getBadgeCount() {
-            return badgeCount;
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            if (getClientProperty("active") == Boolean.TRUE) {
-                g2.setColor(UIConstants.PRIMARY_LIGHT);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(),
-                        UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
-            } else {
-                Point p = getMousePosition();
-                if (p != null) {
-                    g2.setColor(new Color(0xF3F4F6));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(),
-                            UIConstants.CORNER_RADIUS, UIConstants.CORNER_RADIUS);
-                }
-            }
-            g2.dispose();
-
-            super.paintComponent(g);
-
-            if (badgeCount <= 0) return;
-
-            Graphics2D g2b = (Graphics2D) g.create();
-            g2b.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int r  = 9;
-            int cx = getWidth() - 10;
-            int cy = 10;
-
-            g2b.setColor(UIConstants.DANGER);
-            g2b.fillOval(cx - r, cy - r, r * 2, r * 2);
-
-            g2b.setColor(Color.WHITE);
-            g2b.setFont(new Font("Segoe UI", Font.BOLD, 9));
-            String txt = badgeCount > 99 ? "99+" : String.valueOf(badgeCount);
-            FontMetrics fm = g2b.getFontMetrics();
-            g2b.drawString(txt,
-                    cx - fm.stringWidth(txt) / 2,
-                    cy + fm.getAscent() / 2 - 1);
-
-            g2b.dispose();
-        }
     }
 }

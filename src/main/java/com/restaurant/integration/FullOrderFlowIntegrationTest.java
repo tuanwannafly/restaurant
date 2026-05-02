@@ -4,6 +4,7 @@ import com.restaurant.dao.KitchenDAO;
 import com.restaurant.dao.KitchenDAO.KitchenTicket;
 import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
+import com.restaurant.dao.OrderDAO.CartEntry;
 import com.restaurant.dao.TableDAO;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
@@ -25,37 +26,32 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 /**
- * Integration test — Phase 7A
+ * Integration test — Phase 7D
  *
  * <p>Mô phỏng luồng đầy đủ của một ca phục vụ:
  * <ol>
  *   <li>Thu ngân (CASHIER) đăng nhập và mở bàn</li>
- *   <li>Khách gọi món → {@link OrderDAO#addOrderItems}</li>
- *   <li>Bếp (CHEF) thấy ticket, chuyển trạng thái PENDING → ACCEPTED → COOKING → READY</li>
+ *   <li>Khách gọi món → {@link OrderDAO#addOrderItems(String, List, int)}</li>
+ *   <li>Bếp (CHEF) thấy ticket, chuyển PENDING → ACCEPTED → COOKING → READY</li>
  *   <li>Phục vụ (WAITER) giao món READY → DELIVERING → DELIVERED</li>
- *   <li>Thu ngân thanh toán → bàn trở về AVAILABLE</li>
- *   <li>Verify PollManager không còn timer orphan sau logout</li>
+ *   <li>Thu ngân thanh toán → order COMPLETED</li>
+ *   <li>Verify PollManager sạch sau logout</li>
  * </ol>
- *
- * <h3>Yêu cầu chạy test</h3>
- * Database phải có dữ liệu seed cơ bản (restaurant_id=1, bàn test, menu item test).
- * Xem {@code src/test/resources/test-seed.sql} để tạo dữ liệu mẫu.
- * Nếu không có DB thực, mỗi step được verify qua DAO mock (xem comment inline).
  */
 public class FullOrderFlowIntegrationTest {
 
     // ─── Test fixtures ────────────────────────────────────────────────────────
 
-    private static final long  TEST_RESTAURANT_ID = 1L;
-    private static final long  TEST_USER_ID        = 1L;
-    private static final String TEST_TABLE_ID      = "table_test_01";
+    private static final long   TEST_RESTAURANT_ID = 1L;
+    private static final long   TEST_USER_ID       = 1L;
+    private static final String TEST_TABLE_ID      = "1";     // dùng numeric ID khớp DB seed
     private static final String TEST_TABLE_NAME    = "Bàn Test 01";
 
     private OrderDAO   orderDAO;
     private KitchenDAO kitchenDAO;
     private TableDAO   tableDAO;
 
-    private String orderId;   // sẽ được set ở bước mở bàn
+    private String orderId;   // set ở bước mở bàn, dùng xuyên suốt các step
 
     // ─── Setup / Teardown ─────────────────────────────────────────────────────
 
@@ -67,21 +63,18 @@ public class FullOrderFlowIntegrationTest {
 
         // Simulate CASHIER login
         AppSession.getInstance().login(
-            TEST_USER_ID,
-            "Test Cashier",
-            "cashier@test.com",
-            "CASHIER",
-            TEST_RESTAURANT_ID
+            TEST_USER_ID, "Test Cashier", "cashier@test.com",
+            "CASHIER", TEST_RESTAURANT_ID
         );
     }
 
     @After
     public void tearDown() throws Exception {
-        // Dừng tất cả timer và logout — giống luồng thực tế khi user đăng xuất
+        // Dừng timer và logout — giống flow thực khi user đăng xuất
         runOnEDTAndWait(() -> PollManager.getInstance().stopAll());
         AppSession.getInstance().logout();
 
-        // Verify: PollManager không còn timer nào sau stopAll
+        // Verify PollManager sạch
         runOnEDTAndWait(() ->
             assertEquals("PollManager phải rỗng sau stopAll()", 0,
                 PollManager.getInstance().activeCount())
@@ -91,7 +84,7 @@ public class FullOrderFlowIntegrationTest {
     // ─── Full flow test ───────────────────────────────────────────────────────
 
     /**
-     * STEP 1 — Cashier mở bàn: tạo Order mới với trạng thái OPEN.
+     * STEP 1 — Cashier mở bàn.
      */
     @Test
     public void testStep1_CashierOpensTable() {
@@ -104,33 +97,34 @@ public class FullOrderFlowIntegrationTest {
 
         Order order = orderDAO.findById(orderId);
         assertNotNull("Order vừa tạo phải tìm được", order);
-        assertEquals("Status ban đầu phải là OPEN",
-            Order.OrderStatus.OPEN, order.getStatus());
+        // openTable tạo PENDING — đây là trạng thái "bàn vừa mở"
+        assertEquals("Status ban đầu phải là PENDING",
+            Order.Status.PENDING, order.getStatus());
 
         System.out.printf("  ✓ Đã mở bàn '%s', orderId='%s'%n", TEST_TABLE_NAME, orderId);
     }
 
     /**
-     * STEP 2 — Khách gọi món: thêm items vào order → trạng thái PENDING.
+     * STEP 2 — Khách gọi món: thêm items vào order.
      */
     @Test
     public void testStep2_GuestOrdersFood() {
-        testStep1_CashierOpensTable();   // đảm bảo orderId có giá trị
+        testStep1_CashierOpensTable();
         System.out.println("\n=== STEP 2: Khách gọi món ===");
 
-        // Lấy menu item đầu tiên có sẵn
         List<MenuItem> menu = new MenuItemDAO().getAll(TEST_RESTAURANT_ID);
         assertFalse("Menu phải có ít nhất 1 món", menu.isEmpty());
 
         MenuItem item1 = menu.get(0);
         int      qty1  = 2;
 
-        // Thêm món vào order (round 1)
-        orderDAO.addOrderItems(orderId, List.of(
-            new OrderDAO.CartEntry(item1.getId(), qty1, item1.getPrice())
+        // Thêm món vào order (round 1) – dùng CartEntry
+        boolean added = orderDAO.addOrderItems(orderId, List.of(
+            new CartEntry(item1.getId(), qty1, item1.getPrice())
         ), 1);
+        assertTrue("addOrderItems phải trả về true", added);
 
-        // Verify: items đã được lưu với trạng thái PENDING
+        // Verify items đã lưu với trạng thái PENDING
         List<Order.OrderItem> items = orderDAO.getItemsWithStatus(orderId);
         assertFalse("Phải có order item sau khi gọi món", items.isEmpty());
         assertTrue("Mọi item vừa gọi phải ở trạng thái PENDING",
@@ -148,30 +142,26 @@ public class FullOrderFlowIntegrationTest {
         testStep2_GuestOrdersFood();
         System.out.println("\n=== STEP 3: Bếp nấu ===");
 
-        // Simulate CHEF login để kiểm tra RBAC
         AppSession.getInstance().login(
             2L, "Chef Test", "chef@test.com", "CHEF", TEST_RESTAURANT_ID
         );
 
-        // Bếp thấy tickets
         List<KitchenTicket> tickets = kitchenDAO.getActiveTickets(TEST_RESTAURANT_ID);
         assertFalse("KitchenPanel phải thấy ticket mới", tickets.isEmpty());
 
         KitchenTicket ticket = tickets.get(0);
 
-        // Tiếp nhận
-        kitchenDAO.updateItemStatus(ticket.orderItemId(), ItemStatus.ACCEPTED);
-        assertStatusEquals(ticket.orderItemId(), ItemStatus.ACCEPTED, "sau khi bếp tiếp nhận");
+        // Dùng accessor method (Phase 7D)
+        kitchenDAO.updateItemStatus(ticket.getOrderItemId(), ItemStatus.ACCEPTED);
+        assertStatusEquals(ticket.getOrderItemId(), ItemStatus.ACCEPTED, "sau khi bếp tiếp nhận");
 
-        // Bắt đầu nấu
-        kitchenDAO.updateItemStatus(ticket.orderItemId(), ItemStatus.COOKING);
-        assertStatusEquals(ticket.orderItemId(), ItemStatus.COOKING, "khi đang nấu");
+        kitchenDAO.updateItemStatus(ticket.getOrderItemId(), ItemStatus.COOKING);
+        assertStatusEquals(ticket.getOrderItemId(), ItemStatus.COOKING, "khi đang nấu");
 
-        // Nấu xong
-        kitchenDAO.updateItemStatus(ticket.orderItemId(), ItemStatus.READY);
-        assertStatusEquals(ticket.orderItemId(), ItemStatus.READY, "sau khi nấu xong");
+        kitchenDAO.updateItemStatus(ticket.getOrderItemId(), ItemStatus.READY);
+        assertStatusEquals(ticket.getOrderItemId(), ItemStatus.READY, "sau khi nấu xong");
 
-        System.out.printf("  ✓ Bếp đã nấu xong item '%s'%n", ticket.itemName());
+        System.out.printf("  ✓ Bếp đã nấu xong item '%s'%n", ticket.getItemName());
     }
 
     /**
@@ -182,24 +172,21 @@ public class FullOrderFlowIntegrationTest {
         testStep3_KitchenCooks();
         System.out.println("\n=== STEP 4: Phục vụ giao món ===");
 
-        // Simulate WAITER login
         AppSession.getInstance().login(
             3L, "Waiter Test", "waiter@test.com", "WAITER", TEST_RESTAURANT_ID
         );
 
-        // Phục vụ thấy bàn cần giao
         Map<String, List<KitchenTicket>> readyMap =
             kitchenDAO.getReadyByTable(TEST_RESTAURANT_ID);
         assertFalse("WaiterServicePanel phải thấy bàn có món READY", readyMap.isEmpty());
 
-        // Giao từng item
         for (List<KitchenTicket> tableTickets : readyMap.values()) {
             for (KitchenTicket t : tableTickets) {
-                kitchenDAO.updateItemStatus(t.orderItemId(), ItemStatus.DELIVERING);
-                assertStatusEquals(t.orderItemId(), ItemStatus.DELIVERING, "khi đang giao");
+                kitchenDAO.updateItemStatus(t.getOrderItemId(), ItemStatus.DELIVERING);
+                assertStatusEquals(t.getOrderItemId(), ItemStatus.DELIVERING, "khi đang giao");
 
-                kitchenDAO.updateItemStatus(t.orderItemId(), ItemStatus.DELIVERED);
-                assertStatusEquals(t.orderItemId(), ItemStatus.DELIVERED, "sau khi giao xong");
+                kitchenDAO.updateItemStatus(t.getOrderItemId(), ItemStatus.DELIVERED);
+                assertStatusEquals(t.getOrderItemId(), ItemStatus.DELIVERED, "sau khi giao xong");
             }
         }
 
@@ -207,35 +194,35 @@ public class FullOrderFlowIntegrationTest {
     }
 
     /**
-     * STEP 5 — Cashier thanh toán: Order chuyển sang PAID, bàn về AVAILABLE.
+     * STEP 5 — Cashier thanh toán: Order chuyển sang COMPLETED.
      */
     @Test
     public void testStep5_CashierCheckout() {
         testStep4_WaiterDelivers();
         System.out.println("\n=== STEP 5: Thu ngân thanh toán ===");
 
-        // Quay lại CASHIER role
         AppSession.getInstance().login(
             TEST_USER_ID, "Test Cashier", "cashier@test.com",
             "CASHIER", TEST_RESTAURANT_ID
         );
 
-        // Hoàn tất thanh toán
-        orderDAO.closeOrder(orderId, Order.OrderStatus.PAID);
+        // Đóng đơn với status COMPLETED (tương đương PAID trong business logic)
+        boolean closed = orderDAO.closeOrder(orderId, Order.Status.COMPLETED);
+        assertTrue("closeOrder phải thành công", closed);
 
-        Order paid = orderDAO.findById(orderId);
-        assertNotNull("Order sau thanh toán vẫn phải tìm được", paid);
-        assertEquals("Order phải chuyển sang PAID",
-            Order.OrderStatus.PAID, paid.getStatus());
+        Order completed = orderDAO.findById(orderId);
+        assertNotNull("Order sau thanh toán vẫn phải tìm được", completed);
+        assertEquals("Order phải chuyển sang COMPLETED",
+            Order.Status.COMPLETED, completed.getStatus());
 
-        // Verify bàn đã được giải phóng (nếu TableDAO thực hiện update)
+        // Verify bàn đã được giải phóng (nếu TableDAO hỗ trợ)
         TableItem table = tableDAO.findById(TEST_TABLE_ID, TEST_RESTAURANT_ID);
         if (table != null) {
             assertNotEquals("Bàn phải rời trạng thái OCCUPIED sau thanh toán",
-                TableItem.TableStatus.OCCUPIED, table.getStatus());
+                TableItem.Status.OCCUPIED, table.getStatus());
         }
 
-        System.out.printf("  ✓ Thanh toán hoàn tất — orderId='%s' → PAID%n", orderId);
+        System.out.printf("  ✓ Thanh toán hoàn tất — orderId='%s' → COMPLETED%n", orderId);
     }
 
     /**
@@ -245,32 +232,30 @@ public class FullOrderFlowIntegrationTest {
     public void testStep6_PollManagerCleanupOnLogout() throws Exception {
         System.out.println("\n=== STEP 6: PollManager cleanup khi logout ===");
 
-        // Đăng ký giả lập các timer như thật
         runOnEDTAndWait(() -> {
             PollManager pm = PollManager.getInstance();
-            pm.register("kitchen",         () -> {}, 5000);
-            pm.register("waiter",          () -> {}, 5000);
-            pm.register("tableorder_t01",  () -> {}, 5000);
+            pm.register("kitchen",        () -> {}, 5000);
+            pm.register("waiter",         () -> {}, 5000);
+            pm.register("tableorder_t01", () -> {}, 5000);
             assertEquals("Phải có 3 timer đang chạy", 3, pm.activeCount());
         });
 
         // Simulate logout → MainFrame.onLogout() gọi stopAll()
         runOnEDTAndWait(() -> PollManager.getInstance().stopAll());
 
-        // Verify sạch
         runOnEDTAndWait(() -> {
             PollManager pm = PollManager.getInstance();
             assertEquals("Sau stopAll() phải không còn timer nào", 0, pm.activeCount());
-            assertFalse("kitchen timer phải dừng", pm.isRunning("kitchen"));
-            assertFalse("waiter timer phải dừng",  pm.isRunning("waiter"));
-            assertFalse("tableorder timer phải dừng", pm.isRunning("tableorder_t01"));
+            assertFalse("kitchen timer phải dừng",      pm.isRunning("kitchen"));
+            assertFalse("waiter timer phải dừng",       pm.isRunning("waiter"));
+            assertFalse("tableorder timer phải dừng",   pm.isRunning("tableorder_t01"));
         });
 
         System.out.println("  ✓ PollManager sạch — không có orphan timer");
     }
 
     /**
-     * STEP 7 — Verify re-register sau logout không ảnh hưởng phiên mới.
+     * STEP 7 — Re-register sau logout không ảnh hưởng phiên mới.
      */
     @Test
     public void testStep7_ReRegisterAfterLogout() throws Exception {
@@ -316,8 +301,13 @@ public class FullOrderFlowIntegrationTest {
         }
     }
 
-    /** Verify trạng thái của một order item theo ID. */
-    private void assertStatusEquals(String orderItemId, ItemStatus expected, String context) {
+    /**
+     * Verify trạng thái của một order_item theo ID.
+     * Dùng {@link OrderDAO#getItemStatus(String)} — không gọi trực tiếp field/method
+     * trên KitchenTicket để tránh coupling với DB state cũ.
+     */
+    private void assertStatusEquals(String orderItemId,
+                                    ItemStatus expected, String context) {
         ItemStatus actual = orderDAO.getItemStatus(orderItemId);
         assertEquals(
             String.format("Item '%s' %s: expected %s but was %s",
