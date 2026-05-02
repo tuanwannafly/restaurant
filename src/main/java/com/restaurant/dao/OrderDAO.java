@@ -327,54 +327,54 @@ public class OrderDAO {
 
     // ─── ADD ORDER ITEMS – overload nhận List<Order.OrderItem> ───────────────
 
-    /**
-     * Chèn danh sách {@link Order.OrderItem} vào đơn hàng.
-     */
-    public boolean addOrderItems(String orderId, List<Order.OrderItem> items, int roundNumber) {
-        if (items == null || items.isEmpty()) return false;
-        String insertSql = """
-            INSERT INTO order_items
-                (order_id, menu_item_id, quantity, price, item_status, round_number)
-            VALUES (?, ?, ?, ?, 'PENDING', ?)
-            """;
-        String updateTotalSql = """
-            UPDATE orders SET total_amount = (
-                SELECT SUM(quantity * price) FROM order_items WHERE order_id = ?
-            ) WHERE order_id = ?
-            """;
-        try (Connection conn = DBConnection.getInstance().getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
-                    for (Order.OrderItem item : items) {
-                        ps.setLong(1, parseLongOrDefault(orderId, 0));
-                        ps.setLong(2, parseLongOrDefault(item.getMenuItemId(), 0));
-                        ps.setInt(3, item.getQuantity());
-                        ps.setBigDecimal(4, BigDecimal.valueOf(item.getUnitPrice()));
-                        ps.setInt(5, roundNumber);
-                        ps.addBatch();
-                    }
-                    ps.executeBatch();
-                }
-                try (PreparedStatement ps = conn.prepareStatement(updateTotalSql)) {
-                    long oid = parseLongOrDefault(orderId, 0);
-                    ps.setLong(1, oid);
-                    ps.setLong(2, oid);
-                    ps.executeUpdate();
-                }
-                conn.commit();
-                return true;
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (Exception e) {
-            System.err.println("[OrderDAO] addOrderItems(OrderItem) lỗi: " + e.getMessage());
-            return false;
-        }
-    }
+    // /**
+    //  * Chèn danh sách {@link Order.OrderItem} vào đơn hàng.
+    //  */
+    // public boolean addOrderItems(String orderId, List<Order.OrderItem> items, int roundNumber) {
+    //     if (items == null || items.isEmpty()) return false;
+    //     String insertSql = """
+    //         INSERT INTO order_items
+    //             (order_id, menu_item_id, quantity, price, item_status, round_number)
+    //         VALUES (?, ?, ?, ?, 'PENDING', ?)
+    //         """;
+    //     String updateTotalSql = """
+    //         UPDATE orders SET total_amount = (
+    //             SELECT SUM(quantity * price) FROM order_items WHERE order_id = ?
+    //         ) WHERE order_id = ?
+    //         """;
+    //     try (Connection conn = DBConnection.getInstance().getConnection()) {
+    //         conn.setAutoCommit(false);
+    //         try {
+    //             try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
+    //                 for (Order.OrderItem item : items) {
+    //                     ps.setLong(1, parseLongOrDefault(orderId, 0));
+    //                     ps.setLong(2, parseLongOrDefault(item.getMenuItemId(), 0));
+    //                     ps.setInt(3, item.getQuantity());
+    //                     ps.setBigDecimal(4, BigDecimal.valueOf(item.getUnitPrice()));
+    //                     ps.setInt(5, roundNumber);
+    //                     ps.addBatch();
+    //                 }
+    //                 ps.executeBatch();
+    //             }
+    //             try (PreparedStatement ps = conn.prepareStatement(updateTotalSql)) {
+    //                 long oid = parseLongOrDefault(orderId, 0);
+    //                 ps.setLong(1, oid);
+    //                 ps.setLong(2, oid);
+    //                 ps.executeUpdate();
+    //             }
+    //             conn.commit();
+    //             return true;
+    //         } catch (Exception e) {
+    //             conn.rollback();
+    //             throw e;
+    //         } finally {
+    //             conn.setAutoCommit(true);
+    //         }
+    //     } catch (Exception e) {
+    //         System.err.println("[OrderDAO] addOrderItems(OrderItem) lỗi: " + e.getMessage());
+    //         return false;
+    //     }
+    // }
 
     // ─── Phase 7D: ADD ORDER ITEMS – overload nhận List<CartEntry> ───────────
 
