@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Order;
@@ -22,6 +24,8 @@ import com.restaurant.model.TableItem;
  * cho badge navigation.
  */
 public class KitchenDAO {
+
+    private static final Logger LOGGER = Logger.getLogger(KitchenDAO.class.getName());
 
     // ─── Inner data class ─────────────────────────────────────────────────────
 
@@ -109,6 +113,19 @@ public class KitchenDAO {
             "  AND  oi.item_status IN ('PENDING','ACCEPTED','COOKING') " +
             "ORDER  BY t.table_number, oi.round_number, oi.created_at";
 
+    /**
+     * Lấy các lượt (table_id, round_number) mà TẤT CẢ món đều ở trạng thái READY,
+     * tức là toàn bộ lượt đó có thể mang ra phục vụ cùng lúc.
+     *
+     * <p><b>Logic HAVING COUNT:</b><br>
+     * – {@code COUNT(*)} = tổng số items trong lượt (table_id, round_number).<br>
+     * – {@code COUNT(CASE WHEN item_status = 'READY' THEN 1 END)} = số items đã READY.<br>
+     * – Điều kiện {@code HAVING COUNT(*) = COUNT(CASE WHEN ... 'READY' ...)}
+     *   chỉ giữ lại những lượt mà <em>mọi</em> item đều READY,
+     *   loại bỏ lượt còn item đang PENDING / COOKING / ACCEPTED.<br>
+     * – Subquery lọc thêm {@code IN ('PENDING','ACCEPTED','COOKING','READY')} để
+     *   không đếm các item đã DELIVERED/CANCELLED vào tổng COUNT(*).
+     */
     private static final String SQL_READY_BY_TABLE =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
@@ -127,6 +144,9 @@ public class KitchenDAO {
             "           WHERE  o2.restaurant_id = ? " +
             "             AND  oi2.item_status IN ('PENDING','ACCEPTED','COOKING','READY') " +
             "           GROUP  BY o2.table_id, oi2.round_number " +
+            /* COUNT(*) = tổng items còn active trong lượt;
+               COUNT(CASE WHEN 'READY') = số items đã xong.
+               Chỉ trả về lượt khi hai con số bằng nhau → toàn bộ đã READY. */
             "           HAVING COUNT(*) = COUNT(CASE WHEN oi2.item_status = 'READY' THEN 1 END) " +
             "       ) " +
             "ORDER  BY t.table_number, oi.round_number, oi.created_at";
@@ -181,7 +201,8 @@ public class KitchenDAO {
                 while (rs.next()) list.add(mapTicket(rs));
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getActiveTickets error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getActiveTickets error – restaurantId=" + restaurantId, e);
         }
         return list;
     }
@@ -203,7 +224,8 @@ public class KitchenDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getReadyByTable error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getReadyByTable error – restaurantId=" + restaurantId, e);
         }
         return result;
     }
@@ -229,7 +251,8 @@ public class KitchenDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getDirtyTables error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getDirtyTables error – restaurantId=" + restaurantId, e);
         }
         return list;
     }
@@ -246,7 +269,8 @@ public class KitchenDAO {
                 while (rs.next()) list.add(mapTicket(rs));
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getCancelledItems error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getCancelledItems error – restaurantId=" + restaurantId, e);
         }
         return list;
     }
@@ -265,7 +289,9 @@ public class KitchenDAO {
             ps.setString(2, itemId);
             return ps.executeUpdate() >= 1;
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] updateItemStatus error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] updateItemStatus error – itemId=" + itemId
+                    + ", newStatus=" + newStatus, e);
             return false;
         }
     }
@@ -287,7 +313,8 @@ public class KitchenDAO {
                 if (rs.next()) return rs.getInt(1);
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getPendingCount error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getPendingCount error – restaurantId=" + restaurantId, e);
         }
         return 0;
     }
@@ -307,7 +334,8 @@ public class KitchenDAO {
                 if (rs.next()) return rs.getInt(1);
             }
         } catch (SQLException e) {
-            System.err.println("[KitchenDAO] getReadyCount error: " + e.getMessage());
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getReadyCount error – restaurantId=" + restaurantId, e);
         }
         return 0;
     }
