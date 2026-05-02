@@ -50,21 +50,13 @@ import com.restaurant.session.Permission;
 
 /**
  * Màn hình bếp (Chef view) – Phase 7B: Polling via ComponentListener + Toast delta.
- * <p>
- * Layout: StaffHeader | JSplitPane(Chờ chế biến | Đang chế biến)
- * Auto-refresh via {@link PollManager} key {@code "kitchen_v2"}.
- * Toast được hiện khi số ticket PENDING tăng so với lần poll trước.
  *
- * <h3>Refactor StaffHeader</h3>
+ * <p>Thay đổi so với phiên bản cũ:
  * <ul>
- *   <li>Xóa {@code buildHeader()} nội bộ.</li>
- *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
- *   <li>Callback "Kết ca" unregister poll trước khi dispose window.</li>
- * </ul>
- *
- * <h3>Refactor EmptyState</h3>
- * <ul>
- *   <li>Dùng {@link EmptyStatePanel} dùng chung thay cho JLabel inline.</li>
+ *   <li>Dùng {@link InlineErrorBar#show} thay vì {@code System.err.println} và
+ *       {@link ToastNotification} để hiện lỗi tải dữ liệu.</li>
+ *   <li>Thêm {@link SimpleSpinner} ở góc phải tiêu đề "Chờ chế biến" để báo
+ *       hiệu đang tải — tự hiện/ẩn trước/sau mỗi lần poll.</li>
  * </ul>
  */
 public class KitchenPanel extends JPanel {
@@ -74,12 +66,9 @@ public class KitchenPanel extends JPanel {
     private static final int    REFRESH_MS = 5_000;
     private static final String POLL_KEY   = "kitchen_v2";
 
-    // Wait-time color thresholds
-    private static final Color COLOR_SUCCESS = new Color(0x10B981); // < 10 phút
-    private static final Color COLOR_WARNING = new Color(0xF59E0B); // 10-20 phút
-    private static final Color COLOR_DANGER  = new Color(0xEF4444); // > 20 phút
-
-    // Hover background for cards
+    private static final Color COLOR_SUCCESS = new Color(0x10B981);
+    private static final Color COLOR_WARNING = new Color(0xF59E0B);
+    private static final Color COLOR_DANGER  = new Color(0xEF4444);
     private static final Color CARD_HOVER_BG = new Color(0xF0F9FF);
 
     // ─── Fields ───────────────────────────────────────────────────────────────
@@ -94,15 +83,13 @@ public class KitchenPanel extends JPanel {
 
     private List<MenuItem> allMenuItems = new ArrayList<>();
 
-    // Cached grouped data for filter re-apply
     private Map<String, List<KitchenTicket>> allPendingGroups = new LinkedHashMap<>();
     private Map<String, List<KitchenTicket>> allCookingGroups = new LinkedHashMap<>();
 
-    /**
-     * Phase 7B: Tổng số ticket PENDING từ lần poll trước.
-     * Dùng để phát hiện món mới và show toast.
-     */
     private int lastPendingCount = 0;
+
+    /** Spinner hiển thị trạng thái đang tải — đặt ở header panel phía Bắc. */
+    private SimpleSpinner spinner;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -118,19 +105,17 @@ public class KitchenPanel extends JPanel {
             return;
         }
 
-        // Load menu items once for category lookup
         try {
             allMenuItems = DataManager.getInstance().getMenuItems();
         } catch (Exception ignored) {}
 
         buildUI();
-        setupComponentListener(); // Phase 7B: replaces AncestorListener
+        setupComponentListener();
     }
 
     // ─── UI Construction ──────────────────────────────────────────────────────
 
     private void buildUI() {
-        // ── StaffHeader (thay thế buildHeader() cũ) ──────────────────────────
         String rName = "";
         try {
             String name = DataManager.getInstance().getMyRestaurant().getName();
@@ -143,7 +128,6 @@ public class KitchenPanel extends JPanel {
             if (w != null) w.dispose();
         }), BorderLayout.NORTH);
 
-        // ── Body ──────────────────────────────────────────────────────────────
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 buildPendingPanel(), buildCookingPanel());
         split.setDividerSize(1);
@@ -151,7 +135,6 @@ public class KitchenPanel extends JPanel {
         split.setBorder(null);
         split.setResizeWeight(0.5);
 
-        // Responsive: keep divider centred whenever the pane is resized
         split.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -169,16 +152,27 @@ public class KitchenPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(UIConstants.BG_PAGE);
 
+        // ── North: tiêu đề + spinner + filter ────────────────────────────────
         JPanel north = new JPanel(new BorderLayout());
         north.setBackground(UIConstants.BG_WHITE);
         north.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
                 BorderFactory.createEmptyBorder(12, 12, 0, 12)));
 
+        // Tiêu đề + spinner cùng hàng
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+
         JLabel title = new JLabel("Chờ chế biến", SwingConstants.CENTER);
         title.setFont(new Font("Segoe UI", Font.BOLD, 16));
         title.setForeground(UIConstants.PRIMARY);
-        north.add(title, BorderLayout.NORTH);
+        titleRow.add(title, BorderLayout.CENTER);
+
+        spinner = new SimpleSpinner(20, UIConstants.PRIMARY);
+        spinner.setVisible(false);
+        titleRow.add(spinner, BorderLayout.EAST);
+
+        north.add(titleRow, BorderLayout.NORTH);
 
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         filterBar.setOpaque(false);
@@ -299,11 +293,8 @@ public class KitchenPanel extends JPanel {
         return tb;
     }
 
-    // ─── Phase 7B: ComponentListener ─────────────────────────────────────────
+    // ─── ComponentListener ────────────────────────────────────────────────────
 
-    /**
-     * Đăng ký / huỷ polling dựa trên visibility của panel trong MainFrame.
-     */
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -318,9 +309,15 @@ public class KitchenPanel extends JPanel {
         });
     }
 
-    // ─── Phase 7B: doPoll() ───────────────────────────────────────────────────
+    // ─── doPoll ───────────────────────────────────────────────────────────────
 
     private void doPoll() {
+        // Hiện spinner trước khi bắt đầu tải
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
         new SwingWorker<KitchenData, Void>() {
@@ -349,6 +346,12 @@ public class KitchenPanel extends JPanel {
 
             @Override
             protected void done() {
+                // Luôn tắt spinner dù thành công hay thất bại
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
                 try {
                     KitchenData data = get();
 
@@ -368,11 +371,9 @@ public class KitchenPanel extends JPanel {
                     lastPendingCount = newCount;
 
                 } catch (Exception ex) {
-                    System.err.println("[KitchenPanel] doPoll error: " + ex.getMessage());
-                    ToastNotification.show(
-                            KitchenPanel.this,
-                            "Lỗi tải dữ liệu bếp: " + ex.getMessage(),
-                            ToastNotification.Type.ERROR);
+                    // Dùng InlineErrorBar thay vì System.err / ToastNotification
+                    InlineErrorBar.show(KitchenPanel.this,
+                            "Lỗi tải dữ liệu bếp: " + ex.getMessage());
                 }
             }
         }.execute();
@@ -386,7 +387,7 @@ public class KitchenPanel extends JPanel {
         return map;
     }
 
-    // ─── Data Loading (public API – delegates to doPoll) ─────────────────────
+    // ─── Public API ───────────────────────────────────────────────────────────
 
     public void loadData() {
         doPoll();
@@ -595,7 +596,7 @@ public class KitchenPanel extends JPanel {
         // Phase 3C implement
     }
 
-    // ─── Phase 7B: KitchenData ────────────────────────────────────────────────
+    // ─── KitchenData ──────────────────────────────────────────────────────────
 
     private static final class KitchenData {
         final List<KitchenTicket> pending;

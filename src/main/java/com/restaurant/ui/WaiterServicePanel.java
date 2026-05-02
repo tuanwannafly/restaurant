@@ -37,7 +37,6 @@ import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
-import javax.swing.Timer;
 import javax.swing.border.AbstractBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -54,24 +53,13 @@ import com.restaurant.session.Permission;
 /**
  * Màn hình phục vụ bàn dành cho role WAITER — Phase 7C (Polling + Toast delta).
  *
- * <p>Gồm 3 tab:
- * <ol>
- *   <li><b>Phục vụ bàn</b> – danh sách lượt bàn có món READY.</li>
- *   <li><b>Dọn bàn</b>     – danh sách bàn DIRTY / CLEANING.</li>
- *   <li><b>Đã hủy</b>      – danh sách đơn/món bị hủy trong ngày.</li>
- * </ol>
- *
- * <h3>Refactor StaffHeader</h3>
+ * <p>Thay đổi so với phiên bản cũ:
  * <ul>
- *   <li>Dùng {@link StaffHeader#create(String, String, Runnable)} thay thế.</li>
+ *   <li>Xóa {@code showInlineError(String)} — thay bằng
+ *       {@link InlineErrorBar#show(JPanel, String)}.</li>
+ *   <li>Thêm {@link SimpleSpinner} vào tab "Phục vụ bàn" — hiện khi đang
+ *       tải và ẩn khi xong.</li>
  * </ul>
- *
- * <h3>Refactor EmptyState</h3>
- * <ul>
- *   <li>Dùng {@link EmptyStatePanel} dùng chung — xóa {@code buildEmptyState()}.</li>
- * </ul>
- *
- * RBAC: yêu cầu {@link Permission#VIEW_WAITER_SERVICE}.
  */
 public class WaiterServicePanel extends JPanel {
 
@@ -87,9 +75,10 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── UI panels ────────────────────────────────────────────────────────────
 
-    private JPanel deliveryCardsPanel;
-    private JPanel cleanTablePanel;
-    private JPanel cancelledPanel;
+    private JPanel        deliveryCardsPanel;
+    private JPanel        cleanTablePanel;
+    private JPanel        cancelledPanel;
+    private SimpleSpinner spinner;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -97,7 +86,6 @@ public class WaiterServicePanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(UIConstants.BG_PAGE);
 
-        // RBAC guard
         if (!AppSession.getInstance().hasPermission(Permission.VIEW_WAITER_SERVICE)) {
             JLabel denied = new JLabel("Không có quyền truy cập", SwingConstants.CENTER);
             denied.setFont(UIConstants.FONT_TITLE);
@@ -106,7 +94,6 @@ public class WaiterServicePanel extends JPanel {
             return;
         }
 
-        // ── StaffHeader ───────────────────────────────────────────────────────
         String rName = "";
         try {
             rName = com.restaurant.data.DataManager.getInstance()
@@ -134,7 +121,6 @@ public class WaiterServicePanel extends JPanel {
         tabs.addTab("🧹  Dọn bàn",     buildCleanTab());
         tabs.addTab("🚫  Đã hủy",      buildCancelledTab());
 
-        // Refresh tab "Đã hủy" khi người dùng chuyển sang
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedIndex() == 2) {
                 new SwingWorker<List<KitchenDAO.KitchenTicket>, Void>() {
@@ -148,9 +134,8 @@ public class WaiterServicePanel extends JPanel {
                         try {
                             rebuildCancelledTab(get());
                         } catch (Exception ex) {
-                            System.err.println("[WaiterServicePanel] tabChange cancelled: "
-                                    + ex.getMessage());
-                            showInlineError("Không thể tải danh sách đã hủy: " + ex.getMessage());
+                            InlineErrorBar.show(WaiterServicePanel.this,
+                                    "Không thể tải danh sách đã hủy: " + ex.getMessage());
                         }
                     }
                 }.execute();
@@ -165,6 +150,25 @@ public class WaiterServicePanel extends JPanel {
     private JPanel buildDeliveryTab() {
         JPanel outer = new JPanel(new BorderLayout());
         outer.setBackground(UIConstants.BG_PAGE);
+
+        // Thanh tiêu đề + spinner
+        JPanel titleBar = new JPanel(new BorderLayout());
+        titleBar.setBackground(UIConstants.BG_WHITE);
+        titleBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+
+        JLabel title = new JLabel("Phục vụ bàn");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        title.setForeground(UIConstants.TEXT_PRIMARY);
+
+        spinner = new SimpleSpinner(18, UIConstants.PRIMARY);
+        spinner.setVisible(false);
+
+        titleBar.add(title,   BorderLayout.WEST);
+        titleBar.add(spinner, BorderLayout.EAST);
+
+        outer.add(titleBar, BorderLayout.NORTH);
 
         deliveryCardsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 14, 14));
         deliveryCardsPanel.setBackground(UIConstants.BG_PAGE);
@@ -196,40 +200,7 @@ public class WaiterServicePanel extends JPanel {
         return cancelledPanel;
     }
 
-    // ─── showInlineError ──────────────────────────────────────────────────────
-
-    private void showInlineError(String msg) {
-        for (Component c : getComponents()) {
-            if (c instanceof JLabel
-                    && Boolean.TRUE.equals(((JLabel) c).getClientProperty("inlineError"))) {
-                remove(c);
-            }
-        }
-
-        JLabel errLabel = new JLabel("⚠  " + msg);
-        errLabel.putClientProperty("inlineError", Boolean.TRUE);
-        errLabel.setFont(UIConstants.FONT_SMALL);
-        errLabel.setForeground(UIConstants.DANGER);
-        errLabel.setOpaque(true);
-        errLabel.setBackground(new Color(0xFEE2E2));
-        errLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xFCA5A5)),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-
-        add(errLabel, BorderLayout.SOUTH);
-        revalidate();
-        repaint();
-
-        Timer hideTimer = new Timer(5000, e -> {
-            remove(errLabel);
-            revalidate();
-            repaint();
-        });
-        hideTimer.setRepeats(false);
-        hideTimer.start();
-    }
-
-    // ─── ComponentListener — Phase 7C ─────────────────────────────────────────
+    // ─── ComponentListener ────────────────────────────────────────────────────
 
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
@@ -251,9 +222,14 @@ public class WaiterServicePanel extends JPanel {
         });
     }
 
-    // ─── doPoll — Phase 7C ───────────────────────────────────────────────────
+    // ─── doPoll ───────────────────────────────────────────────────────────────
 
     private void doPoll() {
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
         new SwingWorker<WaiterPollData, Void>() {
 
             @Override
@@ -267,18 +243,24 @@ public class WaiterServicePanel extends JPanel {
 
             @Override
             protected void done() {
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
                 WaiterPollData data;
                 try {
                     data = get();
                 } catch (ExecutionException | InterruptedException ex) {
-                    showInlineError("Lỗi tải dữ liệu: " + ex.getMessage());
+                    InlineErrorBar.show(WaiterServicePanel.this,
+                            "Lỗi tải dữ liệu: " + ex.getMessage());
                     return;
                 }
 
                 rebuildDeliveryCards(data.readyMap);
                 rebuildCleanCards(data.dirtyList);
 
-                // ── Toast delta: "Phục vụ bàn" ──
+                // Toast delta: "Phục vụ bàn"
                 int newServe = (data.readyMap != null) ? data.readyMap.size() : 0;
                 if (lastServeCount >= 0 && newServe > lastServeCount) {
                     int diff = newServe - lastServeCount;
@@ -289,7 +271,7 @@ public class WaiterServicePanel extends JPanel {
                 }
                 lastServeCount = newServe;
 
-                // ── Toast delta: "Dọn bàn" ──
+                // Toast delta: "Dọn bàn"
                 int newClean = (data.dirtyList != null) ? data.dirtyList.size() : 0;
                 if (lastCleanCount >= 0 && newClean > lastCleanCount) {
                     int diff = newClean - lastCleanCount;
@@ -303,9 +285,14 @@ public class WaiterServicePanel extends JPanel {
         }.execute();
     }
 
-    // ─── loadData (full load, gọi lần đầu) ───────────────────────────────────
+    // ─── loadData ─────────────────────────────────────────────────────────────
 
     public void loadData() {
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
         new SwingWorker<Void, Void>() {
             Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
             List<TableItem>                              dirtyList;
@@ -322,6 +309,11 @@ public class WaiterServicePanel extends JPanel {
 
             @Override
             protected void done() {
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
                 try {
                     get();
                     rebuildDeliveryCards(readyMap);
@@ -332,7 +324,8 @@ public class WaiterServicePanel extends JPanel {
                     lastCleanCount = (dirtyList != null) ? dirtyList.size() : 0;
 
                 } catch (Exception ex) {
-                    showInlineError("Lỗi tải dữ liệu: " + ex.getMessage());
+                    InlineErrorBar.show(WaiterServicePanel.this,
+                            "Lỗi tải dữ liệu: " + ex.getMessage());
                 }
             }
         }.execute();
@@ -412,7 +405,6 @@ public class WaiterServicePanel extends JPanel {
         table.getColumnModel().getColumn(2).setPreferredWidth(120);
         table.getColumnModel().getColumn(3).setPreferredWidth(200);
 
-        // Status renderer (cột 2)
         table.getColumnModel().getColumn(2).setCellRenderer(
                 (tbl, val, sel, foc, row, col) -> {
                     TableItem item = tables.get(row);
@@ -429,7 +421,6 @@ public class WaiterServicePanel extends JPanel {
                     return lbl;
                 });
 
-        // Action renderer & editor (cột 3)
         table.getColumnModel().getColumn(3).setCellRenderer(new CleanActionRenderer(tables));
         table.getColumnModel().getColumn(3).setCellEditor(
                 new CleanActionEditor(tables, tableDAO, this::loadData));
@@ -573,7 +564,8 @@ public class WaiterServicePanel extends JPanel {
                 }
                 @Override protected void done() {
                     try { get(); } catch (Exception ex) {
-                        showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
+                        InlineErrorBar.show(WaiterServicePanel.this,
+                                "Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     loadData();
                 }
@@ -596,7 +588,8 @@ public class WaiterServicePanel extends JPanel {
                 }
                 @Override protected void done() {
                     try { get(); } catch (Exception ex) {
-                        showInlineError("Lỗi cập nhật trạng thái: " + ex.getMessage());
+                        InlineErrorBar.show(WaiterServicePanel.this,
+                                "Lỗi cập nhật trạng thái: " + ex.getMessage());
                     }
                     ToastNotification.show(
                             WaiterServicePanel.this,
@@ -677,7 +670,7 @@ public class WaiterServicePanel extends JPanel {
         return btn;
     }
 
-    // ─── Inner DTO: WaiterPollData ────────────────────────────────────────────
+    // ─── Inner DTO ────────────────────────────────────────────────────────────
 
     private static final class WaiterPollData {
         final Map<String, List<KitchenDAO.KitchenTicket>> readyMap;
@@ -692,7 +685,6 @@ public class WaiterServicePanel extends JPanel {
 
     // ─── Inner classes ────────────────────────────────────────────────────────
 
-    /** Viền bo tròn cho card. */
     private static class RoundedBorder extends AbstractBorder {
         private final int   radius;
         private final Color color;
@@ -714,7 +706,6 @@ public class WaiterServicePanel extends JPanel {
         }
     }
 
-    /** FlowLayout tự động xuống dòng. */
     private static class WrapLayout extends FlowLayout {
         WrapLayout(int align, int hgap, int vgap) { super(align, hgap, vgap); }
 
@@ -833,7 +824,8 @@ public class WaiterServicePanel extends JPanel {
                         try {
                             get();
                         } catch (Exception ex) {
-                            showInlineError("Lỗi cập nhật bàn: " + ex.getMessage());
+                            InlineErrorBar.show(WaiterServicePanel.this,
+                                    "Lỗi cập nhật bàn: " + ex.getMessage());
                         }
                         String msg = (next == TableItem.Status.RANH)
                                 ? "Bàn " + currentItem.getName() + " đã sẵn sàng phục vụ!"

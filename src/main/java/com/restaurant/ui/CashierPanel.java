@@ -38,26 +38,14 @@ import com.restaurant.model.TableItem;
 import com.restaurant.ui.dialog.CashierPaymentDialog;
 
 /**
- * CashierPanel — Phase 7C (Polling + Toast delta)
+ * CashierPanel — Phase 7C (Polling + Toast delta).
  *
- * <p>Màn hình thu ngân chia thành hai cột:
+ * <p>Thay đổi so với phiên bản cũ:
  * <ul>
- *   <li><b>Chờ thanh toán</b> – Orders đang active. Nhấn card → mở dialog.</li>
- *   <li><b>Đang xử lý</b>    – Card vừa xác nhận. Nhấn "Hoàn tất" → complete.</li>
- * </ul>
- *
- * <h3>Refactor StaffHeader</h3>
- * <ul>
- *   <li>Xóa {@code buildHeader()} nội bộ.</li>
- *   <li>Dùng {@link StaffHeader#create(String, String, null)} — CashierPanel
- *       không có nút "Kết ca" nên truyền {@code null} cho {@code onEndShift}.</li>
- *   <li>Nút "↻ Làm mới" chuyển sang {@link #buildTitleBar()} — thanh phụ ngay
- *       bên dưới StaffHeader, trước hai cột nội dung.</li>
- * </ul>
- *
- * <h3>Refactor EmptyState</h3>
- * <ul>
- *   <li>Dùng {@link EmptyStatePanel} dùng chung — xóa inner-class cũ.</li>
+ *   <li>Dùng {@link InlineErrorBar#show} thay vì {@link ToastNotification} để
+ *       hiện lỗi tải dữ liệu trong {@link #doPoll()} và {@link #loadData()}.</li>
+ *   <li>Thêm {@link SimpleSpinner} vào {@link #buildTitleBar()} — hiện khi đang
+ *       tải và ẩn khi xong.</li>
  * </ul>
  */
 public class CashierPanel extends JPanel {
@@ -105,8 +93,9 @@ public class CashierPanel extends JPanel {
 
     // ─── UI components ───────────────────────────────────────────────────────
 
-    private JPanel pendingColumn;
-    private JPanel processingColumn;
+    private JPanel        pendingColumn;
+    private JPanel        processingColumn;
+    private SimpleSpinner spinner;
 
     private final List<PaymentRequest> pendingList    = new ArrayList<>();
     private final List<PaymentRequest> processingList = new ArrayList<>();
@@ -132,7 +121,6 @@ public class CashierPanel extends JPanel {
     // ─── UI Construction ─────────────────────────────────────────────────────
 
     private void buildUI() {
-        // ── StaffHeader ───────────────────────────────────────────────────────
         String rName = "";
         try {
             String name = DataManager.getInstance().getMyRestaurant().getName();
@@ -141,7 +129,6 @@ public class CashierPanel extends JPanel {
 
         add(StaffHeader.create("Thu ngân", rName, null), BorderLayout.NORTH);
 
-        // ── Khu vực center: TitleBar (với nút làm mới) + hai cột ─────────────
         JPanel centerArea = new JPanel(new BorderLayout());
         centerArea.setBackground(UIConstants.BG_WHITE);
         centerArea.add(buildTitleBar(),   BorderLayout.NORTH);
@@ -151,7 +138,7 @@ public class CashierPanel extends JPanel {
     }
 
     /**
-     * Thanh phụ ngay dưới StaffHeader: tiêu đề màn hình + nút "↻ Làm mới".
+     * Thanh phụ: tiêu đề + spinner (loading) + nút "↻ Làm mới".
      */
     private JPanel buildTitleBar() {
         JPanel bar = new JPanel(new BorderLayout());
@@ -164,10 +151,17 @@ public class CashierPanel extends JPanel {
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
         title.setForeground(UIConstants.TEXT_PRIMARY);
 
-        JButton btnRefresh = buildRefreshButton();
+        // Spinner + nút Làm mới phía EAST
+        spinner = new SimpleSpinner(20, UIConstants.PRIMARY);
+        spinner.setVisible(false);
 
-        bar.add(title,      BorderLayout.WEST);
-        bar.add(btnRefresh, BorderLayout.EAST);
+        JPanel eastPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        eastPanel.setOpaque(false);
+        eastPanel.add(spinner);
+        eastPanel.add(buildRefreshButton());
+
+        bar.add(title,     BorderLayout.WEST);
+        bar.add(eastPanel, BorderLayout.EAST);
         return bar;
     }
 
@@ -243,7 +237,7 @@ public class CashierPanel extends JPanel {
         return outer;
     }
 
-    // ─── Phase 7C: ComponentListener ─────────────────────────────────────────
+    // ─── ComponentListener ────────────────────────────────────────────────────
 
     private void setupComponentListener() {
         addComponentListener(new ComponentAdapter() {
@@ -264,9 +258,14 @@ public class CashierPanel extends JPanel {
         });
     }
 
-    // ─── Phase 7C: doPoll ─────────────────────────────────────────────────────
+    // ─── doPoll ───────────────────────────────────────────────────────────────
 
     private void doPoll() {
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
         new SwingWorker<List<PaymentRequest>, Void>() {
 
             @Override
@@ -279,14 +278,17 @@ public class CashierPanel extends JPanel {
 
             @Override
             protected void done() {
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
                 List<PaymentRequest> loaded;
                 try {
                     loaded = get();
                 } catch (ExecutionException | InterruptedException ex) {
-                    System.err.println("[CashierPanel] doPoll lỗi: " + ex.getMessage());
-                    ToastNotification.show(CashierPanel.this,
-                            "Lỗi tải dữ liệu: " + ex.getMessage(),
-                            ToastNotification.Type.ERROR);
+                    InlineErrorBar.show(CashierPanel.this,
+                            "Lỗi tải dữ liệu: " + ex.getMessage());
                     return;
                 }
 
@@ -315,9 +317,14 @@ public class CashierPanel extends JPanel {
         }.execute();
     }
 
-    // ─── loadData (full initial load) ────────────────────────────────────────
+    // ─── loadData ─────────────────────────────────────────────────────────────
 
     public void loadData() {
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
         new SwingWorker<List<PaymentRequest>, Void>() {
 
             @Override
@@ -330,6 +337,11 @@ public class CashierPanel extends JPanel {
 
             @Override
             protected void done() {
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
                 try {
                     List<PaymentRequest> loaded = get();
 
@@ -348,10 +360,8 @@ public class CashierPanel extends JPanel {
                     lastPaymentCount = pendingList.size();
 
                 } catch (ExecutionException | InterruptedException e) {
-                    System.err.println("[CashierPanel] loadData lỗi: " + e.getMessage());
-                    ToastNotification.show(CashierPanel.this,
-                            "Lỗi tải dữ liệu: " + e.getMessage(),
-                            ToastNotification.Type.ERROR);
+                    InlineErrorBar.show(CashierPanel.this,
+                            "Lỗi tải dữ liệu: " + e.getMessage());
                 }
             }
         }.execute();
@@ -397,10 +407,8 @@ public class CashierPanel extends JPanel {
                                 ToastNotification.Type.ERROR);
                     }
                 } catch (ExecutionException | InterruptedException e) {
-                    System.err.println("[CashierPanel] completePayment lỗi: " + e.getMessage());
-                    ToastNotification.show(CashierPanel.this,
-                            "Lỗi thanh toán: " + e.getMessage(),
-                            ToastNotification.Type.ERROR);
+                    InlineErrorBar.show(CashierPanel.this,
+                            "Lỗi thanh toán: " + e.getMessage());
                 }
             }
         }.execute();
@@ -443,7 +451,6 @@ public class CashierPanel extends JPanel {
     }
 
     private void rebuildProcessingColumn(String employeeName, PaymentRequest newReq) {
-        // Remove empty-state placeholder if present
         if (processingColumn.getComponentCount() == 1
                 && processingColumn.getComponent(0) instanceof EmptyStatePanel) {
             processingColumn.removeAll();
