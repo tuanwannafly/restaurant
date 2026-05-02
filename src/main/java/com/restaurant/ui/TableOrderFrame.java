@@ -86,8 +86,10 @@ public class TableOrderFrame extends JFrame {
     private final List<CartItem> cartItems = new ArrayList<>();
 
     // ─── Formatting ──────────────────────────────────────────────────────────
-    private static final NumberFormat PRICE_FMT = NumberFormat.getInstance(Locale.of("vi", "VN"));
-    private static final String[]     CART_COLS = {
+    // FIX 1: dùng new Locale() thay Locale.of() để tương thích Java < 19
+    private static final NumberFormat PRICE_FMT = NumberFormat.getInstance(new Locale("vi", "VN"));
+
+    private static final String[] CART_COLS = {
             "STT", "Tên món", "Đơn giá (đ)", "Thành tiền (đ)", "Ghi chú", "Số lượng"
     };
 
@@ -180,18 +182,6 @@ public class TableOrderFrame extends JFrame {
         }
 
         cardLayout.show(cardPanel, card);
-    }
-
-    // ─── PHASE 1A: Placeholder builder ───────────────────────────────────────
-
-    private JPanel buildPlaceholder(String name) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setBackground(UIConstants.BG_PAGE);
-        JLabel lbl = new JLabel("Card: " + name + " — đang phát triển", SwingConstants.CENTER);
-        lbl.setFont(UIConstants.FONT_TITLE);
-        lbl.setForeground(UIConstants.TEXT_SECONDARY);
-        p.add(lbl, BorderLayout.CENTER);
-        return p;
     }
 
     // ─── Card builders ────────────────────────────────────────────────────────
@@ -579,7 +569,8 @@ public class TableOrderFrame extends JFrame {
                         ToastNotification.show(TableOrderFrame.this,
                                 "Thanh toán hoàn tất! Cảm ơn quý khách.",
                                 ToastNotification.Type.SUCCESS);
-                        javax.swing.Timer delay = new javax.swing.Timer(2000, e -> dispose());
+                        // FIX 3: bỏ javax.swing. prefix — dùng Timer trực tiếp
+                        Timer delay = new Timer(2000, e -> dispose());
                         delay.setRepeats(false);
                         delay.start();
                     }
@@ -624,9 +615,7 @@ public class TableOrderFrame extends JFrame {
                 new Color(0xBFDBFE), 1, true));
         logoLabel.setHorizontalAlignment(SwingConstants.CENTER);
         logoLabel.setVerticalAlignment(SwingConstants.CENTER);
-        // Thêm logoLabel vào đầu panel LEFT
         left.add(logoLabel);
-        // Load async sau khi frame visible; nếu null/blank → label trống, icon ⛁ vẫn hiển thị
         SwingUtilities.invokeLater(() -> {
             try {
                 com.restaurant.model.Restaurant r =
@@ -910,11 +899,9 @@ public class TableOrderFrame extends JFrame {
         imgLabel.setPreferredSize(new Dimension(ImageLoader.IMG_W, 100));
         imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
         imgLabel.setVerticalAlignment(SwingConstants.CENTER);
-        // ImageLoader tự hiện PLACEHOLDER khi imageUrl null/blank/lỗi
         ImageLoader.loadAsync(item.getImageUrl(), imgLabel);
-        // ─────────────────────────────────────────────────────────────────────
 
-        // Info section — giữ nguyên như cũ
+        // Info section
         JPanel info = new JPanel(new BorderLayout(0, 2));
         info.setOpaque(false);
         info.setBorder(new EmptyBorder(6, 10, 0, 10));
@@ -958,7 +945,7 @@ public class TableOrderFrame extends JFrame {
         info.add(lblPrice, BorderLayout.CENTER);
         info.add(btnRow,   BorderLayout.SOUTH);
 
-        card.add(imgLabel, BorderLayout.CENTER); // ← Phase 6A: dùng imgLabel
+        card.add(imgLabel, BorderLayout.CENTER);
         card.add(info,     BorderLayout.SOUTH);
 
         card.addMouseListener(new MouseAdapter() {
@@ -966,19 +953,6 @@ public class TableOrderFrame extends JFrame {
         });
 
         return card;
-    }
-
-    private String pickFoodEmoji(String category) {
-        if (category == null) return "🍽";
-        String c = category.toLowerCase();
-        if (c.contains("uống") || c.contains("drink"))     return "🥤";
-        if (c.contains("tráng") || c.contains("dessert"))  return "🍮";
-        if (c.contains("hải sản") || c.contains("seafood")) return "🦐";
-        if (c.contains("thịt") || c.contains("meat"))      return "🥩";
-        if (c.contains("cơm") || c.contains("rice"))       return "🍚";
-        if (c.contains("phở") || c.contains("soup"))       return "🍜";
-        if (c.contains("gà") || c.contains("chicken"))     return "🍗";
-        return "🍽";
     }
 
     private JToggleButton buildPaymentToggle(String text) {
@@ -1397,16 +1371,20 @@ public class TableOrderFrame extends JFrame {
             cartTable.getCellEditor().stopCellEditing();
         }
 
-        List<Order.OrderItem> orderItems = new ArrayList<>();
-        for (CartItem ci : cartItems) {
-            orderItems.add(new Order.OrderItem(ci.menuItemId, ci.name, ci.quantity, ci.unitPrice));
-        }
+        // Snapshot danh sách để dùng trong SwingWorker (thread-safety)
+        final List<CartItem> snapshot = new ArrayList<>(cartItems);
         final int round = currentRound;
 
+        // FIX 2: convert sang List<OrderDAO.CartEntry> bên trong doInBackground()
         new SwingWorker<Boolean, Void>() {
             @Override
             protected Boolean doInBackground() {
-                return orderDAO.addOrderItems(orderId, orderItems, round);
+                List<OrderDAO.CartEntry> cartEntries = new ArrayList<>();
+                for (CartItem ci : snapshot) {
+                    cartEntries.add(new OrderDAO.CartEntry(
+                            ci.menuItemId, ci.quantity, ci.unitPrice));
+                }
+                return orderDAO.addOrderItems(orderId, cartEntries, round);
             }
 
             @Override

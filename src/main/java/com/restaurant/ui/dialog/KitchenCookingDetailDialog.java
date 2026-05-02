@@ -1,20 +1,32 @@
 package com.restaurant.ui.dialog;
 
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.model.Order;
-import com.restaurant.ui.components.RoundedButton;
-import com.restaurant.ui.components.ToastNotification;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Window;
+import java.util.List;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 
-import java.awt.*;
-import java.util.List;
-
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.model.Order;
+import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.ToastNotification;
 import static com.restaurant.ui.UIConstants.BG_PAGE;
 import static com.restaurant.ui.UIConstants.BORDER_COLOR;
@@ -23,7 +35,6 @@ import static com.restaurant.ui.UIConstants.FONT_BOLD;
 import static com.restaurant.ui.UIConstants.HEADER_BG;
 import static com.restaurant.ui.UIConstants.PRIMARY;
 import static com.restaurant.ui.UIConstants.TEXT_SECONDARY;
-import static com.restaurant.ui.theme.AppTheme.*;
 
 /**
  * Phase 3C-2 – Dialog hiển thị các ticket đang COOKING của một món,
@@ -100,7 +111,7 @@ public class KitchenCookingDetailDialog extends JDialog {
         ) {
             @Override
             public boolean isCellEditable(int row, int col) {
-                return false;   // toàn bộ bảng read-only
+                return false;
             }
         };
 
@@ -119,18 +130,15 @@ public class KitchenCookingDetailDialog extends JDialog {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setFillsViewportHeight(true);
 
-        // Header style
         table.getTableHeader().setBackground(HEADER_BG);
         table.getTableHeader().setForeground(Color.WHITE);
         table.getTableHeader().setFont(FONT_BOLD);
         table.getTableHeader().setReorderingAllowed(false);
 
-        // Column widths
         setColumnWidth(table, COL_TABLE, 120);
         setColumnWidth(table, COL_QTY,    90);
         setColumnWidth(table, COL_NOTE,  180);
 
-        // Centre-align all columns
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
         for (int c = 0; c < model.getColumnCount(); c++) {
@@ -164,12 +172,10 @@ public class KitchenCookingDetailDialog extends JDialog {
         return south;
     }
 
-    /** WEST: nhãn nhân viên đang thực hiện */
     private JPanel buildSouthWest() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         panel.setOpaque(false);
 
-        // Lấy tên nhân viên từ ticket đầu tiên, fallback nếu null
         String empName = (!tickets.isEmpty() && tickets.get(0).assignedEmployeeName != null)
                 ? tickets.get(0).assignedEmployeeName
                 : "Nguyễn Thị Thanh";
@@ -181,7 +187,6 @@ public class KitchenCookingDetailDialog extends JDialog {
         return panel;
     }
 
-    /** EAST: nút "←" + nút "Đã hoàn thành" */
     private JPanel buildSouthEast() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         panel.setOpaque(false);
@@ -191,7 +196,8 @@ public class KitchenCookingDetailDialog extends JDialog {
         btnBack.setFocusPainted(false);
         btnBack.addActionListener(e -> dispose());
 
-        com.restaurant.ui.RoundedButton btnDone = new RoundedButton("Đã hoàn thành", COLOR_DONE);
+        RoundedButton btnDone = new RoundedButton("Đã hoàn thành", COLOR_DONE,
+                COLOR_DONE.darker(), Color.WHITE, 8);
         btnDone.setPreferredSize(new Dimension(130, 34));
         btnDone.addActionListener(e -> doComplete());
 

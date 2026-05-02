@@ -1,32 +1,51 @@
 package com.restaurant.ui.dialog;
 
-import com.restaurant.dao.EmployeeDAO;
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.model.Employee;
-import com.restaurant.model.Order;
-import com.restaurant.ui.components.RoundedButton;
-import com.restaurant.ui.components.ToastNotification;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Window;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 
-import java.awt.*;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
-
+import com.restaurant.dao.EmployeeDAO;
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.model.Employee;
+import com.restaurant.model.Order;
+import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.ToastNotification;
 import static com.restaurant.ui.UIConstants.BG_PAGE;
 import static com.restaurant.ui.UIConstants.BORDER_COLOR;
 import static com.restaurant.ui.UIConstants.FONT_BOLD;
 import static com.restaurant.ui.UIConstants.HEADER_BG;
 import static com.restaurant.ui.UIConstants.PRIMARY;
-import static com.restaurant.ui.theme.AppTheme.*;
 
 /**
  * Phase 3C-1 – Dialog hiển thị chi tiết các ticket đang PENDING của một món,
@@ -47,7 +66,6 @@ public class KitchenPendingDetailDialog extends JDialog {
     private JCheckBox         chkAll;
     private JComboBox<String> cboEmployee;
 
-    /** Danh sách nhân viên DAU_BEP – giữ để map index → Employee khi cần */
     private List<Employee> cookEmployees;
 
     // ─── Column indices ───────────────────────────────────────────────────────
@@ -106,7 +124,6 @@ public class KitchenPendingDetailDialog extends JDialog {
     // ── CENTER ────────────────────────────────────────────────────────────────
 
     private JScrollPane buildCenterPanel() {
-        // Model: cột 0 là Boolean (checkbox), các cột còn lại là Object
         tableModel = new DefaultTableModel(
                 new Object[]{"Tùy chọn", "Tên bàn", "Số lượng", "Ghi chú", "TG chờ"},
                 0
@@ -131,20 +148,17 @@ public class KitchenPendingDetailDialog extends JDialog {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setFillsViewportHeight(true);
 
-        // Header style
         table.getTableHeader().setBackground(HEADER_BG);
         table.getTableHeader().setForeground(Color.WHITE);
         table.getTableHeader().setFont(FONT_BOLD);
         table.getTableHeader().setReorderingAllowed(false);
 
-        // Column widths
         setColumnWidth(COL_CHECK,  60);
         setColumnWidth(COL_TABLE,  90);
         setColumnWidth(COL_QTY,    80);
         setColumnWidth(COL_NOTE,  130);
         setColumnWidth(COL_WAIT,   90);
 
-        // Centre-align all non-boolean columns
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
         for (int c = COL_TABLE; c <= COL_WAIT; c++) {
@@ -193,13 +207,11 @@ public class KitchenPendingDetailDialog extends JDialog {
         return south;
     }
 
-    /** WEST: "Chế biến tất cả" checkbox + label / combobox nhân viên */
     private JPanel buildSouthWest() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setOpaque(false);
 
-        // Row 1 – check-all
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row1.setOpaque(false);
         chkAll = new JCheckBox("Chế biến tất cả");
@@ -208,7 +220,6 @@ public class KitchenPendingDetailDialog extends JDialog {
         chkAll.addActionListener(e -> toggleSelectAll(chkAll.isSelected()));
         row1.add(chkAll);
 
-        // Row 2 – employee picker
         JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         row2.setOpaque(false);
 
@@ -226,7 +237,6 @@ public class KitchenPendingDetailDialog extends JDialog {
         return panel;
     }
 
-    /** EAST: nút "←" + nút "Thực hiện" */
     private JPanel buildSouthEast() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         panel.setOpaque(false);
@@ -236,7 +246,8 @@ public class KitchenPendingDetailDialog extends JDialog {
         btnBack.setFocusPainted(false);
         btnBack.addActionListener(e -> dispose());
 
-        RoundedButton btnExecute = new RoundedButton("Thực hiện", PRIMARY);
+        RoundedButton btnExecute = new RoundedButton("Thực hiện", PRIMARY,
+                PRIMARY.darker(), Color.WHITE, 8);
         btnExecute.setPreferredSize(new Dimension(110, 34));
         btnExecute.addActionListener(e -> doExecute());
 
@@ -249,11 +260,8 @@ public class KitchenPendingDetailDialog extends JDialog {
 
     private JComboBox<String> buildEmployeeCombo() {
         JComboBox<String> combo = new JComboBox<>();
-
-        // Placeholder item (disabled)
         combo.addItem("Chọn nhân viên");
 
-        // Load DAU_BEP employees
         try {
             cookEmployees = new EmployeeDAO()
                     .findAll()
@@ -269,7 +277,6 @@ public class KitchenPendingDetailDialog extends JDialog {
             combo.addItem(emp.getName());
         }
 
-        // Disable the placeholder item in the drop-down list
         combo.setRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value,
@@ -291,9 +298,7 @@ public class KitchenPendingDetailDialog extends JDialog {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    /** Tick/untick tất cả checkbox ở cột 0 */
     private void toggleSelectAll(boolean selected) {
-        // Commit bất kỳ cell editor đang mở
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
         for (int r = 0; r < tableModel.getRowCount(); r++) {
             tableModel.setValueAt(selected, r, COL_CHECK);
@@ -303,10 +308,8 @@ public class KitchenPendingDetailDialog extends JDialog {
     // ─── Action ───────────────────────────────────────────────────────────────
 
     private void doExecute() {
-        // Commit cell editor đang mở (nếu có)
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
 
-        // 1. Collect checked rows
         List<String> selectedItemIds = new java.util.ArrayList<>();
         for (int r = 0; r < tableModel.getRowCount(); r++) {
             Boolean checked = (Boolean) tableModel.getValueAt(r, COL_CHECK);
@@ -315,7 +318,6 @@ public class KitchenPendingDetailDialog extends JDialog {
             }
         }
 
-        // 2. Validate
         if (selectedItemIds.isEmpty()) {
             JOptionPane.showMessageDialog(
                     this,
@@ -326,7 +328,6 @@ public class KitchenPendingDetailDialog extends JDialog {
             return;
         }
 
-        // 3. SwingWorker – cập nhật trạng thái sang COOKING
         Window owner = SwingUtilities.getWindowAncestor(this);
         new SwingWorker<Void, Void>() {
             @Override
