@@ -36,6 +36,10 @@ import static org.junit.Assert.*;
  *   <li>Phục vụ (WAITER) giao món READY → DELIVERING → DELIVERED</li>
  *   <li>Thu ngân thanh toán → order COMPLETED</li>
  *   <li>Verify PollManager sạch sau logout</li>
+ *   <li>Re-register timer sau logout không gây lỗi</li>
+ *   <li>Dữ liệu đồng bộ giữa các màn hình (timing test)</li>
+ *   <li>Logout dừng toàn bộ timer</li>
+ *   <li>Badge count chính xác từ DAO</li>
  * </ol>
  */
 public class FullOrderFlowIntegrationTest {
@@ -284,6 +288,144 @@ public class FullOrderFlowIntegrationTest {
         });
 
         System.out.println("  ✓ Re-register sau logout hoạt động đúng");
+    }
+
+    // ─── Step 8, 9, 10 — mới bổ sung ─────────────────────────────────────────
+
+    /**
+     * STEP 8 — Verify dữ liệu đồng bộ giữa các màn hình (timing test).
+     *
+     * <p>Kiểm tra rằng ngay sau khi {@code addOrderItems} commit xuống DB,
+     * {@link KitchenDAO#getActiveTickets(long)} đã trả về ticket mới — không có
+     * độ trễ hay cache nào che khuất dữ liệu.  Đây là điều kiện cần thiết để
+     * màn hình Bếp nhận được thông báo trong vòng poll kế tiếp (≤ 5 giây).
+     *
+     * <p><b>Assertion chính:</b>
+     * <ul>
+     *   <li>Ticket list không rỗng sau khi gọi món.</li>
+     *   <li>Ít nhất một ticket thuộc đúng {@code TEST_TABLE_ID} đang test.</li>
+     * </ul>
+     */
+    @Test
+    public void testStep8_DataSyncBetweenScreens() {
+        System.out.println("\n=== STEP 8: Dữ liệu đồng bộ giữa các màn hình ===");
+
+        // Cần có order + items trong DB trước khi kiểm tra
+        testStep2_GuestOrdersFood();
+
+        // Kitchen side: KitchenDAO.getActiveTickets() phải thấy item ngay lập tức
+        List<KitchenTicket> tickets = kitchenDAO.getActiveTickets(TEST_RESTAURANT_ID);
+
+        assertFalse("KitchenPanel phải thấy item mới ngay sau khi order — "
+                  + "không được có độ trễ cache",
+                    tickets.isEmpty());
+
+        // Verify ít nhất một ticket thuộc đúng bàn đang test
+        boolean foundTable = tickets.stream()
+                .anyMatch(t -> TEST_TABLE_ID.equals(t.getTableId()));
+        assertTrue("Ticket phải thuộc đúng TEST_TABLE_ID='" + TEST_TABLE_ID + "'",
+                   foundTable);
+
+        // Kiểm tra thêm: ticket vừa tạo phải ở trạng thái PENDING
+        boolean allPending = tickets.stream()
+                .filter(t -> TEST_TABLE_ID.equals(t.getTableId()))
+                .allMatch(t -> t.getItemStatus() == ItemStatus.PENDING);
+        assertTrue("Ticket mới của bàn test phải ở trạng thái PENDING", allPending);
+
+        System.out.printf("  ✓ KitchenDAO thấy %d ticket(s) — dữ liệu đồng bộ tức thì%n",
+                          tickets.size());
+    }
+
+    /**
+     * STEP 9 — Verify logout dừng tất cả timer của phiên làm việc hiện tại.
+     *
+     * <p>Mô phỏng tình huống thực tế: 3 panel đã register timer
+     * ({@code kitchen}, {@code waiter}, {@code cashier}).  Khi logout,
+     * {@link PollManager#stopAll()} phải dừng toàn bộ — không sót timer nào
+     * tiếp tục query DB sau khi session không còn hợp lệ.
+     *
+     * <p><b>Assertion chính:</b>
+     * <ul>
+     *   <li>{@link PollManager#activeCount()} = 3 trước khi logout.</li>
+     *   <li>{@link PollManager#activeCount()} = 0 ngay sau {@code stopAll()}.</li>
+     *   <li>Từng key cụ thể đều trả về {@code isRunning() == false}.</li>
+     * </ul>
+     */
+    @Test
+    public void testStep9_LogoutClearsAllTimers() throws Exception {
+        System.out.println("\n=== STEP 9: Logout dừng tất cả timer ===");
+
+        // Register 3 timer đại diện cho 3 panel đang polling
+        runOnEDTAndWait(() -> {
+            PollManager pm = PollManager.getInstance();
+            pm.register("test_kitchen", () -> {}, 5000);
+            pm.register("test_waiter",  () -> {}, 5000);
+            pm.register("test_cashier", () -> {}, 5000);
+
+            assertEquals("Phải có đúng 3 timer đang chạy trước khi logout",
+                         3, pm.activeCount());
+            assertTrue("test_kitchen phải đang chạy", pm.isRunning("test_kitchen"));
+            assertTrue("test_waiter phải đang chạy",  pm.isRunning("test_waiter"));
+            assertTrue("test_cashier phải đang chạy", pm.isRunning("test_cashier"));
+        });
+
+        // Simulate logout → MainFrame.handleLogout() → PollManager.stopAll()
+        runOnEDTAndWait(() -> PollManager.getInstance().stopAll());
+
+        // Verify toàn bộ timer đã dừng
+        runOnEDTAndWait(() -> {
+            PollManager pm = PollManager.getInstance();
+
+            assertEquals("Sau logout phải không còn timer nào chạy",
+                         0, pm.activeCount());
+            assertFalse("test_kitchen phải dừng sau logout",
+                        pm.isRunning("test_kitchen"));
+            assertFalse("test_waiter phải dừng sau logout",
+                        pm.isRunning("test_waiter"));
+            assertFalse("test_cashier phải dừng sau logout",
+                        pm.isRunning("test_cashier"));
+        });
+
+        System.out.println("  ✓ Tất cả timer đã dừng — không còn orphan polling sau logout");
+    }
+
+    /**
+     * STEP 10 — Verify badge counts từ DAO phản ánh đúng trạng thái thực tế.
+     *
+     * <p>Sau khi khách gọi món (Step 2), badge trên nút Bếp phải > 0 vì có
+     * item đang chờ bếp.  Đồng thời badge Phục vụ phải = 0 vì chưa có item
+     * nào READY (bếp chưa nấu).
+     *
+     * <p><b>Assertion chính:</b>
+     * <ul>
+     *   <li>{@link KitchenDAO#getPendingCount(long)} > 0 sau {@code addOrderItems}.</li>
+     *   <li>{@link KitchenDAO#getReadyCount(long)} = 0 trước khi bếp nấu xong.</li>
+     * </ul>
+     *
+     * <p><b>Lý do tách Step 10 ra khỏi Step 3:</b> Badge count dùng
+     * {@code COUNT(*)} query độc lập với {@code getActiveTickets()} — cần test
+     * riêng để đảm bảo SQL đếm đúng, không phụ thuộc vào kết quả trả về danh sách.
+     */
+    @Test
+    public void testStep10_BadgeCountAccuracy() {
+        System.out.println("\n=== STEP 10: Badge count chính xác từ DAO ===");
+
+        // Cần có item PENDING trong DB
+        testStep2_GuestOrdersFood();
+
+        // Badge Bếp: phải > 0 ngay sau khi order
+        int pendingCount = kitchenDAO.getPendingCount(TEST_RESTAURANT_ID);
+        assertTrue("Badge Bếp (pendingCount) phải > 0 sau khi khách gọi món — "
+                 + "thực tế: " + pendingCount,
+                   pendingCount > 0);
+
+        // Badge Phục vụ: phải = 0 vì bếp chưa nấu gì (không có item READY)
+        int readyCount = kitchenDAO.getReadyCount(TEST_RESTAURANT_ID);
+        assertEquals("Badge Phục vụ (readyCount) phải = 0 trước khi bếp nấu xong",
+                     0, readyCount);
+
+        System.out.printf("  ✓ pendingCount=%d (>0) | readyCount=%d (=0) — badge chính xác%n",
+                          pendingCount, readyCount);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
