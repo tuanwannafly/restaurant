@@ -1,19 +1,17 @@
 /*
  * app.css  —  SmartRestaurant JavaFX Theme
  * ─────────────────────────────────────────
- * Design tokens mirror UIConstants.java from the Swing version.
- *
  * Colour palette:
- *   --color-primary        #5B6AF0   (indigo)
- *   --color-primary-light  #EEF0FD
- *   --color-surface        #F8F9FC
- *   --color-surface-card   #FFFFFF
- *   --color-border-subtle  #E8EAF0
- *   --color-text-primary   #1A1D2E
- *   --color-text-secondary #6B7280
- *   --color-text-tertiary  #B0B7C3
- *   --color-danger         #EF4444
- *   --color-neutral-bg     #F3F4F6
+ *   Primary        #5B6AF0   (indigo)
+ *   Primary-light  #EEF0FD
+ *   Surface        #F8F9FC
+ *   Card           #FFFFFF
+ *   Border-subtle  #E8EAF0
+ *   Text-primary   #1A1D2E
+ *   Text-secondary #6B7280
+ *   Text-tertiary  #B0B7C3
+ *   Danger         #EF4444
+ *   Neutral-bg     #F3F4F6
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -63,6 +61,7 @@
     -fx-font-size: 14px;
 }
 
+/* Role badge — top-bar variant (grey pill) */
 .role-badge {
     -fx-background-color: #F3F4F6;
     -fx-background-radius: 4px;
@@ -109,8 +108,7 @@
     -fx-padding: 0;
 }
 
-/* ── Nav items (plain HBox) ──────────────────────────────────────────────── */
-
+/* Nav items */
 .nav-item {
     -fx-pref-height: 40px;
     -fx-background-radius: 8px;
@@ -123,43 +121,18 @@
     -fx-font-size: 13px;
 }
 
-/* Hover */
-.nav-item:hover-nav {
-    -fx-background-color: #F3F4F6;
-}
+.nav-item:hover-nav                   { -fx-background-color: #F3F4F6; }
+.nav-item:hover-nav .nav-item-text    { -fx-text-fill: #1A1D2E; }
+.nav-item:active-nav                  { -fx-background-color: #EEF0FD; }
+.nav-item:active-nav .nav-item-text   { -fx-text-fill: #5B6AF0; -fx-font-weight: bold; }
 
-.nav-item:hover-nav .nav-item-text {
-    -fx-text-fill: #1A1D2E;
-}
-
-/* Active */
-.nav-item:active-nav {
-    -fx-background-color: #EEF0FD;
-    /* Left accent stripe — painted via StackPane overlay in BadgeLabel,
-       or via a custom Paint for plain items if needed */
-}
-
-.nav-item:active-nav .nav-item-text {
-    -fx-text-fill: #5B6AF0;
-    -fx-font-weight: bold;
-}
-
-/* ── BadgeLabel container ────────────────────────────────────────────────── */
-
+/* BadgeLabel container */
 .badge-label-container {
     -fx-pref-height: 40px;
     -fx-background-radius: 8px;
     -fx-padding: 0 12 0 12;
     -fx-cursor: hand;
-    -fx-min-width: 196px;  /* 220 - 2*12 padding */
-}
-
-.badge-label-container:hover-nav {
-    -fx-background-color: #F3F4F6;
-}
-
-.badge-label-container:active-nav {
-    -fx-background-color: #EEF0FD;
+    -fx-min-width: 196px;
 }
 
 .nav-label-text {
@@ -167,24 +140,17 @@
     -fx-font-size: 13px;
 }
 
-.badge-label-container:hover-nav .nav-label-text {
-    -fx-text-fill: #1A1D2E;
-}
+.badge-label-container:hover-nav                    { -fx-background-color: #F3F4F6; }
+.badge-label-container:hover-nav .nav-label-text    { -fx-text-fill: #1A1D2E; }
+.badge-label-container:active-nav                   { -fx-background-color: #EEF0FD; }
+.badge-label-container:active-nav .nav-label-text   { -fx-text-fill: #5B6AF0; -fx-font-weight: bold; }
 
-.badge-label-container:active-nav .nav-label-text {
-    -fx-text-fill: #5B6AF0;
-    -fx-font-weight: bold;
-}
-
-/* ── Badge dot (red circle) ─────────────────────────────────────────────── */
-
+/* Badge dot */
 .badge-dot {
     -fx-background-color: #EF4444;
     -fx-background-radius: 9px;
-    -fx-min-width:  16px;
-    -fx-min-height: 16px;
-    -fx-max-width:  18px;
-    -fx-max-height: 18px;
+    -fx-min-width: 16px; -fx-min-height: 16px;
+    -fx-max-width: 18px; -fx-max-height: 18px;
     -fx-alignment: center;
 }
 
@@ -236,9 +202,7 @@
     -fx-alignment: center-left;
 }
 
-.logout-btn:hover {
-    -fx-background-color: #FEF2F2;
-}
+.logout-btn:hover { -fx-background-color: #FEF2F2; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CONTENT AREA
@@ -258,3 +222,265 @@
     -fx-text-fill: #B0B7C3;
     -fx-font-size: 18px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED COMPONENTS  (Phase 13+)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Buttons ────────────────────────────────────────────────── */
+
+.btn-primary {
+    -fx-background-color: #2563EB;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-pref-height: 34;
+}
+
+.btn-primary:hover    { -fx-background-color: #1D4ED8; }
+.btn-primary:disabled { -fx-background-color: #CBD5E1; -fx-text-fill: white; -fx-opacity: 1; }
+
+.btn-outline {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1.2;
+    -fx-text-fill: #0F172A;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-pref-height: 34;
+}
+
+.btn-outline:hover { -fx-background-color: #F8FAFC; }
+
+.btn-outline-sm {
+    -fx-background-color: white;
+    -fx-background-radius: 6;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-text-fill: #0F172A;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+    -fx-pref-height: 30;
+    -fx-pref-width: 100;
+}
+
+.btn-outline-sm:hover { -fx-background-color: #F8FAFC; }
+
+/* ── Status / message labels ────────────────────────────────── */
+
+.msg-label   { -fx-font-size: 11px; -fx-text-fill: #64748B; }
+.msg-success { -fx-font-size: 11px; -fx-text-fill: #16A34A; }
+.msg-danger  { -fx-font-size: 11px; -fx-text-fill: #DC2626; }
+
+.hint-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+
+.card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+}
+
+/* ── Form elements ──────────────────────────────────────────── */
+
+.section-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #64748B;
+    -fx-padding: 0 0 10 0;
+}
+
+.field-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+    -fx-min-width: 130;
+    -fx-pref-width: 130;
+}
+
+.readonly-value {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+}
+
+.divider-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+    -fx-padding: 4 0 4 0;
+}
+
+/* ── CleanField (custom TextField) ──────────────────────────── */
+
+.clean-field {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0F172A;
+    -fx-pref-height: 36;
+}
+
+.clean-field:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+.clean-field.readonly-field,
+.clean-field:disabled {
+    -fx-background-color: #F3F4F6;
+    -fx-text-fill: #64748B;
+    -fx-border-color: #E2E8F0;
+    -fx-opacity: 1;
+}
+
+/* PasswordField — same look as CleanField */
+.tab-content .password-field {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
+    -fx-pref-height: 36;
+}
+
+.tab-content .password-field:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+/* ─── TextArea ──────────────────────────────────────────────── */
+
+.clean-textarea {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0F172A;
+}
+
+.clean-textarea:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MY RESTAURANT VIEW
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page-root {
+    -fx-background-color: #F8FAFC;
+}
+
+.body-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.body-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Page header bar */
+.page-header {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #E2E8F0 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 16 24 16 24;
+}
+
+.page-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0F172A;
+}
+
+.header-sub {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+}
+
+.sep-dot {
+    -fx-text-fill: #E2E8F0;
+    -fx-font-size: 13px;
+}
+
+/* Status badges (inline text, no background) */
+.badge-success { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #16A34A; }
+.badge-warning { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #D97706; }
+
+/* Logo circle avatar */
+.logo-circle {
+    -fx-background-color: #EFF6FF;
+    -fx-background-radius: 32;
+    -fx-border-color: #BFDBFE;
+    -fx-border-radius: 32;
+    -fx-border-width: 1.5;
+}
+
+.logo-initials {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2563EB;
+}
+
+/* Hours card */
+.hours-day    { -fx-font-size: 13px; -fx-text-fill: #64748B; }
+.hours-open   { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #16A34A; }
+.hours-closed { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #DC2626; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MY PROFILE DIALOG
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dialog-root    { -fx-background-color: white; }
+
+.dialog-header  { -fx-background-color: #2563EB; }
+
+.dialog-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+
+/* Role badge — dialog variant (outlined, on blue background) */
+.role-badge--dialog {
+    -fx-background-color: transparent;
+    -fx-border-color: #93C5FD;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-text-fill: #BFDBFE;
+}
+
+.profile-tabs {
+    -fx-tab-min-height: 36;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.tab-content { -fx-background-color: white; }
