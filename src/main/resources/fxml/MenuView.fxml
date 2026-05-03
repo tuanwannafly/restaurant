@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.text.*?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.restaurant.ui.MenuController"
+      styleClass="menu-root"
+      stylesheets="@../css/menu.css"
+      spacing="0">
+
+    <!-- ── Top Bar ─────────────────────────────────────────────────── -->
+    <HBox styleClass="top-bar" alignment="CENTER_LEFT">
+        <Label text="Quản lý Menu" styleClass="page-title"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Button fx:id="btnStat"
+                    text="📊 Thống kê"
+                    onAction="#onStatClicked"
+                    styleClass="btn-stat"/>
+            <Button fx:id="btnAdd"
+                    text="+ Thêm món"
+                    onAction="#onAddClicked"
+                    styleClass="btn-primary"/>
+        </HBox>
+        <padding><Insets top="20" right="48" bottom="12" left="48"/></padding>
+    </HBox>
+
+    <!-- ── Filter Card ──────────────────────────────────────────────── -->
+    <HBox styleClass="filter-card" alignment="CENTER_LEFT" spacing="12">
+        <Label text="🔍" styleClass="search-icon"/>
+        <TextField fx:id="tfSearch"
+                   promptText="Tìm kiếm tên món…"
+                   styleClass="search-field"
+                   HBox.hgrow="NEVER"
+                   prefWidth="240"/>
+        <Region HBox.hgrow="NEVER" minWidth="8"/>
+        <Label text="Loại:" styleClass="filter-label"/>
+        <ComboBox fx:id="cbCategory"
+                  styleClass="filter-combo"
+                  prefWidth="140"
+                  onAction="#onFilterChanged"/>
+        <Label text="Giá:" styleClass="filter-label"/>
+        <ComboBox fx:id="cbPrice"
+                  styleClass="filter-combo"
+                  prefWidth="150"
+                  onAction="#onFilterChanged"/>
+        <padding><Insets top="10" right="48" bottom="10" left="48"/></padding>
+    </HBox>
+
+    <!-- ── Table ─────────────────────────────────────────────────────── -->
+    <VBox VBox.vgrow="ALWAYS" styleClass="table-wrapper">
+        <TableView fx:id="menuTable"
+                   VBox.vgrow="ALWAYS"
+                   styleClass="menu-table"
+                   placeholder="$tablePlaceholder">
+
+            <columns>
+                <!-- ID -->
+                <TableColumn fx:id="colId" text="ID" prefWidth="60"
+                             style="-fx-alignment: CENTER;"/>
+
+                <!-- Tên món -->
+                <TableColumn fx:id="colName" text="Tên món" prefWidth="200"/>
+
+                <!-- Loại -->
+                <TableColumn fx:id="colCategory" text="Loại" prefWidth="120"
+                             style="-fx-alignment: CENTER;"/>
+
+                <!-- Giá -->
+                <TableColumn fx:id="colPrice" text="Giá" prefWidth="130"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
+
+                <!-- Hành động -->
+                <TableColumn fx:id="colActions" text="Hành động"
+                             prefWidth="300" resizable="false"
+                             style="-fx-alignment: CENTER;"/>
+            </columns>
+
+            <columnResizePolicy>
+                <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+            </columnResizePolicy>
+        </TableView>
+
+        <padding><Insets top="0" right="48" bottom="24" left="48"/></padding>
+    </VBox>
+</VBox>

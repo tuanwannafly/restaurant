@@ -1,0 +1,170 @@
+/* ──────────────────────────────────────────────────────────
+   menu.css — Phase 4 (JavaFX)
+   Stylesheet for MenuView.fxml
+   ────────────────────────────────────────────────────────── */
+
+/* ── Root ────────────────────────────────────────────────── */
+.menu-root {
+    -fx-background-color: #F8FAFC;
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.top-bar {
+    -fx-background-color: #F8FAFC;
+    -fx-padding: 20 48 12 48;
+}
+
+.page-title {
+    -fx-font-family: "Segoe UI Semibold", "San Francisco", sans-serif;
+    -fx-font-size: 22px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #1E293B;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+    -fx-background-color: #22C55E;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-background-radius: 8;
+    -fx-padding: 8 18 8 18;
+    -fx-cursor: hand;
+}
+.btn-primary:hover  { -fx-background-color: #16A34A; }
+.btn-primary:pressed{ -fx-background-color: #15803D; }
+
+.btn-stat {
+    -fx-background-color: #6366F1;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-background-radius: 8;
+    -fx-padding: 8 18 8 18;
+    -fx-cursor: hand;
+}
+.btn-stat:hover  { -fx-background-color: #4F46E5; }
+.btn-stat:pressed{ -fx-background-color: #4338CA; }
+
+/* ── Filter card ─────────────────────────────────────────── */
+.filter-card {
+    -fx-background-color: white;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 10 48 10 48;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 4, 0, 0, 1);
+    -fx-margin: 0 48 0 48;
+}
+
+.search-icon {
+    -fx-font-family: "Segoe UI Emoji";
+    -fx-font-size: 15px;
+    -fx-text-fill: #94A3B8;
+}
+
+.search-field {
+    -fx-font-size: 13px;
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 6 10 6 10;
+    -fx-pref-height: 34px;
+}
+.search-field:focused {
+    -fx-border-color: #6366F1;
+    -fx-border-width: 1.5;
+}
+
+.filter-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+}
+
+.filter-combo {
+    -fx-font-size: 13px;
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-pref-height: 34px;
+}
+.filter-combo:focused { -fx-border-color: #6366F1; }
+.filter-combo .list-cell {
+    -fx-padding: 4 10 4 10;
+    -fx-font-size: 13px;
+}
+
+/* ── Table wrapper ───────────────────────────────────────── */
+.table-wrapper {
+    -fx-padding: 0 48 24 48;
+}
+
+/* ── Table ───────────────────────────────────────────────── */
+.menu-table {
+    -fx-background-color: white;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 6, 0, 0, 2);
+}
+
+.menu-table .column-header-background {
+    -fx-background-color: #F1F5F9;
+    -fx-background-radius: 12 12 0 0;
+}
+
+.menu-table .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #E2E8F0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.menu-table .column-header .label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #64748B;
+    -fx-padding: 10 8 10 8;
+    -fx-text-transform: uppercase;
+}
+
+.menu-table .table-row-cell {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #F1F5F9 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 52px;
+}
+
+.menu-table .table-row-cell:odd {
+    -fx-background-color: #FAFBFC;
+}
+
+.menu-table .table-row-cell:selected {
+    -fx-background-color: #EEF2FF;
+}
+
+.menu-table .table-row-cell:hover {
+    -fx-background-color: #F8FAFF;
+}
+
+.menu-table .table-cell {
+    -fx-font-size: 13px;
+    -fx-text-fill: #334155;
+    -fx-padding: 0 8 0 8;
+}
+
+/* ID cell — monospace */
+.menu-table .table-cell:first-child {
+    -fx-font-family: "Cascadia Code", "Consolas", monospace;
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 12px;
+}
+
+/* Placeholder */
+.menu-table .placeholder .label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #94A3B8;
+}

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.restaurant.ui.dialog.MenuDialogController"
+      styleClass="dialog-root"
+      stylesheets="@../../css/menu-dialog.css"
+      spacing="0"
+      prefWidth="520">
+
+    <!-- ── Coloured header ─────────────────────────────────────────── -->
+    <HBox styleClass="dialog-header" alignment="CENTER_LEFT" spacing="12">
+        <Label text="🍽" styleClass="header-icon"/>
+        <Label fx:id="lblTitle" text="Thêm món mới" styleClass="header-title"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="✕" styleClass="btn-close" onAction="#onClose"/>
+        <padding><Insets top="16" right="20" bottom="16" left="20"/></padding>
+    </HBox>
+
+    <!-- ── Form body ───────────────────────────────────────────────── -->
+    <ScrollPane fitToWidth="true" styleClass="form-scroll" VBox.vgrow="ALWAYS">
+        <GridPane fx:id="formGrid" styleClass="form-grid" hgap="12" vgap="14">
+            <padding><Insets top="24" right="28" bottom="8" left="28"/></padding>
+
+            <!-- Row 0: Tên món -->
+            <Label text="Tên món *" styleClass="form-label"
+                   GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+            <VBox GridPane.rowIndex="0" GridPane.columnIndex="1" spacing="3">
+                <TextField fx:id="tfName"
+                           promptText="VD: Cơm gà hội an..."
+                           styleClass="form-field"/>
+                <Label fx:id="errName" styleClass="err-label" managed="false" visible="false"/>
+            </VBox>
+
+            <!-- Row 1: Loại -->
+            <Label text="Loại" styleClass="form-label"
+                   GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+            <ComboBox fx:id="cbCategory"
+                      styleClass="form-combo"
+                      maxWidth="Infinity"
+                      GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+            <!-- Row 2: Giá -->
+            <Label text="Giá (VND) *" styleClass="form-label"
+                   GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <VBox GridPane.rowIndex="2" GridPane.columnIndex="1" spacing="3">
+                <TextField fx:id="tfPrice"
+                           promptText="VD: 85000"
+                           styleClass="form-field"/>
+                <Label fx:id="errPrice" styleClass="err-label" managed="false" visible="false"/>
+            </VBox>
+
+            <!-- Row 3: Mô tả -->
+            <Label text="Mô tả" styleClass="form-label"
+                   GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+            <TextField fx:id="tfDesc"
+                       promptText="Mô tả ngắn..."
+                       styleClass="form-field"
+                       GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+            <!-- Row 4: Hình ảnh -->
+            <Label text="Hình ảnh" styleClass="form-label"
+                   GridPane.rowIndex="4" GridPane.columnIndex="0"
+                   GridPane.valignment="TOP"/>
+            <HBox GridPane.rowIndex="4" GridPane.columnIndex="1"
+                  spacing="14" alignment="CENTER_LEFT">
+                <!-- Preview box -->
+                <StackPane fx:id="imgFrame" styleClass="img-frame"
+                           prefWidth="100" prefHeight="100"
+                           onMouseClicked="#onPickImage">
+                    <ImageView fx:id="imgPreview"
+                               fitWidth="100" fitHeight="100"
+                               preserveRatio="true"/>
+                    <Label fx:id="imgPlaceholder" text="+"
+                           styleClass="img-placeholder"/>
+                </StackPane>
+
+                <!-- Right column -->
+                <VBox spacing="6" alignment="CENTER_LEFT">
+                    <Button fx:id="btnPickImg" text="Chọn ảnh…"
+                            onAction="#onPickImage"
+                            styleClass="btn-outline"/>
+                    <Label text="JPG, PNG, WebP — tối đa 5 MB"
+                           styleClass="img-hint"/>
+                </VBox>
+            </HBox>
+
+            <!-- Column constraints -->
+            <columnConstraints>
+                <ColumnConstraints minWidth="110" prefWidth="120" hgrow="NEVER"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+        </GridPane>
+    </ScrollPane>
+
+    <!-- ── Footer buttons ──────────────────────────────────────────── -->
+    <HBox styleClass="dialog-footer" alignment="CENTER_RIGHT" spacing="10">
+        <Button text="Hủy" styleClass="btn-cancel" onAction="#onClose"/>
+        <Button fx:id="btnSave" text="Thêm món" styleClass="btn-save" onAction="#onSave"/>
+        <padding><Insets top="14" right="20" bottom="14" left="20"/></padding>
+    </HBox>
+</VBox>

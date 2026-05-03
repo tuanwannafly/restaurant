@@ -1,164 +1,269 @@
 package com.restaurant.ui;
 
-import java.awt.Color;
-import java.awt.Container;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 import javax.imageio.ImageIO;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
-import javax.swing.SwingWorker;
+
+import javafx.concurrent.Task;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
 /**
- * ImageLoader — Phase 6A
+ * ImageLoader — Phase 6A (JavaFX port)
  *
- * Utility class để load ảnh món ăn bất đồng bộ (không block EDT).
- * Hỗ trợ:
- *   - URL http/https
- *   - Đường dẫn file local
- *   - In-memory cache (ConcurrentHashMap)
- *   - Placeholder tự động khi URL null/blank hoặc load thất bại
+ * <p>Utility class that loads images asynchronously using JavaFX {@link Task},
+ * so the Application Thread (AT) is never blocked.
+ *
+ * <p>Features:
+ * <ul>
+ *   <li>Loads from HTTP/HTTPS URLs <em>or</em> local file paths.</li>
+ *   <li>In-memory LRU-like cache backed by a {@link ConcurrentHashMap}.</li>
+ *   <li>Shows a grey placeholder immediately; swaps to the real image when ready.</li>
+ *   <li>Falls back to the placeholder silently on any load failure.</li>
+ *   <li>{@link #invalidate(String)} and {@link #clearCache()} for cache management.</li>
+ * </ul>
+ *
+ * <p>Usage:
+ * <pre>{@code
+ *   ImageLoader.loadAsync(item.getImageUrl(), myImageView);
+ * }</pre>
  */
-public class ImageLoader {
+public final class ImageLoader {
 
-    // ─── Cache ────────────────────────────────────────────────────────────────
-    private static final Map<String, ImageIcon> cache = new ConcurrentHashMap<>();
-
-    // ─── Dimensions ───────────────────────────────────────────────────────────
+    // ── Dimensions ────────────────────────────────────────────────────────────
     public static final int IMG_W = 120;
     public static final int IMG_H = 120;
 
-    // ─── Placeholder (lazy-init singleton) ───────────────────────────────────
-    private static final ImageIcon PLACEHOLDER = createPlaceholder();
+    // ── Cache ─────────────────────────────────────────────────────────────────
+    /** urlOrPath → Image (JavaFX Image, created on AT or loaded from background). */
+    private static final Map<String, Image> cache = new ConcurrentHashMap<>();
 
-    // ─── Private constructor — utility class ──────────────────────────────────
+    // ── Placeholder ───────────────────────────────────────────────────────────
+    /** Lazy singleton; created once on first use. */
+    private static volatile Image placeholder;
+
+    /**
+     * Background thread pool — daemon threads so they don't prevent JVM exit.
+     */
+    private static final ExecutorService executor = Executors.newFixedThreadPool(
+        3, r -> { Thread t = new Thread(r, "img-loader"); t.setDaemon(true); return t; });
+
+    // ── Private constructor ───────────────────────────────────────────────────
     private ImageLoader() {}
 
-    // ─── Public API ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Load ảnh từ urlOrPath vào target JLabel bất đồng bộ.
-     * Hiển thị PLACEHOLDER ngay lập tức, sau đó swap sang ảnh thật khi load xong.
+     * Load an image from {@code urlOrPath} into {@code target} asynchronously.
      *
-     * @param urlOrPath URL http/https hoặc đường dẫn file tuyệt đối / tương đối
-     * @param target    JLabel sẽ nhận ImageIcon khi load hoàn tất
+     * <p>The target's image is set to the placeholder immediately, then swapped
+     * to the loaded image on the Application Thread when the background task
+     * completes.
+     *
+     * @param urlOrPath HTTP/HTTPS URL or local file path (absolute or relative)
+     * @param target    {@link ImageView} to receive the loaded image
      */
-    public static void loadAsync(String urlOrPath, JLabel target) {
-        // null / blank → giữ placeholder, không cần worker
+    public static void loadAsync(String urlOrPath, ImageView target) {
+        // null / blank → show placeholder
         if (urlOrPath == null || urlOrPath.isBlank()) {
-            target.setIcon(PLACEHOLDER);
+            target.setImage(getPlaceholder());
             return;
         }
 
-        // Cache hit → set ngay, không tạo worker
-        ImageIcon cached = cache.get(urlOrPath);
+        // Cache hit → show immediately
+        Image cached = cache.get(urlOrPath);
         if (cached != null) {
-            target.setIcon(cached);
+            target.setImage(cached);
             return;
         }
 
-        // Hiện placeholder trong lúc chờ
-        target.setIcon(PLACEHOLDER);
+        // Show placeholder while loading
+        target.setImage(getPlaceholder());
 
-        new SwingWorker<ImageIcon, Void>() {
-            @Override
-            protected ImageIcon doInBackground() throws Exception {
-                BufferedImage raw;
-                if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
-                    raw = ImageIO.read(new URL(urlOrPath));
-                } else {
-                    raw = ImageIO.read(new File(urlOrPath));
-                }
+        // Build and submit background task
+        Task<Image> task = buildLoadTask(urlOrPath);
 
-                if (raw == null) {
-                    throw new IllegalStateException("ImageIO.read() trả về null");
-                }
+        task.setOnSucceeded(e -> {
+            Image img = task.getValue();
+            cache.put(urlOrPath, img);
+            target.setImage(img);
+        });
 
-                // Scale giữ tỉ lệ, vừa khung IMG_W × IMG_H
-                Image scaled = raw.getScaledInstance(IMG_W, IMG_H, Image.SCALE_SMOOTH);
-                return new ImageIcon(scaled);
-            }
+        task.setOnFailed(e -> {
+            System.err.println("[ImageLoader] Không load được ảnh: "
+                + urlOrPath + " — " + task.getException().getMessage());
+            target.setImage(getPlaceholder());
+        });
 
-            @Override
-            protected void done() {
-                try {
-                    ImageIcon icon = get();
-                    cache.put(urlOrPath, icon);
-                    target.setIcon(icon);
-                    // Yêu cầu repaint container cha nếu cần
-                    Container parent = target.getParent();
-                    if (parent != null) {
-                        parent.revalidate();
-                        parent.repaint();
-                    }
-                } catch (Exception e) {
-                    // Load thất bại → fallback về placeholder, KHÔNG log stack trace
-                    target.setIcon(PLACEHOLDER);
-                    System.err.println("[ImageLoader] Không load được ảnh: "
-                            + urlOrPath + " — " + e.getMessage());
-                }
-            }
-        }.execute();
+        executor.submit(task);
     }
 
     /**
-     * Xóa một entry khỏi cache.
-     * Gọi sau khi admin cập nhật imageUrl của một món.
+     * Variant that calls a {@link Consumer} with the loaded {@link Image}
+     * instead of setting it on an {@link ImageView} directly.
+     * Useful when you need to apply the image to multiple targets.
      *
-     * @param urlOrPath key cần xóa
+     * @param urlOrPath  HTTP/HTTPS URL or local file path
+     * @param onLoaded   callback invoked on the Application Thread with the result
+     */
+    public static void loadAsync(String urlOrPath, Consumer<Image> onLoaded) {
+        if (urlOrPath == null || urlOrPath.isBlank()) {
+            onLoaded.accept(getPlaceholder());
+            return;
+        }
+
+        Image cached = cache.get(urlOrPath);
+        if (cached != null) {
+            onLoaded.accept(cached);
+            return;
+        }
+
+        Task<Image> task = buildLoadTask(urlOrPath);
+
+        task.setOnSucceeded(e -> {
+            Image img = task.getValue();
+            cache.put(urlOrPath, img);
+            onLoaded.accept(img);
+        });
+
+        task.setOnFailed(e -> {
+            System.err.println("[ImageLoader] Không load được ảnh: "
+                + urlOrPath + " — " + task.getException().getMessage());
+            onLoaded.accept(getPlaceholder());
+        });
+
+        executor.submit(task);
+    }
+
+    /**
+     * Remove a single entry from the cache.
+     * Call this after updating a menu item's {@code imageUrl}.
+     *
+     * @param urlOrPath cache key to remove
      */
     public static void invalidate(String urlOrPath) {
-        if (urlOrPath != null) {
-            cache.remove(urlOrPath);
-        }
+        if (urlOrPath != null) cache.remove(urlOrPath);
     }
 
     /**
-     * Xóa toàn bộ cache — dùng khi reload menu hoàn toàn.
+     * Flush the entire image cache.
+     * Call when performing a full menu reload (e.g., restaurant switch).
      */
     public static void clearCache() {
         cache.clear();
     }
 
-    // ─── Placeholder builder ──────────────────────────────────────────────────
+    // ── Background task builder ───────────────────────────────────────────────
 
     /**
-     * Tạo placeholder 120×120 màu xám nhạt với emoji 🍽 căn giữa.
-     * Được tạo một lần duy nhất khi class load.
+     * Builds a {@link Task} that reads the image from a URL or local file,
+     * then scales it to {@link #IMG_W} × {@link #IMG_H} using AWT for quality,
+     * and returns a JavaFX {@link Image}.
      */
-    private static ImageIcon createPlaceholder() {
+    private static Task<Image> buildLoadTask(String urlOrPath) {
+        return new Task<>() {
+            @Override
+            protected Image call() throws Exception {
+                // ① Read raw BufferedImage via AWT (supports more formats)
+                BufferedImage raw;
+                if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+                    try (InputStream is = new URL(urlOrPath).openStream()) {
+                        raw = ImageIO.read(is);
+                    }
+                } else {
+                    raw = ImageIO.read(new File(urlOrPath));
+                }
+
+                if (raw == null) {
+                    throw new IllegalStateException("ImageIO.read() trả về null cho: " + urlOrPath);
+                }
+
+                // ② Scale using AWT (SCALE_SMOOTH) — better quality than JavaFX default
+                java.awt.Image scaled = raw.getScaledInstance(IMG_W, IMG_H, java.awt.Image.SCALE_SMOOTH);
+                java.awt.image.BufferedImage out =
+                    new java.awt.image.BufferedImage(IMG_W, IMG_H, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                java.awt.Graphics2D g2 = out.createGraphics();
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                                    java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                g2.drawImage(scaled, 0, 0, null);
+                g2.dispose();
+
+                // ③ Convert AWT BufferedImage → JavaFX WritableImage
+                return awtToFX(out);
+            }
+        };
+    }
+
+    // ── AWT → JavaFX image conversion ────────────────────────────────────────
+
+    /**
+     * Converts an AWT {@link BufferedImage} to a JavaFX {@link Image}
+     * by writing it to a byte array and reading it back with JavaFX.
+     */
+    private static Image awtToFX(BufferedImage awtImage) throws Exception {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        ImageIO.write(awtImage, "png", baos);
+        try (java.io.ByteArrayInputStream bais =
+                 new java.io.ByteArrayInputStream(baos.toByteArray())) {
+            return new Image(bais);
+        }
+    }
+
+    // ── Placeholder ───────────────────────────────────────────────────────────
+
+    /**
+     * Returns a 120×120 light-grey placeholder image with a centred 🍽 emoji.
+     * Created lazily (once) using AWT, then cached in the static field.
+     */
+    private static Image getPlaceholder() {
+        if (placeholder == null) {
+            synchronized (ImageLoader.class) {
+                if (placeholder == null) {
+                    placeholder = buildPlaceholder();
+                }
+            }
+        }
+        return placeholder;
+    }
+
+    private static Image buildPlaceholder() {
         BufferedImage img = new BufferedImage(IMG_W, IMG_H, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
+        java.awt.Graphics2D g2 = img.createGraphics();
 
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                            java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                            java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // Nền xám nhạt
-        g2.setColor(new Color(0xF3F4F6));
-        g2.fillRoundRect(0, 0, IMG_W, IMG_H, 12, 12);
+        // Light-grey rounded background
+        g2.setColor(new java.awt.Color(0xF3F4F6));
+        g2.fillRoundRect(0, 0, IMG_W, IMG_H, 16, 16);
 
-        // Emoji 🍽
+        // Plate emoji centred
         String emoji = "🍽";
-        Font emojiFont = new Font("Segoe UI Emoji", Font.PLAIN, 36);
-        g2.setFont(emojiFont);
-        g2.setColor(new Color(0xD1D5DB));
-        FontMetrics fm = g2.getFontMetrics();
+        java.awt.Font font = new java.awt.Font("Segoe UI Emoji", java.awt.Font.PLAIN, 36);
+        g2.setFont(font);
+        g2.setColor(new java.awt.Color(0xD1D5DB));
+        java.awt.FontMetrics fm = g2.getFontMetrics();
         int ex = (IMG_W - fm.stringWidth(emoji)) / 2;
         int ey = (IMG_H + fm.getAscent() - fm.getDescent()) / 2;
         g2.drawString(emoji, ex, ey);
 
         g2.dispose();
-        return new ImageIcon(img);
+
+        try {
+            return awtToFX(img);
+        } catch (Exception e) {
+            // Absolute fallback — transparent 1×1 image
+            return new Image(new java.io.ByteArrayInputStream(new byte[0]));
+        }
     }
 }
