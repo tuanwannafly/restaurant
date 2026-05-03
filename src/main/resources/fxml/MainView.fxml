@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.MainController"
+            fx:id="rootPane"
+            styleClass="root-pane">
+
+    <!-- ── Top Bar ─────────────────────────────────────────────────────── -->
+    <top>
+        <fx:include fx:id="topBar" source="TopBarView.fxml"/>
+    </top>
+
+    <!-- ── Left: Sidebar ──────────────────────────────────────────────── -->
+    <left>
+        <!--
+            SidebarView is built entirely in SidebarController
+            and injected by MainController after FXML load.
+            We declare a named placeholder here so MainController
+            can swap it in via BorderPane#setLeft().
+        -->
+        <VBox fx:id="sidebarPlaceholder"
+              prefWidth="220"
+              styleClass="sidebar-placeholder"/>
+    </left>
+
+    <!-- ── Center: Content Stack ──────────────────────────────────────── -->
+    <center>
+        <StackPane fx:id="contentArea"
+                   styleClass="content-area">
+            <!-- Page panels are added programmatically by MainController -->
+        </StackPane>
+    </center>
+
+</BorderPane>

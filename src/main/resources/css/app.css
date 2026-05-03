@@ -1,511 +1,260 @@
 /*
- * app.css  –  SmartRestaurant design-token stylesheet
+ * app.css  —  SmartRestaurant JavaFX Theme
+ * ─────────────────────────────────────────
+ * Design tokens mirror UIConstants.java from the Swing version.
  *
- * All values are sourced directly from UIConstants.java.
- * JavaFX CSS custom properties use the "-fx-" prefix; vendor-style
- * CSS variables (var(--color-*)) are not supported in JavaFX 21, so
- * every token is declared as a named color constant using the
- * "looked-up color" mechanism: define on .root, reference by name.
- *
- * Reference: https://openjfx.io/javadoc/21/javafx.graphics/javafx/scene/doc-files/cssref.html
- *
- * ┌──────────────────────────────────────────────────────────────┐
- * │  Token naming mirrors UIConstants field names, lower-kebab.  │
- * │  e.g.  COLOR_PRIMARY  →  color-primary                       │
- * └──────────────────────────────────────────────────────────────┘
+ * Colour palette:
+ *   --color-primary        #5B6AF0   (indigo)
+ *   --color-primary-light  #EEF0FD
+ *   --color-surface        #F8F9FC
+ *   --color-surface-card   #FFFFFF
+ *   --color-border-subtle  #E8EAF0
+ *   --color-text-primary   #1A1D2E
+ *   --color-text-secondary #6B7280
+ *   --color-text-tertiary  #B0B7C3
+ *   --color-danger         #EF4444
+ *   --color-neutral-bg     #F3F4F6
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ROOT  –  Global looked-up color tokens
-   All panels/controls in the scene graph inherit these automatically.
+   ROOT
    ═══════════════════════════════════════════════════════════════════════════ */
-.root {
 
-    /* ── Brand / Primary ─────────────────────────────────────────────────── */
-    color-primary:        #2563EB;   /* COLOR_PRIMARY        */
-    color-primary-dark:   #1D4ED8;   /* COLOR_PRIMARY_DARK   */
-    color-primary-light:  #EFF6FF;   /* COLOR_PRIMARY_LIGHT  */
-    color-primary-muted:  #DBEAFE;   /* COLOR_PRIMARY_MUTED  */
-
-    /* ── Surface / Background ────────────────────────────────────────────── */
-    color-surface:        #F8FAFC;   /* COLOR_SURFACE        */
-    color-surface-card:   #FFFFFF;   /* COLOR_SURFACE_CARD   */
-    color-surface-alt:    #F1F5F9;   /* COLOR_SURFACE_ALT    */
-    color-surface-header: #E2E8F0;   /* COLOR_SURFACE_HEADER */
-    color-surface-raised: #FFFFFF;   /* COLOR_SURFACE_RAISED */
-
-    /* ── Border ──────────────────────────────────────────────────────────── */
-    color-border:         #CBD5E1;   /* COLOR_BORDER         */
-    color-border-subtle:  #E2E8F0;   /* COLOR_BORDER_SUBTLE  */
-    color-border-focus:   #2563EB;   /* COLOR_BORDER_FOCUS   */
-
-    /* ── Text ────────────────────────────────────────────────────────────── */
-    color-text-primary:   #0F172A;   /* COLOR_TEXT_PRIMARY   */
-    color-text-secondary: #64748B;   /* COLOR_TEXT_SECONDARY */
-    color-text-tertiary:  #94A3B8;   /* COLOR_TEXT_TERTIARY  */
-    color-text-inverse:   #FFFFFF;   /* COLOR_TEXT_INVERSE   */
-
-    /* ── Semantic – Success ──────────────────────────────────────────────── */
-    color-success:        #10B981;
-    color-success-dark:   #059669;
-    color-success-bg:     #D1FAE5;
-    color-success-text:   #065F46;
-
-    /* ── Semantic – Warning ──────────────────────────────────────────────── */
-    color-warning:        #F59E0B;
-    color-warning-dark:   #D97706;
-    color-warning-bg:     #FEF3C7;
-    color-warning-text:   #92400E;
-
-    /* ── Semantic – Danger ───────────────────────────────────────────────── */
-    color-danger:         #EF4444;
-    color-danger-dark:    #DC2626;
-    color-danger-bg:      #FEE2E2;
-    color-danger-text:    #991B1B;
-
-    /* ── Semantic – Neutral ──────────────────────────────────────────────── */
-    color-neutral:        #94A3B8;
-    color-neutral-bg:     #F1F5F9;
-    color-neutral-text:   #475569;
-
-    /* ── Badge backgrounds / foregrounds ─────────────────────────────────── */
-    badge-blue-bg:        #DBEAFE;
-    badge-blue-fg:        #1D4ED8;
-    badge-green-bg:       #D1FAE5;
-    badge-green-fg:       #065F46;
-    badge-red-bg:         #FEE2E2;
-    badge-red-fg:         #991B1B;
-    badge-yellow-bg:      #FEF3C7;
-    badge-yellow-fg:      #92400E;
-    badge-gray-bg:        #F1F5F9;
-    badge-gray-fg:        #475569;
-
-    /* ── Card accent backgrounds ─────────────────────────────────────────── */
-    card-blue-bg:         #EFF6FF;
-    card-green-bg:        #F0FDF4;
-    card-amber-bg:        #FFFBEB;
-    card-red-bg:          #FFF1F2;
-
-    /* ── Shadow tints (approximated via -fx-effect on containers) ─────────── */
-    shadow-card:   rgba(15, 23, 42, 0.07);
-    shadow-raised: rgba(15, 23, 42, 0.11);
-
-    /* ── JavaFX base overrides ───────────────────────────────────────────── */
-    -fx-base:             #F8FAFC;
-    -fx-background:       color-surface;
-    -fx-control-inner-background: color-surface-card;
-    -fx-accent:           color-primary;
-    -fx-focus-color:      color-border-focus;
-    -fx-faint-focus-color: derive(color-primary, 80%);
-
-    /* Font stack: mirrors UIConstants.FONT_FAMILY_STACK                     */
-    -fx-font-family: "Segoe UI", "Inter", "SF Pro Text", "Helvetica Neue", "Arial", sans-serif;
-    -fx-font-size:   13px;
+.root-pane {
+    -fx-background-color: #F8F9FC;
+    -fx-font-family: "Segoe UI", "San Francisco", "Helvetica Neue", sans-serif;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TYPOGRAPHY UTILITY CLASSES
+   TOP BAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* FONT_TITLE  = Bold 22 */
-.text-title {
-    -fx-font-size: 22px;
-    -fx-font-weight: bold;
-    -fx-fill: color-text-primary;
-    -fx-text-fill: color-text-primary;
+.top-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E8EAF0 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 52px;
 }
 
-/* FONT_HEADING = Bold 16 */
-.text-heading {
+.logo-mark {
+    -fx-background-color: #5B6AF0;
+    -fx-background-radius: 8px;
+}
+
+.logo-mark-text {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.app-name-label {
+    -fx-text-fill: #5B6AF0;
     -fx-font-size: 16px;
     -fx-font-weight: bold;
-    -fx-fill: color-text-primary;
-    -fx-text-fill: color-text-primary;
 }
 
-/* FONT_BODY = Plain 13 (default) */
-.text-body {
-    -fx-font-size: 13px;
-    -fx-font-weight: normal;
-    -fx-fill: color-text-primary;
-    -fx-text-fill: color-text-primary;
-}
-
-/* FONT_SMALL = Plain 11 */
-.text-small {
-    -fx-font-size: 11px;
-    -fx-fill: color-text-secondary;
-    -fx-text-fill: color-text-secondary;
-}
-
-/* FONT_BOLD = Bold 13 */
-.text-bold {
-    -fx-font-size: 13px;
-    -fx-font-weight: bold;
-}
-
-/* FONT_CAPTION = Plain 12 */
-.text-caption {
+.restaurant-name-label {
+    -fx-text-fill: #6B7280;
     -fx-font-size: 12px;
-    -fx-fill: color-text-secondary;
-    -fx-text-fill: color-text-secondary;
 }
 
-/* FONT_VALUE = Bold 28  (HomePanel stat values) */
-.text-value {
-    -fx-font-size: 28px;
-    -fx-font-weight: bold;
-    -fx-fill: color-text-primary;
-    -fx-text-fill: color-text-primary;
-}
-
-/* Secondary / muted text */
-.text-secondary {
-    -fx-fill: color-text-secondary;
-    -fx-text-fill: color-text-secondary;
-}
-.text-tertiary {
-    -fx-fill: color-text-tertiary;
-    -fx-text-fill: color-text-tertiary;
-}
-.text-danger {
-    -fx-fill: color-danger;
-    -fx-text-fill: color-danger;
-}
-.text-success {
-    -fx-fill: color-success;
-    -fx-text-fill: color-success;
-}
-.text-warning {
-    -fx-fill: color-warning;
-    -fx-text-fill: color-warning;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   BUTTON VARIANTS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Primary button – maps to the blue "action" buttons */
-.btn-primary {
-    -fx-background-color: color-primary;
-    -fx-text-fill: color-text-inverse;
-    -fx-font-size: 13px;
-    -fx-font-weight: bold;
-    -fx-background-radius: 6px;        /* RADIUS_MD */
-    -fx-cursor: hand;
-    -fx-padding: 6px 14px;
-}
-.btn-primary:hover {
-    -fx-background-color: color-primary-dark;
-}
-.btn-primary:pressed {
-    -fx-background-color: derive(color-primary-dark, -10%);
-}
-.btn-primary:disabled {
-    -fx-background-color: color-neutral;
-    -fx-opacity: 0.6;
-}
-
-/* Secondary (outlined) */
-.btn-secondary {
-    -fx-background-color: color-surface-card;
-    -fx-border-color: color-border;
-    -fx-border-width: 1px;
-    -fx-border-radius: 6px;
-    -fx-background-radius: 6px;
-    -fx-text-fill: color-text-primary;
-    -fx-font-size: 13px;
-    -fx-cursor: hand;
-    -fx-padding: 6px 14px;
-}
-.btn-secondary:hover {
-    -fx-background-color: color-surface-alt;
-}
-
-/* Danger button */
-.btn-danger {
-    -fx-background-color: color-danger;
-    -fx-text-fill: color-text-inverse;
-    -fx-font-size: 13px;
-    -fx-font-weight: bold;
-    -fx-background-radius: 6px;
-    -fx-cursor: hand;
-    -fx-padding: 6px 14px;
-}
-.btn-danger:hover {
-    -fx-background-color: color-danger-dark;
-}
-
-/* Success button */
-.btn-success {
-    -fx-background-color: color-success;
-    -fx-text-fill: color-text-inverse;
-    -fx-font-size: 13px;
-    -fx-font-weight: bold;
-    -fx-background-radius: 6px;
-    -fx-cursor: hand;
-    -fx-padding: 6px 14px;
-}
-.btn-success:hover {
-    -fx-background-color: color-success-dark;
-}
-
-/* Small button variant – SIZE_BTN_HEIGHT_SM = 28 */
-.btn-sm {
-    -fx-font-size: 11px;
-    -fx-padding: 3px 10px;
-}
-
-/* Large button variant – SIZE_BTN_HEIGHT_LG = 42 */
-.btn-lg {
+.dot-separator {
+    -fx-text-fill: #B0B7C3;
     -fx-font-size: 14px;
-    -fx-padding: 9px 20px;
 }
 
-/* Icon-only button (no label) */
-.btn-icon {
-    -fx-background-color: transparent;
-    -fx-border-color: transparent;
-    -fx-cursor: hand;
-    -fx-padding: 4px;
-    -fx-background-radius: 6px;
-}
-.btn-icon:hover {
-    -fx-background-color: color-surface-alt;
+.role-badge {
+    -fx-background-color: #F3F4F6;
+    -fx-background-radius: 4px;
+    -fx-padding: 3 8 3 8;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   INPUT CONTROLS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.text-field, .password-field, .text-area, .combo-box {
-    -fx-background-color: color-surface-card;
-    -fx-border-color: color-border;
-    -fx-border-width: 1px;
-    -fx-border-radius: 6px;
-    -fx-background-radius: 6px;
-    -fx-text-fill: color-text-primary;
-    -fx-prompt-text-fill: color-text-tertiary;
-    -fx-font-size: 13px;
-    -fx-padding: 6px 10px;
-    -fx-pref-height: 34px;   /* SIZE_INPUT_HEIGHT */
-}
-
-.text-field:focused, .password-field:focused,
-.text-area:focused, .combo-box:focused {
-    -fx-border-color: color-border-focus;
-    -fx-border-width: 1.5px;
-    -fx-effect: dropshadow(gaussian, derive(color-primary, 70%), 4, 0, 0, 0);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TABLE
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.table-view {
-    -fx-background-color: color-surface-card;
-    -fx-border-color: color-border-subtle;
-    -fx-border-width: 1px;
-    -fx-table-cell-border-color: color-border-subtle;
-}
-
-.table-view .column-header {
-    -fx-background-color: color-surface-header;
+.role-badge-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 11px;
     -fx-font-weight: bold;
+}
+
+.profile-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #1A1D2E;
     -fx-font-size: 13px;
-    -fx-text-fill: color-text-primary;
-    -fx-border-color: color-border-subtle;
+    -fx-cursor: hand;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 6px;
+    -fx-border-color: transparent;
 }
 
-.table-view .table-row-cell {
-    -fx-background-color: color-surface-card;
-    -fx-pref-height: 38px;   /* SIZE_ROW_HEIGHT */
-    -fx-text-fill: color-text-primary;
-}
-
-.table-view .table-row-cell:odd {
-    -fx-background-color: color-surface-alt;
-}
-
-.table-view .table-row-cell:selected {
-    -fx-background-color: color-primary-muted;
-    -fx-text-fill: color-text-primary;
-}
-
-.table-view .table-row-cell:hover {
-    -fx-background-color: derive(color-primary-light, -3%);
+.profile-btn:hover {
+    -fx-background-color: #F3F4F6;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CARDS  (VBox/HBox with .card style class)
+   SIDEBAR
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.card {
-    -fx-background-color: color-surface-card;
-    -fx-background-radius: 16px;   /* RADIUS_2XL / CARD_RADIUS */
-    -fx-border-color: color-border-subtle;
-    -fx-border-width: 1px;
-    -fx-border-radius: 16px;
-    -fx-effect: dropshadow(gaussian, shadow-card, 8, 0, 0, 2);
-    -fx-padding: 24px;             /* SPACING_XL */
-}
-
-.card-sm {
-    -fx-background-color: color-surface-card;
-    -fx-background-radius: 8px;    /* RADIUS_LG */
-    -fx-border-color: color-border-subtle;
-    -fx-border-width: 1px;
-    -fx-border-radius: 8px;
-    -fx-padding: 16px;             /* SPACING_LG */
-}
-
-/* ── HomePanel accent cards ────────────────────────────────────────────── */
-.card-accent-blue   { -fx-background-color: card-blue-bg; }
-.card-accent-green  { -fx-background-color: card-green-bg; }
-.card-accent-amber  { -fx-background-color: card-amber-bg; }
-.card-accent-red    { -fx-background-color: card-red-bg; }
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   NAVIGATION SIDEBAR
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.nav-sidebar {
-    -fx-background-color: color-surface-card;
-    -fx-border-color: color-border-subtle;
-    -fx-border-width: 0 1px 0 0;
+.sidebar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent #E8EAF0 transparent transparent;
+    -fx-border-width: 0 1 0 0;
     -fx-pref-width: 220px;
+    -fx-min-width: 220px;
+    -fx-max-width: 220px;
+    -fx-padding: 20 12 16 12;
+    -fx-spacing: 2;
 }
+
+.sidebar-separator {
+    -fx-background-color: #E8EAF0;
+    -fx-padding: 0;
+}
+
+/* ── Nav items (plain HBox) ──────────────────────────────────────────────── */
 
 .nav-item {
-    -fx-background-color: transparent;
+    -fx-pref-height: 40px;
     -fx-background-radius: 8px;
-    -fx-text-fill: color-text-secondary;
-    -fx-font-size: 13px;
-    -fx-pref-height: 44px;   /* SIZE_NAV_HEIGHT */
+    -fx-padding: 0 12 0 12;
     -fx-cursor: hand;
-    -fx-padding: 0 12px;
-    -fx-alignment: center-left;
 }
 
-.nav-item:hover {
-    -fx-background-color: color-surface-alt;
-    -fx-text-fill: color-text-primary;
+.nav-item-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 13px;
 }
 
-.nav-item.active {
-    -fx-background-color: color-primary-light;
-    -fx-text-fill: color-primary;
+/* Hover */
+.nav-item:hover-nav {
+    -fx-background-color: #F3F4F6;
+}
+
+.nav-item:hover-nav .nav-item-text {
+    -fx-text-fill: #1A1D2E;
+}
+
+/* Active */
+.nav-item:active-nav {
+    -fx-background-color: #EEF0FD;
+    /* Left accent stripe — painted via StackPane overlay in BadgeLabel,
+       or via a custom Paint for plain items if needed */
+}
+
+.nav-item:active-nav .nav-item-text {
+    -fx-text-fill: #5B6AF0;
     -fx-font-weight: bold;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   BADGE CHIPS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── BadgeLabel container ────────────────────────────────────────────────── */
 
-.badge {
-    -fx-background-radius: 999px;  /* RADIUS_PILL */
-    -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-padding: 2px 8px;
+.badge-label-container {
+    -fx-pref-height: 40px;
+    -fx-background-radius: 8px;
+    -fx-padding: 0 12 0 12;
+    -fx-cursor: hand;
+    -fx-min-width: 196px;  /* 220 - 2*12 padding */
 }
 
-.badge-blue   { -fx-background-color: badge-blue-bg;   -fx-text-fill: badge-blue-fg; }
-.badge-green  { -fx-background-color: badge-green-bg;  -fx-text-fill: badge-green-fg; }
-.badge-red    { -fx-background-color: badge-red-bg;    -fx-text-fill: badge-red-fg; }
-.badge-yellow { -fx-background-color: badge-yellow-bg; -fx-text-fill: badge-yellow-fg; }
-.badge-gray   { -fx-background-color: badge-gray-bg;   -fx-text-fill: badge-gray-fg; }
+.badge-label-container:hover-nav {
+    -fx-background-color: #F3F4F6;
+}
 
-/* Notification dot badge (counter on nav icon) */
+.badge-label-container:active-nav {
+    -fx-background-color: #EEF0FD;
+}
+
+.nav-label-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 13px;
+}
+
+.badge-label-container:hover-nav .nav-label-text {
+    -fx-text-fill: #1A1D2E;
+}
+
+.badge-label-container:active-nav .nav-label-text {
+    -fx-text-fill: #5B6AF0;
+    -fx-font-weight: bold;
+}
+
+/* ── Badge dot (red circle) ─────────────────────────────────────────────── */
+
 .badge-dot {
-    -fx-background-color: color-danger;
-    -fx-background-radius: 999px;
-    -fx-text-fill: white;
-    -fx-font-size: 10px;
-    -fx-font-weight: bold;
-    -fx-min-width: 18px;
-    -fx-min-height: 18px;
+    -fx-background-color: #EF4444;
+    -fx-background-radius: 9px;
+    -fx-min-width:  16px;
+    -fx-min-height: 16px;
+    -fx-max-width:  18px;
+    -fx-max-height: 18px;
     -fx-alignment: center;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SEPARATOR
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.separator .line {
-    -fx-border-color: color-border-subtle;
-    -fx-border-width: 1px;
+.badge-dot-text {
+    -fx-text-fill: white;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TOAST NOTIFICATION  (.toast-* applied by FxUtils.showToast())
+   USER INFO PANEL (bottom of sidebar)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.toast {
-    -fx-background-radius: 8px;
-    -fx-padding: 10px 18px;
-    -fx-effect: dropshadow(gaussian, shadow-raised, 12, 0, 0, 4);
+.user-info-panel {
+    -fx-padding: 8 0 0 0;
+    -fx-spacing: 8;
+}
+
+.avatar-circle {
+    -fx-background-color: #5B6AF0;
+    -fx-background-radius: 100px;
+}
+
+.avatar-initials {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.user-name-label {
+    -fx-text-fill: #1A1D2E;
     -fx-font-size: 13px;
+    -fx-font-weight: bold;
 }
 
-.toast-success {
-    -fx-background-color: color-success;
-    -fx-text-fill: color-text-inverse;
-}
-.toast-error {
-    -fx-background-color: color-danger;
-    -fx-text-fill: color-text-inverse;
-}
-.toast-info {
-    -fx-background-color: color-primary;
-    -fx-text-fill: color-text-inverse;
-}
-.toast-warning {
-    -fx-background-color: color-warning;
-    -fx-text-fill: color-text-inverse;
+.user-role-label {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 11px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   DIALOG / MODAL OVERLAY
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.dialog-pane {
-    -fx-background-color: color-surface-card;
-    -fx-border-radius: 12px;
-    -fx-background-radius: 12px;
-}
-
-.dialog-pane .header-panel {
-    -fx-background-color: color-surface-alt;
-    -fx-background-radius: 12px 12px 0 0;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SCROLL BAR  (minimalist style)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.scroll-bar:vertical .thumb,
-.scroll-bar:horizontal .thumb {
-    -fx-background-color: color-border;
-    -fx-background-radius: 999px;
-}
-
-.scroll-bar:vertical .thumb:hover,
-.scroll-bar:horizontal .thumb:hover {
-    -fx-background-color: color-neutral;
-}
-
-.scroll-bar .track { -fx-background-color: transparent; }
-.scroll-bar .increment-button,
-.scroll-bar .decrement-button { -fx-background-color: transparent; }
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   PROGRESS INDICATOR
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.progress-indicator .indicator {
-    -fx-border-color: transparent;
+.logout-btn {
     -fx-background-color: transparent;
+    -fx-text-fill: #EF4444;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-padding: 6 12 6 12;
+    -fx-background-radius: 6px;
+    -fx-border-color: transparent;
+    -fx-alignment: center-left;
 }
-.progress-indicator .progress {
-    -fx-background-color: color-primary;
+
+.logout-btn:hover {
+    -fx-background-color: #FEF2F2;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTENT AREA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.content-area {
+    -fx-background-color: #F8F9FC;
+    -fx-padding: 0;
+}
+
+.placeholder-pane {
+    -fx-background-color: #F8F9FC;
+    -fx-alignment: center;
+}
+
+.placeholder-label {
+    -fx-text-fill: #B0B7C3;
+    -fx-font-size: 18px;
 }
