@@ -479,7 +479,7 @@ public class AdminStatsPanel extends JPanel {
             if (maxVal == 0 || labels == null || labels.length == 0) {
                 g2.setFont(FONT_HINT);
                 g2.setColor(LABEL_COLOR);
-                String msg = "Chọn bộ lọc rồi nhấn  📊 Vẽ biểu đồ  để hiển thị dữ liệu";
+                String msg = "Chọn bộ lọc rồi nhấn Vẽ biểu đồ  để hiển thị dữ liệu";
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(msg, (w - fm.stringWidth(msg)) / 2, (h + fm.getAscent()) / 2);
                 g2.dispose();
