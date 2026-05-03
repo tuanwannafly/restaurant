@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.restaurant.ui.dialog.OrderDetailController"
+            styleClass="dialog-root"
+            stylesheets="@../../css/style.css"
+            prefWidth="560">
+
+    <!-- ═══ TITLE ═══ -->
+    <top>
+        <VBox styleClass="dialog-header">
+            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+            <Label text="Xem chi tiết đơn hàng" styleClass="page-title"/>
+        </VBox>
+    </top>
+
+    <!-- ═══ CONTENT ═══ -->
+    <center>
+        <ScrollPane fitToWidth="true" styleClass="dialog-scroll">
+            <VBox spacing="10">
+                <padding><Insets top="4" right="24" bottom="12" left="24"/></padding>
+
+                <!-- Info rows -->
+                <HBox styleClass="info-row" spacing="12" alignment="CENTER_LEFT">
+                    <Label text="ID:" styleClass="info-label" prefWidth="100"/>
+                    <Label fx:id="lblId" styleClass="info-value"/>
+                </HBox>
+                <HBox styleClass="info-row" spacing="12" alignment="CENTER_LEFT">
+                    <Label text="Bàn:" styleClass="info-label" prefWidth="100"/>
+                    <Label fx:id="lblTable" styleClass="info-value"/>
+                </HBox>
+                <HBox styleClass="info-row" spacing="12" alignment="CENTER_LEFT">
+                    <Label text="Trạng thái:" styleClass="info-label" prefWidth="100"/>
+                    <Label fx:id="lblStatus" styleClass="info-value"/>
+                </HBox>
+                <HBox styleClass="info-row" spacing="12" alignment="CENTER_LEFT">
+                    <Label text="Thời gian:" styleClass="info-label" prefWidth="100"/>
+                    <Label fx:id="lblTime" styleClass="info-value"/>
+                </HBox>
+
+                <Separator/>
+
+                <!-- Items table -->
+                <Label text="Danh sách món:" styleClass="section-label"/>
+                <TableView fx:id="itemTable"
+                           styleClass="styled-table"
+                           columnResizePolicy="TableView.CONSTRAINED_RESIZE_POLICY"
+                           prefHeight="160" maxHeight="160">
+                    <columns>
+                        <TableColumn fx:id="colItemName"  text="Tên món"    prefWidth="200"/>
+                        <TableColumn fx:id="colItemQty"   text="Số lượng"   prefWidth="80"
+                                     style="-fx-alignment: CENTER;"/>
+                        <TableColumn fx:id="colItemPrice" text="Đơn giá"    prefWidth="110"
+                                     style="-fx-alignment: CENTER-RIGHT;"/>
+                        <TableColumn fx:id="colItemTotal" text="Thành tiền" prefWidth="120"
+                                     style="-fx-alignment: CENTER-RIGHT;"/>
+                    </columns>
+                    <placeholder>
+                        <Label text="Không có món nào" styleClass="table-placeholder"/>
+                    </placeholder>
+                </TableView>
+
+                <!-- Total -->
+                <HBox alignment="CENTER_RIGHT" spacing="8">
+                    <Label text="Tổng tiền:" styleClass="info-label-bold"/>
+                    <Label fx:id="lblTotal" styleClass="total-value"/>
+                </HBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+
+    <!-- ═══ FOOTER ═══ -->
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" styleClass="dialog-footer">
+            <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
+            <Button text="Đóng" styleClass="btn-outline"
+                    prefWidth="90" prefHeight="36"
+                    onAction="#onClose"/>
+        </HBox>
+    </bottom>
+</BorderPane>
