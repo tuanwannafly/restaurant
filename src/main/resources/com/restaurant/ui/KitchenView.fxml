@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<!--
+  KitchenView.fxml  ─  Phase 8
+  SplitPane: Chờ chế biến (left) | Đang chế biến (right)
+  Controller: com.restaurant.ui.KitchenController
+-->
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.KitchenController"
+            style="-fx-background-color: #F8FAFC;">
+
+    <!-- ══════════════════════════════════════════════
+         NORTH ─ Staff header
+    ══════════════════════════════════════════════ -->
+    <top>
+        <HBox fx:id="headerBox"
+              alignment="CENTER_LEFT"
+              spacing="12"
+              style="-fx-background-color: #FFFFFF;
+                     -fx-border-color: #E2E8F0;
+                     -fx-border-width: 0 0 1 0;
+                     -fx-padding: 14 20 14 20;">
+
+            <!-- Role badge -->
+            <Label text="👨‍🍳"
+                   style="-fx-font-size: 20px;"/>
+
+            <VBox spacing="1">
+                <Label text="Đầu bếp"
+                       style="-fx-font-family: 'Segoe UI';
+                              -fx-font-size: 15px;
+                              -fx-font-weight: bold;
+                              -fx-text-fill: #1E293B;"/>
+                <Label fx:id="restaurantNameLabel"
+                       text=""
+                       style="-fx-font-family: 'Segoe UI';
+                              -fx-font-size: 12px;
+                              -fx-text-fill: #64748B;"/>
+            </VBox>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- Inline error bar (hidden by default) -->
+            <fx:include fx:id="errorBar" source="InlineErrorBar.fxml"/>
+
+            <!-- Back button -->
+            <Button fx:id="btnBack"
+                    text="← Quay lại"
+                    onAction="#onBack"
+                    style="-fx-font-family: 'Segoe UI';
+                           -fx-font-size: 13px;
+                           -fx-background-color: transparent;
+                           -fx-border-color: #94A3B8;
+                           -fx-border-radius: 6;
+                           -fx-background-radius: 6;
+                           -fx-cursor: hand;
+                           -fx-padding: 6 14 6 14;"/>
+        </HBox>
+    </top>
+
+    <!-- ══════════════════════════════════════════════
+         CENTER ─ SplitPane horizontal
+    ══════════════════════════════════════════════ -->
+    <center>
+        <SplitPane fx:id="mainSplit"
+                   dividerPositions="0.5"
+                   style="-fx-background-color: #E2E8F0;">
+
+            <!-- ─── LEFT: Chờ chế biến ────────────────────────── -->
+            <BorderPane style="-fx-background-color: #F8FAFC;">
+
+                <!-- North: title + spinner + filter bar -->
+                <top>
+                    <VBox style="-fx-background-color: #FFFFFF;
+                                 -fx-border-color: #E2E8F0;
+                                 -fx-border-width: 0 0 1 0;
+                                 -fx-padding: 12 12 0 12;"
+                          spacing="0">
+
+                        <!-- Title row -->
+                        <HBox alignment="CENTER_LEFT" spacing="8">
+                            <Label text="Chờ chế biến"
+                                   style="-fx-font-family: 'Segoe UI';
+                                          -fx-font-size: 16px;
+                                          -fx-font-weight: bold;
+                                          -fx-text-fill: #3B82F6;"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <!-- Spinner injected by controller -->
+                            <fx:include fx:id="pendingSpinner" source="SimpleSpinner.fxml"/>
+                        </HBox>
+
+                        <!-- Category toggle bar -->
+                        <HBox fx:id="pendingFilterBar"
+                              spacing="8"
+                              style="-fx-padding: 8 0 8 0;">
+                            <!-- Toggles built programmatically in controller -->
+                        </HBox>
+                    </VBox>
+                </top>
+
+                <!-- Center: scrollable FlowPane -->
+                <center>
+                    <ScrollPane fitToWidth="true"
+                                hbarPolicy="NEVER"
+                                vbarPolicy="AS_NEEDED"
+                                style="-fx-background-color: transparent;
+                                       -fx-background: transparent;">
+                        <content>
+                            <FlowPane fx:id="pendingFlowPane"
+                                      hgap="12" vgap="12"
+                                      style="-fx-padding: 12;
+                                             -fx-background-color: #F8FAFC;"/>
+                        </content>
+                    </ScrollPane>
+                </center>
+            </BorderPane>
+
+            <!-- ─── RIGHT: Đang chế biến ──────────────────────── -->
+            <BorderPane style="-fx-background-color: #F8FAFC;">
+
+                <!-- North: title + filter bar -->
+                <top>
+                    <VBox style="-fx-background-color: #FFFFFF;
+                                 -fx-border-color: #E2E8F0;
+                                 -fx-border-width: 0 0 1 0;
+                                 -fx-padding: 12 12 0 12;"
+                          spacing="0">
+
+                        <HBox alignment="CENTER">
+                            <Label text="Đang chế biến"
+                                   style="-fx-font-family: 'Segoe UI';
+                                          -fx-font-size: 16px;
+                                          -fx-font-weight: bold;
+                                          -fx-text-fill: #3B82F6;"/>
+                        </HBox>
+
+                        <HBox fx:id="cookingFilterBar"
+                              spacing="8"
+                              style="-fx-padding: 8 0 8 0;">
+                        </HBox>
+                    </VBox>
+                </top>
+
+                <center>
+                    <ScrollPane fitToWidth="true"
+                                hbarPolicy="NEVER"
+                                vbarPolicy="AS_NEEDED"
+                                style="-fx-background-color: transparent;
+                                       -fx-background: transparent;">
+                        <content>
+                            <FlowPane fx:id="cookingFlowPane"
+                                      hgap="12" vgap="12"
+                                      style="-fx-padding: 12;
+                                             -fx-background-color: #F8FAFC;"/>
+                        </content>
+                    </ScrollPane>
+                </center>
+            </BorderPane>
+
+        </SplitPane>
+    </center>
+
+</BorderPane>

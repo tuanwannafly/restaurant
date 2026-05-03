@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<!--
+  InlineErrorBar.fxml – thin placeholder used by fx:include in KitchenView.fxml.
+  The real InlineErrorBarFx instance is created programmatically by the controller
+  and swapped into headerBox at runtime.
+-->
+<HBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      visible="false" managed="false"
+      style="-fx-background-color: transparent;"/>

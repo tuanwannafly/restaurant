@@ -56,7 +56,7 @@ module com.restaurant {
     exports com.restaurant.data;
     exports com.restaurant.model;
     exports com.restaurant.session;
-    exports com.restaurant.util;
+    exports com.restaurant.ui.fx.util;
 
     // JavaFX UI packages
     exports com.restaurant.ui.fx;
