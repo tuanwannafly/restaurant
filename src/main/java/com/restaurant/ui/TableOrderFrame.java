@@ -6,6 +6,7 @@ import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -52,9 +53,6 @@ public class TableOrderFrame extends JFrame {
     private int currentRound = 1;
 
     private final OrderDAO orderDAO = new OrderDAO();
-
-    // ─── Menu screen UI ───────────────────────────────────────────────────────
-    private JTextField tfSearch;
     private JPanel     menuGridPanel;
     private JLabel     lblSubtotal;
     private JButton    btnShowCart;
@@ -92,6 +90,7 @@ public class TableOrderFrame extends JFrame {
     private static final String[] CART_COLS = {
             "STT", "Tên món", "Đơn giá (đ)", "Thành tiền (đ)", "Ghi chú", "Số lượng"
     };
+    private JTextField txtTimKiem;
 
     // ─── Inner class CartItem ────────────────────────────────────────────────
     private static class CartItem {
@@ -627,14 +626,9 @@ public class TableOrderFrame extends JFrame {
                 // logoUrl null/blank hoặc lỗi → giữ label trống, không crash
             }
         });
-
-        JLabel logo = new JLabel("⛁");
-        logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
-        logo.setForeground(UIConstants.PRIMARY);
         JLabel sysName = new JLabel("SmartRestaurant");
         sysName.setFont(new Font("Segoe UI", Font.BOLD, 16));
         sysName.setForeground(UIConstants.PRIMARY);
-        left.add(logo);
         left.add(sysName);
 
         JLabel tableBadge = new JLabel("Bàn " + tableName, SwingConstants.CENTER) {
@@ -667,23 +661,9 @@ public class TableOrderFrame extends JFrame {
         lblRestaurant.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblRestaurant.setForeground(UIConstants.PRIMARY);
 
-        JButton btnLogout = new JButton("⏻");
-        btnLogout.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
-        btnLogout.setForeground(UIConstants.TEXT_SECONDARY);
-        btnLogout.setBorderPainted(false);
-        btnLogout.setContentAreaFilled(false);
-        btnLogout.setFocusPainted(false);
-        btnLogout.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btnLogout.setToolTipText("Đóng màn hình bàn");
-        btnLogout.addActionListener(e -> {
-            PollManager.getInstance().unregister("tableorder_" + tableId);
-            dispose();
-        });
-
         right.add(globeIcon);
         right.add(lblRestaurant);
         right.add(Box.createHorizontalStrut(4));
-        right.add(btnLogout);
 
         bar.add(left,   BorderLayout.WEST);
         bar.add(center, BorderLayout.CENTER);
@@ -701,39 +681,12 @@ public class TableOrderFrame extends JFrame {
         searchBar.setBackground(UIConstants.BG_PAGE);
         searchBar.setBorder(new EmptyBorder(8, 16, 0, 16));
 
-        tfSearch = new JTextField() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(Color.WHITE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        tfSearch.setFont(UIConstants.FONT_BODY);
-        tfSearch.setOpaque(false);
-        tfSearch.setPreferredSize(new Dimension(400, 38));
-        tfSearch.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
-                new EmptyBorder(4, 14, 4, 14)));
-        setPlaceholder(tfSearch, "🔍  Tìm kiếm món ăn...");
-
-        tfSearch.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e)  { filterMenu(); }
-            @Override public void removeUpdate(DocumentEvent e)  { filterMenu(); }
-            @Override public void changedUpdate(DocumentEvent e) { filterMenu(); }
-        });
-
-        searchBar.add(tfSearch);
-
         JPanel centerContent = new JPanel(new BorderLayout(0, 0));
         centerContent.setBackground(UIConstants.BG_PAGE);
         centerContent.add(buildCategoryFilterBar(), BorderLayout.NORTH);
 
         menuGridPanel = new JPanel(new GridLayout(0, 6, 12, 12));
+        menuGridPanel.setToolTipText("tim kiem");
         menuGridPanel.setBackground(UIConstants.BG_PAGE);
         menuGridPanel.setBorder(new EmptyBorder(12, 20, 20, 20));
 
@@ -744,6 +697,11 @@ public class TableOrderFrame extends JFrame {
 
         centerContent.add(menuGridPanel, BorderLayout.CENTER);
         content.add(searchBar,     BorderLayout.NORTH);
+        
+        txtTimKiem = new JTextField();
+        txtTimKiem.setToolTipText("tim kiem");
+        searchBar.add(txtTimKiem);
+        txtTimKiem.setColumns(10);
         content.add(centerContent, BorderLayout.CENTER);
 
         JScrollPane scroll = new JScrollPane(content);
@@ -800,6 +758,10 @@ public class TableOrderFrame extends JFrame {
 
     private JButton buildCategoryButton(String text, boolean active) {
         JButton btn = new JButton(text);
+        btn.addActionListener(new ActionListener() {
+        	public void actionPerformed(ActionEvent e) {
+        	}
+        });
         btn.setFont(UIConstants.FONT_BODY);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1645,22 +1607,6 @@ public class TableOrderFrame extends JFrame {
     }
 
     private static void setPlaceholder(JTextField tf, String placeholder) {
-        tf.setForeground(UIConstants.TEXT_SECONDARY);
-        tf.addFocusListener(new FocusAdapter() {
-            @Override public void focusGained(FocusEvent e) {
-                if (tf.getText().equals(placeholder)) {
-                    tf.setText("");
-                    tf.setForeground(UIConstants.TEXT_PRIMARY);
-                }
-            }
-            @Override public void focusLost(FocusEvent e) {
-                if (tf.getText().isEmpty()) {
-                    tf.setText(placeholder);
-                    tf.setForeground(UIConstants.TEXT_SECONDARY);
-                }
-            }
-        });
-        tf.setText(placeholder);
     }
 
     private String loadRestaurantName() {

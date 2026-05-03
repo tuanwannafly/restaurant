@@ -1,26 +1,42 @@
 package com.restaurant.ui;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.format.DateTimeFormatter;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
+import javax.swing.border.AbstractBorder;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -31,53 +47,67 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 
 /**
- * Panel cho RESTAURANT_ADMIN xem và cập nhật thông tin nhà hàng của mình.
- *
- * <p>Chỉ hiển thị khi người dùng có quyền {@code VIEW_OWN_RESTAURANT}.
- * Dữ liệu load bất đồng bộ bằng SwingWorker để không block EDT.
- *
- * <ul>
- *   <li>Logo — upload ảnh, preview 80×80, lưu vào assets/restaurant_logos/</li>
- *   <li>Tên, địa chỉ, SĐT, email — có thể chỉnh sửa</li>
- *   <li>Trạng thái, ngày tạo — chỉ đọc</li>
- *   <li>Nút "Lưu thay đổi" gọi {@link DataManager#updateMyRestaurant}</li>
- * </ul>
+ * MyRestaurantInfoPanel — dành cho Restaurant Admin.
+ * Chỉ hiển thị: thông tin cơ bản + logo + giờ hoạt động.
+ * KHÔNG hiển thị dashboard tổng quan kiểu platform-admin.
  */
 public class MyRestaurantInfoPanel extends JPanel {
 
+    // ── Palette ───────────────────────────────────────────────────────────────
+    private static final Color PAGE_BG      = new Color(0xF8FAFC);
+    private static final Color CARD_BG      = Color.WHITE;
+    private static final Color BORDER_CLR   = new Color(0xE2E8F0);
+    private static final Color LABEL_CLR    = new Color(0x64748B);
+    private static final Color TEXT_CLR     = new Color(0x0F172A);
+    private static final Color PRIMARY      = new Color(0x2563EB);
+    private static final Color SUCCESS_CLR  = new Color(0x16A34A);
+    private static final Color DANGER_CLR   = new Color(0xDC2626);
+    private static final Color FIELD_BORDER = new Color(0xCBD5E1);
+    private static final Color FIELD_FOCUS  = new Color(0x2563EB);
+    private static final Color BTN_SAVE_BG  = new Color(0x2563EB);
+    private static final Color BTN_SAVE_HOV = new Color(0x1D4ED8);
+
+    private static final Font FONT_TITLE   = new Font("Segoe UI", Font.BOLD, 20);
+    private static final Font FONT_SECTION = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_LABEL   = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font FONT_BOLD_13 = new Font("Segoe UI", Font.BOLD,  13);
+    private static final Font FONT_BODY    = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font FONT_SMALL   = new Font("Segoe UI", Font.PLAIN, 11);
+
+    private static final int FIELD_H = 36;
+    private static final int ARC     = 8;
+
     // ── Form fields ───────────────────────────────────────────────────────────
-    private JLabel      logoPreview;
-    private String      pendingLogoUrl; // path logo đang chờ lưu
+    private CleanField tfName, tfAddress, tfPhone, tfEmail;
+    private JTextArea  taDesc;
+    private JLabel     lblCreatedAt, lblStatus;
 
-    private JTextField  tfName;
-    private JTextField  tfAddress;
-    private JTextField  tfPhone;
-    private JTextField  tfEmail;
-    private JLabel      lblStatus;
-    private JLabel      lblCreatedAt;
-    private RoundedButton btnSave;
-    private JLabel      lblMsg;
+    // ── Logo ──────────────────────────────────────────────────────────────────
+    private JLabel logoCircle;
 
-    /** Bản ghi nhà hàng đang hiển thị — dùng để lấy restaurantId khi update. */
-    private Restaurant currentRestaurant;
+    // ── Header ────────────────────────────────────────────────────────────────
+    private JLabel  headerName;
+    private JButton btnSave, btnReset;
+    private JLabel  lblMsg;
 
-    private static final String   POLL_KEY = "my_restaurant";
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private Restaurant current;
+    private String     pendingLogoUrl;
+
+    private static final String POLL_KEY = "my_restaurant_clean";
     private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    // ── Constructor ───────────────────────────────────────────────────────────
-
+    // ═════════════════════════════════════════════════════════════════════════
     public MyRestaurantInfoPanel() {
-        setBackground(UIConstants.BG_PAGE);
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createEmptyBorder(32, 64, 32, 64));
+        setBackground(PAGE_BG);
         buildUI();
 
-        // G4: poll 60s để sync với DB — unregister khi panel bị ẩn, re-register khi hiện lại
         addAncestorListener(new AncestorListener() {
             @Override public void ancestorAdded(AncestorEvent e) {
-                PollManager.getInstance().register(POLL_KEY,
-                        MyRestaurantInfoPanel.this::loadData, 60_000);
+                PollManager.getInstance().register(
+                        POLL_KEY, MyRestaurantInfoPanel.this::loadData, 60_000);
             }
             @Override public void ancestorRemoved(AncestorEvent e) {
                 PollManager.getInstance().unregister(POLL_KEY);
@@ -86,317 +116,587 @@ public class MyRestaurantInfoPanel extends JPanel {
         });
     }
 
-    // ── UI ────────────────────────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════════
+    // BUILD UI
+    // ═════════════════════════════════════════════════════════════════════════
 
     private void buildUI() {
-        // ── Page title ──
-        JLabel title = new JLabel("Nhà hàng của tôi");
-        title.setFont(UIConstants.FONT_TITLE);
-        title.setForeground(UIConstants.TEXT_PRIMARY);
-        title.setBorder(BorderFactory.createEmptyBorder(0, 0, 24, 0));
-        add(title, BorderLayout.NORTH);
+        add(buildPageHeader(), BorderLayout.NORTH);
 
-        // ── Card container ──
-        JPanel card = new JPanel(new GridBagLayout());
-        card.setBackground(UIConstants.BG_WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1),
-                BorderFactory.createEmptyBorder(32, 40, 32, 40)));
+        JPanel body = new JPanel(new GridBagLayout());
+        body.setBackground(PAGE_BG);
+        body.setBorder(BorderFactory.createEmptyBorder(20, 24, 24, 24));
 
-        GridBagConstraints lc = new GridBagConstraints();
-        lc.anchor = GridBagConstraints.WEST;
-        lc.insets = new Insets(8, 0, 8, 16);
-        lc.gridx  = 0;
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.fill    = GridBagConstraints.BOTH;
+        gc.gridy   = 0;
+        gc.weighty = 1.0;
 
-        GridBagConstraints fc = new GridBagConstraints();
-        fc.fill    = GridBagConstraints.HORIZONTAL;
-        fc.weightx = 1.0;
-        fc.insets  = new Insets(8, 0, 8, 0);
-        fc.gridx   = 1;
+        // Left 60%
+        gc.gridx   = 0;
+        gc.weightx = 0.60;
+        gc.insets  = new Insets(0, 0, 0, 12);
+        body.add(buildInfoCard(), gc);
 
-        int row = 0;
+        // Right 40% — chỉ logo + giờ hoạt động (không có stats)
+        gc.gridx   = 1;
+        gc.weightx = 0.40;
+        gc.insets  = new Insets(0, 0, 0, 0);
+        gc.fill    = GridBagConstraints.HORIZONTAL;
+        gc.weighty = 0;
 
-        // ── Logo row ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Logo:"), lc);
+        JPanel rightCol = new JPanel();
+        rightCol.setLayout(new BoxLayout(rightCol, BoxLayout.Y_AXIS));
+        rightCol.setOpaque(false);
+        rightCol.add(buildLogoCard());
+        rightCol.add(Box.createVerticalStrut(12));
+        rightCol.add(buildHoursCard());
+        body.add(rightCol, gc);
 
-        logoPreview = new JLabel();
-        logoPreview.setPreferredSize(new Dimension(80, 80));
-        logoPreview.setHorizontalAlignment(SwingConstants.CENTER);
-        logoPreview.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR));
-        logoPreview.setBackground(new Color(0xF3F4F6));
-        logoPreview.setOpaque(true);
-
-        RoundedButton btnUploadLogo = RoundedButton.outline("📤 Đổi logo");
-        btnUploadLogo.setPreferredSize(new Dimension(120, UIConstants.BTN_HEIGHT));
-        btnUploadLogo.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
-        btnUploadLogo.addActionListener(e -> pickLogo());
-
-        JPanel logoRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        logoRow.setOpaque(false);
-        logoRow.add(logoPreview);
-        logoRow.add(btnUploadLogo);
-        card.add(logoRow, fc);
-
-        // ── Tên nhà hàng ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Tên nhà hàng:"), lc);
-        tfName = styledField();
-        card.add(tfName, fc);
-
-        // ── Địa chỉ ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Địa chỉ:"), lc);
-        tfAddress = styledField();
-        card.add(tfAddress, fc);
-
-        // ── SĐT ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("SĐT:"), lc);
-        tfPhone = styledField();
-        card.add(tfPhone, fc);
-
-        // ── Email ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Email:"), lc);
-        tfEmail = styledField();
-        card.add(tfEmail, fc);
-
-        // ── Trạng thái (readonly) ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Trạng thái:"), lc);
-        lblStatus = new JLabel("—");
-        lblStatus.setFont(UIConstants.FONT_BODY);
-        card.add(lblStatus, fc);
-
-        // ── Ngày tạo (readonly) ──
-        lc.gridy = row; fc.gridy = row++;
-        card.add(fieldLabel("Ngày tạo:"), lc);
-        lblCreatedAt = new JLabel("—");
-        lblCreatedAt.setFont(UIConstants.FONT_BODY);
-        lblCreatedAt.setForeground(UIConstants.TEXT_SECONDARY);
-        card.add(lblCreatedAt, fc);
-
-        // ── Message label ──
-        GridBagConstraints mc = new GridBagConstraints();
-        mc.gridx    = 0; mc.gridy = row++;
-        mc.gridwidth = 2;
-        mc.anchor   = GridBagConstraints.WEST;
-        mc.insets   = new Insets(4, 0, 4, 0);
-        lblMsg = new JLabel(" ");
-        lblMsg.setFont(UIConstants.FONT_SMALL);
-        card.add(lblMsg, mc);
-
-        // ── Save button ──
-        GridBagConstraints bc = new GridBagConstraints();
-        bc.gridx     = 0; bc.gridy = row;
-        bc.gridwidth = 2;
-        bc.anchor    = GridBagConstraints.EAST;
-        bc.insets    = new Insets(16, 0, 0, 0);
-
-        btnSave = new RoundedButton("Lưu thay đổi");
-        btnSave.setPreferredSize(new Dimension(150, UIConstants.BTN_HEIGHT));
-        btnSave.setEnabled(AppSession.getInstance()
-                .hasPermission(Permission.EDIT_OWN_RESTAURANT));
-        btnSave.addActionListener(e -> doSave());
-        card.add(btnSave, bc);
-
-        // ── Wrap card in a centering panel ──
-        JPanel center = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        center.setOpaque(false);
-        card.setPreferredSize(new Dimension(560, card.getPreferredSize().height));
-        center.add(card);
-        add(center, BorderLayout.CENTER);
+        JScrollPane scroll = new JScrollPane(body);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.getViewport().setBackground(PAGE_BG);
+        scroll.setBackground(PAGE_BG);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        add(scroll, BorderLayout.CENTER);
     }
 
-    // ── Logo picker ───────────────────────────────────────────────────────────
+    // ── PAGE HEADER ───────────────────────────────────────────────────────────
+
+    private JPanel buildPageHeader() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(Color.WHITE);
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_CLR),
+                BorderFactory.createEmptyBorder(16, 24, 16, 24)));
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        left.setOpaque(false);
+
+        JLabel title = new JLabel("Thông tin nhà hàng");
+        title.setFont(FONT_TITLE);
+        title.setForeground(TEXT_CLR);
+
+        headerName = new JLabel("Đang tải...");
+        headerName.setFont(FONT_BODY);
+        headerName.setForeground(LABEL_CLR);
+
+        lblStatus = new JLabel("● Hoạt động");
+        lblStatus.setFont(FONT_BOLD_13);
+        lblStatus.setForeground(SUCCESS_CLR);
+
+        left.add(title);
+        left.add(sep());
+        left.add(headerName);
+        left.add(sep());
+        left.add(lblStatus);
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        right.setOpaque(false);
+
+        lblMsg = new JLabel("");
+        lblMsg.setFont(FONT_SMALL);
+        lblMsg.setForeground(LABEL_CLR);
+
+        btnReset = buildOutlineBtn("Đặt lại", 90);
+        btnReset.addActionListener(e -> { if (current != null) populate(current); });
+
+        btnSave = buildPrimaryBtn("Lưu thay đổi", 130);
+        btnSave.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
+        btnSave.addActionListener(e -> doSave());
+
+        right.add(lblMsg);
+        right.add(btnReset);
+        right.add(btnSave);
+
+        bar.add(left,  BorderLayout.WEST);
+        bar.add(right, BorderLayout.EAST);
+        return bar;
+    }
+
+    // ── LEFT CARD: Thông tin cơ bản ──────────────────────────────────────────
+
+    private JPanel buildInfoCard() {
+        JPanel card = makeCard();
+        card.setLayout(new BorderLayout(0, 16));
+
+        card.add(sectionLabel("THÔNG TIN CƠ BẢN"), BorderLayout.NORTH);
+
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
+
+        GridBagConstraints lc = labelGbc();
+        GridBagConstraints fc = fieldGbc();
+        int r = 0;
+
+        tfName    = new CleanField(); addFormRow(form, lc, fc, r++, "Tên nhà hàng",  tfName);
+        tfAddress = new CleanField(); addFormRow(form, lc, fc, r++, "Địa chỉ",        tfAddress);
+        tfPhone   = new CleanField(); addFormRow(form, lc, fc, r++, "Số điện thoại",  tfPhone);
+        tfEmail   = new CleanField(); addFormRow(form, lc, fc, r++, "Email liên hệ",  tfEmail);
+
+        // Mô tả
+        lc.gridy = r; lc.anchor = GridBagConstraints.NORTHWEST; lc.insets = new Insets(6, 0, 12, 12);
+        form.add(fieldLabel("Mô tả ngắn"), lc);
+        lc.anchor = GridBagConstraints.WEST; lc.insets = new Insets(0, 0, 12, 12);
+
+        fc.gridy = r++;
+        taDesc = new JTextArea(3, 0);
+        taDesc.setFont(FONT_BODY);
+        taDesc.setForeground(TEXT_CLR);
+        taDesc.setLineWrap(true);
+        taDesc.setWrapStyleWord(true);
+        taDesc.setBorder(BorderFactory.createCompoundBorder(
+                new RoundBorder(ARC, FIELD_BORDER),
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+        taDesc.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) {
+                taDesc.setBorder(BorderFactory.createCompoundBorder(
+                        new RoundBorder(ARC, FIELD_FOCUS),
+                        BorderFactory.createEmptyBorder(7, 9, 7, 9)));
+            }
+            @Override public void focusLost(FocusEvent e) {
+                taDesc.setBorder(BorderFactory.createCompoundBorder(
+                        new RoundBorder(ARC, FIELD_BORDER),
+                        BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+            }
+        });
+        JScrollPane taScroll = new JScrollPane(taDesc);
+        taScroll.setBorder(null);
+        taScroll.setPreferredSize(new Dimension(0, 80));
+        form.add(taScroll, fc);
+
+        // Ngày tạo (read-only)
+        lc.gridy = r; fc.gridy = r++;
+        lc.insets = new Insets(0, 0, 0, 12);
+        form.add(fieldLabel("Ngày tạo"), lc);
+        lblCreatedAt = new JLabel("—");
+        lblCreatedAt.setFont(FONT_BODY);
+        lblCreatedAt.setForeground(LABEL_CLR);
+        form.add(lblCreatedAt, fc);
+
+        card.add(form, BorderLayout.CENTER);
+        return card;
+    }
+
+    // ── RIGHT CARD 1: Logo ────────────────────────────────────────────────────
+
+    private JPanel buildLogoCard() {
+        JPanel card = makeCard();
+        card.setLayout(new BorderLayout(0, 12));
+        card.add(sectionLabel("LOGO NHÀ HÀNG"), BorderLayout.NORTH);
+
+        JPanel content = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        content.setOpaque(false);
+
+        logoCircle = new JLabel("NH", SwingConstants.CENTER) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0xEFF6FF));
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.setColor(new Color(0xBFDBFE));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawOval(1, 1, getWidth() - 2, getHeight() - 2);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        logoCircle.setPreferredSize(new Dimension(64, 64));
+        logoCircle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        logoCircle.setForeground(PRIMARY);
+        logoCircle.setOpaque(false);
+        logoCircle.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        logoCircle.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) { pickLogo(); }
+        });
+
+        JPanel actions = new JPanel();
+        actions.setLayout(new BoxLayout(actions, BoxLayout.Y_AXIS));
+        actions.setOpaque(false);
+
+        JButton btnUpload = buildOutlineBtn("Tải lên", 100);
+        btnUpload.setAlignmentX(LEFT_ALIGNMENT);
+        btnUpload.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
+        btnUpload.addActionListener(e -> pickLogo());
+
+        JLabel h1 = smallHint("JPG, PNG — tối đa 2 MB");
+        h1.setAlignmentX(LEFT_ALIGNMENT);
+
+        actions.add(btnUpload);
+        actions.add(Box.createVerticalStrut(6));
+        actions.add(h1);
+
+        content.add(logoCircle);
+        content.add(actions);
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
+    // ── RIGHT CARD 2: Giờ hoạt động ───────────────────────────────────────────
+
+    private JPanel buildHoursCard() {
+        JPanel card = makeCard();
+        card.setLayout(new BorderLayout(0, 12));
+        card.add(sectionLabel("GIỜ HOẠT ĐỘNG"), BorderLayout.NORTH);
+
+        JPanel rows = new JPanel(new GridLayout(3, 2, 0, 8));
+        rows.setOpaque(false);
+
+        String[][] schedule = {
+            {"Thứ 2 – 6", "07:00 – 22:00"},
+            {"Thứ 7",     "08:00 – 23:00"},
+            {"Chủ nhật",  "Đóng cửa"}
+        };
+
+        for (int i = 0; i < 3; i++) {
+            JLabel dayLbl = new JLabel(schedule[i][0]);
+            dayLbl.setFont(FONT_BODY);
+            dayLbl.setForeground(LABEL_CLR);
+
+            JLabel hrLbl = new JLabel(schedule[i][1], SwingConstants.RIGHT);
+            hrLbl.setFont(FONT_BOLD_13);
+            hrLbl.setForeground(i < 2 ? SUCCESS_CLR : DANGER_CLR);
+
+            rows.add(dayLbl);
+            rows.add(hrLbl);
+        }
+
+        card.add(rows, BorderLayout.CENTER);
+        return card;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // LOGO PICKER
+    // ═════════════════════════════════════════════════════════════════════════
 
     private void pickLogo() {
         JFileChooser chooser = new JFileChooser();
-        chooser.setFileFilter(new FileNameExtensionFilter(
-                "Image files", "jpg", "jpeg", "png", "webp"));
+        chooser.setFileFilter(new FileNameExtensionFilter("Image files", "jpg", "jpeg", "png"));
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
 
         File src = chooser.getSelectedFile();
+        if (src.length() > 2L * 1024 * 1024) {
+            showMsg("File vượt quá 2 MB!", DANGER_CLR);
+            return;
+        }
         try {
             File destDir = new File("assets/restaurant_logos");
             destDir.mkdirs();
-            String fileName = System.currentTimeMillis() + "_" + src.getName();
-            File dest = new File(destDir, fileName);
+            String fn   = System.currentTimeMillis() + "_" + src.getName();
+            File   dest = new File(destDir, fn);
             Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            pendingLogoUrl = "assets/restaurant_logos/" + fileName;
+            pendingLogoUrl = "assets/restaurant_logos/" + fn;
 
-            // Cập nhật preview
-            ImageIcon icon = new ImageIcon(new ImageIcon(dest.getPath())
-                    .getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH));
-            logoPreview.setIcon(icon);
-            logoPreview.setText("");
-
-            showMsg("Logo sẽ được lưu khi bạn nhấn 'Lưu thay đổi'.", UIConstants.PRIMARY);
+            java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(dest);
+            if (img != null) {
+                logoCircle.setIcon(new ImageIcon(makeCircleImage(img, 64)));
+                logoCircle.setText("");
+            }
+            showMsg("Logo sẽ được lưu khi nhấn 'Lưu thay đổi'.", LABEL_CLR);
         } catch (Exception ex) {
-            showMsg("Lỗi: " + ex.getMessage(), UIConstants.DANGER);
+            showMsg("Lỗi tải logo: " + ex.getMessage(), DANGER_CLR);
         }
     }
 
-    // ── Data ──────────────────────────────────────────────────────────────────
+    private java.awt.image.BufferedImage makeCircleImage(java.awt.image.BufferedImage src, int size) {
+        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(
+                size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setClip(new java.awt.geom.Ellipse2D.Float(0, 0, size, size));
+        g2.drawImage(src.getScaledInstance(size, size, Image.SCALE_SMOOTH), 0, 0, null);
+        g2.dispose();
+        return out;
+    }
 
-    /**
-     * Tải thông tin nhà hàng từ DB bất đồng bộ.
-     * Gọi khi panel được hiển thị (từ {@link MainFrame#navigateTo}).
-     */
+    // ═════════════════════════════════════════════════════════════════════════
+    // DATA
+    // ═════════════════════════════════════════════════════════════════════════
+
     public void loadData() {
-        lblMsg.setText(" ");
+        showMsg("Đang tải...", LABEL_CLR);
         btnSave.setEnabled(false);
 
         new SwingWorker<Restaurant, Void>() {
-            @Override
-            protected Restaurant doInBackground() {
+            @Override protected Restaurant doInBackground() {
                 return DataManager.getInstance().getMyRestaurant();
             }
-
-            @Override
-            protected void done() {
+            @Override protected void done() {
                 try {
-                    currentRestaurant = get();
-                    if (currentRestaurant == null) {
-                        showMsg("Không tìm thấy thông tin nhà hàng.", UIConstants.DANGER);
-                        return;
-                    }
-                    populate(currentRestaurant);
-                    btnSave.setEnabled(AppSession.getInstance()
-                            .hasPermission(Permission.EDIT_OWN_RESTAURANT));
+                    current = get();
+                    if (current == null) { showMsg("Không tìm thấy nhà hàng.", DANGER_CLR); return; }
+                    populate(current);
+                    btnSave.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
+                    showMsg("", Color.WHITE);
                 } catch (Exception ex) {
-                    showMsg("Lỗi tải dữ liệu: " + ex.getMessage(), UIConstants.DANGER);
+                    showMsg("Lỗi tải dữ liệu.", DANGER_CLR);
                 }
             }
         }.execute();
     }
 
-    /** Đẩy dữ liệu từ model vào các field. */
-    private void populate(Restaurant r) {
-        // Reset pending logo mỗi khi populate lại từ DB
+    public void populate(Restaurant r) {
         pendingLogoUrl = null;
 
-        // Load logo hiện tại nếu có
-        logoPreview.setIcon(null);
-        logoPreview.setText("");
-        if (r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
-            File f = new File(r.getLogoUrl());
-            if (f.exists()) {
-                logoPreview.setIcon(new ImageIcon(new ImageIcon(f.getPath())
-                        .getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH)));
-            }
-        }
+        tfName.setText(nv(r.getName()));
+        tfAddress.setText(nv(r.getAddress()));
+        tfPhone.setText(nv(r.getPhone()));
+        tfEmail.setText(nv(r.getEmail()));
+        taDesc.setText("");
 
-        tfName.setText(r.getName()    != null ? r.getName()    : "");
-        tfAddress.setText(r.getAddress() != null ? r.getAddress() : "");
-        tfPhone.setText(r.getPhone()   != null ? r.getPhone()   : "");
-        tfEmail.setText(r.getEmail()   != null ? r.getEmail()   : "");
-
-        if (r.getStatus() != null) {
-            boolean active = r.getStatus() == Restaurant.Status.ACTIVE;
-            lblStatus.setText(r.getStatus().label());
-            lblStatus.setForeground(active ? UIConstants.SUCCESS : UIConstants.DANGER);
-            lblStatus.setFont(UIConstants.FONT_BOLD);
-        } else {
-            lblStatus.setText("—");
-            lblStatus.setForeground(UIConstants.TEXT_SECONDARY);
-        }
-
+        headerName.setText(nv(r.getName()));
         lblCreatedAt.setText(r.getCreatedAt() != null
                 ? r.getCreatedAt().format(DATE_FMT) : "—");
+
+        boolean active = r.getStatus() == Restaurant.Status.ACTIVE;
+        lblStatus.setText(active ? "● Hoạt động" : "● Tạm dừng");
+        lblStatus.setForeground(active ? SUCCESS_CLR : DANGER_CLR);
+
+        // Logo
+        if (r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
+            try {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(new File(r.getLogoUrl()));
+                if (img != null) {
+                    logoCircle.setIcon(new ImageIcon(makeCircleImage(img, 64)));
+                    logoCircle.setText("");
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
-    // ── Save ──────────────────────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════════
+    // SAVE
+    // ═════════════════════════════════════════════════════════════════════════
 
     private void doSave() {
-        if (currentRestaurant == null) return;
-
-        String name    = tfName.getText().trim();
-        String address = tfAddress.getText().trim();
-        String phone   = tfPhone.getText().trim();
-        String email   = tfEmail.getText().trim();
-
+        if (current == null) return;
+        String name = tfName.getText().trim();
         if (name.isEmpty()) {
-            showMsg("Tên nhà hàng không được để trống.", UIConstants.DANGER);
+            showMsg("Tên nhà hàng không được để trống.", DANGER_CLR);
             tfName.requestFocus();
             return;
         }
 
-        // Build updated model — giữ nguyên id, status, createdAt
         Restaurant updated = new Restaurant(
-                currentRestaurant.getRestaurantId(),
-                name, address, phone, email,
-                currentRestaurant.getStatus(),
-                currentRestaurant.getCreatedAt());
-
-        // Gộp logoUrl: ưu tiên logo mới đang chờ, fallback về logo cũ
-        if (pendingLogoUrl != null) {
-            updated.setLogoUrl(pendingLogoUrl);
-        } else {
-            updated.setLogoUrl(currentRestaurant.getLogoUrl());
-        }
+                current.getRestaurantId(), name,
+                tfAddress.getText().trim(),
+                tfPhone.getText().trim(),
+                tfEmail.getText().trim(),
+                current.getStatus(),
+                current.getCreatedAt());
+        updated.setLogoUrl(pendingLogoUrl != null ? pendingLogoUrl : current.getLogoUrl());
 
         btnSave.setEnabled(false);
-        lblMsg.setText("Đang lưu…");
-        lblMsg.setForeground(UIConstants.TEXT_SECONDARY);
+        showMsg("Đang lưu...", LABEL_CLR);
 
         new SwingWorker<Void, Void>() {
-            @Override
-            protected Void doInBackground() throws Exception {
+            @Override protected Void doInBackground() throws Exception {
                 DataManager.getInstance().updateMyRestaurant(updated);
                 return null;
             }
-
-            @Override
-            protected void done() {
+            @Override protected void done() {
                 try {
                     get();
-                    currentRestaurant = updated;
-                    // Invalidate cache để các panel/poll khác nhận thông tin mới
+                    current = updated;
                     DataManager.getInstance().invalidateRestaurantCache();
                     pendingLogoUrl = null;
-                    showMsg("Lưu thay đổi thành công!", UIConstants.SUCCESS);
-                    ToastNotification.show(
-                            MyRestaurantInfoPanel.this,
+                    headerName.setText(updated.getName());
+                    showMsg("✓  Đã lưu thành công", SUCCESS_CLR);
+                    ToastNotification.show(MyRestaurantInfoPanel.this,
                             "Thông tin nhà hàng đã được cập nhật.",
                             ToastNotification.Type.SUCCESS);
                 } catch (Exception ex) {
-                    showMsg("Lỗi khi lưu: " + ex.getMessage(), UIConstants.DANGER);
-                    ToastNotification.show(
-                            MyRestaurantInfoPanel.this,
-                            "Lưu thất bại: " + ex.getMessage(),
-                            ToastNotification.Type.ERROR);
+                    showMsg("Lưu thất bại: " + ex.getMessage(), DANGER_CLR);
                 } finally {
-                    btnSave.setEnabled(AppSession.getInstance()
-                            .hasPermission(Permission.EDIT_OWN_RESTAURANT));
+                    btnSave.setEnabled(AppSession.getInstance().hasPermission(Permission.EDIT_OWN_RESTAURANT));
                 }
             }
         }.execute();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════════
+    // FACTORIES / HELPERS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    private JPanel makeCard() {
+        JPanel card = new JPanel();
+        card.setBackground(CARD_BG);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new RoundBorder(10, BORDER_CLR),
+                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+        card.setAlignmentX(LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        return card;
+    }
+
+    private JLabel sectionLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(FONT_SECTION);
+        l.setForeground(LABEL_CLR);
+        l.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        return l;
+    }
 
     private JLabel fieldLabel(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(UIConstants.FONT_BOLD);
-        lbl.setForeground(UIConstants.TEXT_PRIMARY);
-        lbl.setPreferredSize(new Dimension(130, 28));
-        return lbl;
+        JLabel l = new JLabel(text);
+        l.setFont(FONT_LABEL);
+        l.setForeground(LABEL_CLR);
+        l.setPreferredSize(new Dimension(130, FIELD_H));
+        return l;
     }
 
-    private JTextField styledField() {
-        JTextField tf = new JTextField();
-        tf.setFont(UIConstants.FONT_BODY);
-        tf.setPreferredSize(new Dimension(320, 32));
-        tf.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-        return tf;
+    private GridBagConstraints labelGbc() {
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx   = 0;
+        gc.anchor  = GridBagConstraints.WEST;
+        gc.weightx = 0;
+        gc.insets  = new Insets(0, 0, 12, 12);
+        return gc;
     }
 
-    private void showMsg(String msg, Color color) {
-        lblMsg.setText(msg);
-        lblMsg.setForeground(color);
+    private GridBagConstraints fieldGbc() {
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx   = 1;
+        gc.fill    = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        gc.insets  = new Insets(0, 0, 12, 0);
+        return gc;
+    }
+
+    private void addFormRow(JPanel form, GridBagConstraints lc, GridBagConstraints fc,
+                             int row, String labelText, CleanField field) {
+        lc.gridy = row;
+        form.add(fieldLabel(labelText), lc);
+        fc.gridy = row;
+        field.setPreferredSize(new Dimension(0, FIELD_H));
+        form.add(field, fc);
+    }
+
+    private JButton buildPrimaryBtn(String text, int w) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isEnabled()
+                        ? (getModel().isRollover() ? BTN_SAVE_HOV : BTN_SAVE_BG)
+                        : new Color(0xCBD5E1));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), ARC, ARC);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setFont(FONT_BOLD_13);
+        btn.setForeground(Color.WHITE);
+        btn.setPreferredSize(new Dimension(w, 34));
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    private JButton buildOutlineBtn(String text, int w) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isRollover() ? new Color(0xF8FAFC) : Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), ARC, ARC);
+                g2.setColor(FIELD_BORDER);
+                g2.setStroke(new BasicStroke(1.2f));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, ARC, ARC);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setFont(FONT_LABEL);
+        btn.setForeground(TEXT_CLR);
+        btn.setPreferredSize(new Dimension(w, 34));
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    private JLabel smallHint(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(FONT_SMALL);
+        l.setForeground(new Color(0x94A3B8));
+        return l;
+    }
+
+    private JLabel sep() {
+        JLabel l = new JLabel("·");
+        l.setFont(FONT_BODY);
+        l.setForeground(BORDER_CLR);
+        return l;
+    }
+
+    private void showMsg(String text, Color color) {
+        if (lblMsg != null) { lblMsg.setText(text); lblMsg.setForeground(color); }
+    }
+
+    private static String nv(String s) { return s != null ? s : ""; }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // INNER: CleanField
+    // ═════════════════════════════════════════════════════════════════════════
+
+    private static class CleanField extends JTextField {
+        CleanField() {
+            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            setForeground(new Color(0x0F172A));
+            setBackground(Color.WHITE);
+            setOpaque(true);
+            setBorder(BorderFactory.createCompoundBorder(
+                    new RoundBorder(8, new Color(0xCBD5E1)),
+                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+
+            addFocusListener(new FocusAdapter() {
+                @Override public void focusGained(FocusEvent e) {
+                    setBorder(BorderFactory.createCompoundBorder(
+                            new RoundBorder(8, new Color(0x2563EB)),
+                            BorderFactory.createEmptyBorder(5, 9, 5, 9)));
+                }
+                @Override public void focusLost(FocusEvent e) {
+                    setBorder(BorderFactory.createCompoundBorder(
+                            new RoundBorder(8, new Color(0xCBD5E1)),
+                            BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+                }
+            });
+        }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(isEnabled() ? Color.WHITE : new Color(0xF8FAFC));
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+
+        @Override protected void paintBorder(Graphics g) { /* handled in border object */ }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // INNER: RoundBorder
+    // ═════════════════════════════════════════════════════════════════════════
+
+    private static class RoundBorder extends AbstractBorder {
+        private final int   arc;
+        private final Color color;
+        RoundBorder(int arc, Color color) { this.arc = arc; this.color = color; }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int w, int h) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.drawRoundRect(x, y, w - 1, h - 1, arc, arc);
+            g2.dispose();
+        }
     }
 }

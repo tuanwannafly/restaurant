@@ -104,7 +104,6 @@ public class EmployeePanel extends JPanel {
         RoundedButton btnAdd = new RoundedButton("+ Thêm nhân viên");
         btnAdd.setPreferredSize(new Dimension(155, UIConstants.BTN_HEIGHT));
         btnAdd.addActionListener(e -> openAddDialog());
-        btnPanel.add(Box.createHorizontalStrut(8));
         btnPanel.add(btnAdd);
 
         topBar.add(title, BorderLayout.WEST);
@@ -119,9 +118,6 @@ public class EmployeePanel extends JPanel {
         searchField.addKeyListener(new KeyAdapter() {
             @Override public void keyReleased(KeyEvent e) { applyFilter(); }
         });
-
-        JLabel searchIcon = new JLabel("🔍");
-        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 16));
 
         JLabel roleLabel = new JLabel("Vai trò");
         roleLabel.setFont(UIConstants.FONT_BODY);
@@ -140,7 +136,6 @@ public class EmployeePanel extends JPanel {
         }
 
         filterBar.add(searchField);
-        filterBar.add(searchIcon);
         filterBar.add(roleLabel);
         filterBar.add(rolePanel);
 

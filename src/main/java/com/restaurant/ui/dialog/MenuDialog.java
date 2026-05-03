@@ -1,151 +1,156 @@
 package com.restaurant.ui.dialog;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Image;
-import java.awt.Insets;
-import java.awt.Window;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.function.Consumer;
 
-import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import com.restaurant.model.MenuItem;
+import com.restaurant.ui.AppComboBox;
+import com.restaurant.ui.AppTextField;
 import com.restaurant.ui.RoundedButton;
 import com.restaurant.ui.UIConstants;
 
-public class MenuDialog extends JDialog {
-    private Consumer<MenuItem> onSave;
-    private MenuItem item;
+/**
+ * MenuDialog — Phase 4 (redesigned)
+ *
+ * <p>Extends {@link AppDialog}. Inherits the coloured header, ESC / Enter
+ * shortcuts, and the 2-column {@link AppDialog.FormBuilder} layout.
+ *
+ * <p>Phase 6B image picking behaviour is preserved and integrated into
+ * the form builder row system.
+ */
+public class MenuDialog extends AppDialog {
 
-    // ─── Fields ───────────────────────────────────────────────────────────────
-    private JTextField tfName, tfPrice, tfDesc;
-    private JComboBox<String> cbCategory;
+    // ── Form fields ───────────────────────────────────────────────────────────
+    private AppTextField        tfName, tfPrice, tfDesc;
+    private AppComboBox<String> cbCategory;
 
-    // ─── Phase 6B: Image fields ───────────────────────────────────────────────
+    // Error labels (attached in buildBody)
+    private JLabel errName, errPrice;
+
+    // ── Phase 6B: image ───────────────────────────────────────────────────────
     private JLabel     imgPreview;
-    private JTextField tfImageUrl = new JTextField(); // hidden, không add vào form
+    private String     imageUrlValue = ""; // internal state
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private final MenuItem         item;
+    private final Consumer<MenuItem> onSave;
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     public MenuDialog(Window owner, MenuItem item, Consumer<MenuItem> onSave) {
-        super(owner, item == null ? "Thêm món mới" : "Cập nhật món",
-                ModalityType.APPLICATION_MODAL);
+        super(owner);
         this.item   = item;
         this.onSave = onSave;
-        buildUI();
-        if (item != null) fillData();
-        setSize(480, 460); // tăng chiều cao để chứa row ảnh
+
+        setSize(520, 500);
         setLocationRelativeTo(owner);
         setResizable(false);
     }
 
-    // ─── UI Builder ───────────────────────────────────────────────────────────
+    // ── AppDialog contract ───────────────────────────────────────────────────
 
-    private void buildUI() {
-        JPanel root = new JPanel(new BorderLayout(0, 0));
-        root.setBackground(Color.WHITE);
+    @Override
+    protected String getDialogTitle() {
+        return item == null ? "Thêm món mới" : "Cập nhật thông tin món";
+    }
 
-        // ── Title ──
-        JLabel title = new JLabel(item == null ? "Thêm món mới" : "Cập nhật thông tin món");
-        title.setFont(UIConstants.FONT_TITLE);
-        title.setForeground(UIConstants.TEXT_PRIMARY);
-        title.setBorder(BorderFactory.createEmptyBorder(20, 24, 12, 24));
-        root.add(title, BorderLayout.NORTH);
+    @Override
+    protected String getSaveLabel() {
+        return item == null ? "Thêm món" : "Lưu";
+    }
 
-        // ── Form ──
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setBackground(Color.WHITE);
-        form.setBorder(BorderFactory.createEmptyBorder(0, 24, 12, 24));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets  = new Insets(7, 6, 7, 6);
-        gbc.fill    = GridBagConstraints.HORIZONTAL;
-        gbc.anchor  = GridBagConstraints.WEST;
+    @Override
+    protected JPanel buildBody() {
+        FormBuilder fb = new FormBuilder();
 
-        // Existing fields
-        tfName     = field();
-        cbCategory = new JComboBox<>(new String[]{
+        // ── Name ──────────────────────────────────────────────────────────
+        tfName = new AppTextField("VD: Cơm gà hội an...");
+        errName = fb.addRow("Tên món *:", tfName);
+        tfName.attachErrorLabel(errName);
+
+        // ── Category ──────────────────────────────────────────────────────
+        cbCategory = new AppComboBox<>(new String[]{
                 "Hải sản", "Thịt", "Cơm", "Phở", "Đồ uống", "Khác"});
         cbCategory.setFont(UIConstants.FONT_BODY);
-        tfPrice = field();
-        tfDesc  = field();
+        fb.addRow("Loại:", cbCategory);
 
-        addRow(form, gbc, 0, "Tên món:",  tfName);
-        addRow(form, gbc, 1, "Loại:",     cbCategory);
-        addRow(form, gbc, 2, "Giá (đ):",  tfPrice);
-        addRow(form, gbc, 3, "Mô tả:",    tfDesc);
+        // ── Price ─────────────────────────────────────────────────────────
+        tfPrice = new AppTextField("VD: 85000");
+        errPrice = fb.addRow("Giá (VND) *:", tfPrice);
+        tfPrice.attachErrorLabel(errPrice);
 
-        // Phase 6B — row ảnh
-        initImagePreview();
-        addRowFreeHeight(form, gbc, 4, "Hình ảnh:", buildImagePanel());
+        // ── Description ───────────────────────────────────────────────────
+        tfDesc = new AppTextField("Mô tả ngắn...");
+        fb.addRow("Mô tả:", tfDesc);
 
-        root.add(form, BorderLayout.CENTER);
+        // ── Image (Phase 6B) ──────────────────────────────────────────────
+        fb.addFreeRow("Hình ảnh:", buildImagePanel());
 
-        // ── Button bar ──
-        JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 12));
-        btnBar.setBackground(Color.WHITE);
-        btnBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR));
+        // Pre-fill when editing
+        if (item != null) fillData();
 
-        RoundedButton btnCancel = RoundedButton.outline("Hủy");
-        btnCancel.setPreferredSize(new Dimension(90, UIConstants.BTN_HEIGHT));
-        btnCancel.addActionListener(e -> dispose());
-
-        RoundedButton btnSave = new RoundedButton(item == null ? "Thêm món" : "Lưu");
-        btnSave.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
-        btnSave.addActionListener(e -> save());
-
-        btnBar.add(btnCancel);
-        btnBar.add(btnSave);
-        root.add(btnBar, BorderLayout.SOUTH);
-
-        setContentPane(root);
+        return fb.getPanel();
     }
 
-    // ─── Phase 6B: init imgPreview ────────────────────────────────────────────
-
-    private void initImagePreview() {
-        imgPreview = new JLabel("🍽", SwingConstants.CENTER);
-        imgPreview.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 32));
-        imgPreview.setForeground(new Color(0xD1D5DB));
-        imgPreview.setPreferredSize(new Dimension(120, 120));
-        imgPreview.setHorizontalAlignment(SwingConstants.CENTER);
-        imgPreview.setVerticalAlignment(SwingConstants.CENTER);
-        imgPreview.setBorder(BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true));
-        imgPreview.setBackground(new Color(0xF3F4F6));
-        imgPreview.setOpaque(true);
-    }
-
-    // ─── Phase 6B: buildImagePanel ────────────────────────────────────────────
+    // ── Image panel (Phase 6B) ───────────────────────────────────────────────
 
     private JPanel buildImagePanel() {
-        RoundedButton btnPickImage = RoundedButton.outline("🖼 Chọn ảnh...");
-        btnPickImage.setPreferredSize(new Dimension(130, UIConstants.BTN_HEIGHT));
-        btnPickImage.addActionListener(e -> pickImage());
+        // Preview box
+        imgPreview = new JLabel("+", SwingConstants.CENTER);
+        imgPreview.setFont(UIConstants.FONT_TITLE.deriveFont(Font.PLAIN, 28f));
+        imgPreview.setForeground(new Color(0xCBD5E1));
+        imgPreview.setPreferredSize(new Dimension(100, 100));
+        imgPreview.setHorizontalAlignment(SwingConstants.CENTER);
+        imgPreview.setVerticalAlignment(SwingConstants.CENTER);
+        imgPreview.setOpaque(true);
+        imgPreview.setBackground(new Color(0xF8FAFC));
+        imgPreview.setBorder(BorderFactory.createDashedBorder(new Color(0xCBD5E1), 4f, 4f, 4f, false));
+        imgPreview.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        imgPreview.setToolTipText("Nhấn để chọn ảnh");
+        imgPreview.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { pickImage(); }
+            @Override public void mouseEntered(MouseEvent e) {
+                imgPreview.setBackground(new Color(0xEFF6FF));
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                imgPreview.setBackground(new Color(0xF8FAFC));
+            }
+        });
 
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        p.setOpaque(false);
-        p.add(imgPreview);
-        p.add(btnPickImage);
-        return p;
+        // Pick button
+        RoundedButton btnPick = RoundedButton.outline("Chọn ảnh...");
+        btnPick.setPreferredSize(new Dimension(120, UIConstants.BTN_HEIGHT));
+        btnPick.addActionListener(e -> pickImage());
+
+        // Hint label
+        JLabel hint = new JLabel("JPG, PNG, WebP — tối đa 5 MB");
+        hint.setFont(UIConstants.FONT_BODY.deriveFont(Font.PLAIN, 11.5f));
+        hint.setForeground(new Color(0x94A3B8));
+
+        // Right-side text column
+        JPanel rightCol = new JPanel();
+        rightCol.setLayout(new BoxLayout(rightCol, BoxLayout.Y_AXIS));
+        rightCol.setOpaque(false);
+        rightCol.add(Box.createVerticalStrut(8));
+        rightCol.add(btnPick);
+        rightCol.add(Box.createVerticalStrut(6));
+        rightCol.add(hint);
+
+        // Wrapper
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        panel.setOpaque(false);
+        panel.add(imgPreview);
+        panel.add(rightCol);
+        return panel;
     }
-
-    // ─── Phase 6B: pickImage ─────────────────────────────────────────────────
 
     private void pickImage() {
         JFileChooser chooser = new JFileChooser();
@@ -153,40 +158,43 @@ public class MenuDialog extends JDialog {
         chooser.setFileFilter(new FileNameExtensionFilter(
                 "Image files (*.jpg, *.png, *.webp)", "jpg", "jpeg", "png", "webp"));
 
-        int result = chooser.showOpenDialog(this);
-        if (result != JFileChooser.APPROVE_OPTION) return;
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
 
         File src = chooser.getSelectedFile();
+        if (src.length() > 5L * 1024 * 1024) {
+            JOptionPane.showMessageDialog(this,
+                "File vuot qua 5 MB. Vui long chon anh nho hon.",
+                "Anh qua lon", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         try {
-            // Đảm bảo thư mục đích tồn tại
             File destDir = new File("assets/menu_images");
             destDir.mkdirs();
-
-            // Đổi tên theo timestamp để tránh trùng
             String fileName = System.currentTimeMillis() + "_" + src.getName();
-            File dest = new File(destDir, fileName);
+            File   dest     = new File(destDir, fileName);
             Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-            // Cập nhật trường path nội bộ
-            String relativePath = "assets/menu_images/" + fileName;
-            tfImageUrl.setText(relativePath);
-
-            // Cập nhật preview: scale về 120×120
-            ImageIcon icon = new ImageIcon(
-                    new ImageIcon(dest.getPath())
-                            .getImage()
-                            .getScaledInstance(120, 120, Image.SCALE_SMOOTH));
-            imgPreview.setIcon(icon);
-            imgPreview.setText(""); // xóa emoji placeholder
-
+            imageUrlValue = "assets/menu_images/" + fileName;
+            loadPreview(dest.getPath());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this,
-                    "Không thể copy ảnh: " + ex.getMessage(),
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                "Khong the copy anh: " + ex.getMessage(),
+                "Loi", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    // ─── fillData (khi edit) ──────────────────────────────────────────────────
+    private void loadPreview(String path) {
+        try {
+            ImageIcon icon = new ImageIcon(
+                new ImageIcon(path).getImage()
+                    .getScaledInstance(100, 100, Image.SCALE_SMOOTH));
+            imgPreview.setIcon(icon);
+            imgPreview.setText("");
+        } catch (Exception ignored) {}
+    }
+
+    // ── Fill data ────────────────────────────────────────────────────────────
 
     private void fillData() {
         tfName.setText(item.getName());
@@ -194,106 +202,55 @@ public class MenuDialog extends JDialog {
         tfPrice.setText(String.valueOf((long) item.getPrice()));
         tfDesc.setText(item.getDescription());
 
-        // Phase 6B: khôi phục ảnh khi edit
         String url = item.getImageUrl();
         if (url != null && !url.isBlank()) {
-            tfImageUrl.setText(url);
-            try {
-                File f = new File(url);
-                if (f.exists()) {
-                    ImageIcon icon = new ImageIcon(
-                            new ImageIcon(f.getPath())
-                                    .getImage()
-                                    .getScaledInstance(120, 120, Image.SCALE_SMOOTH));
-                    imgPreview.setIcon(icon);
-                    imgPreview.setText(""); // xóa emoji placeholder
-                }
-            } catch (Exception ignored) {}
+            imageUrlValue = url;
+            File f = new File(url);
+            if (f.exists()) loadPreview(f.getPath());
         }
     }
 
-    // ─── save ─────────────────────────────────────────────────────────────────
+    // ── Validation + Save ────────────────────────────────────────────────────
 
-    private void save() {
-        String name     = tfName.getText().trim();
-        String cat      = (String) cbCategory.getSelectedItem();
+    @Override
+    protected void onSave() {
+        boolean valid = true;
+
+        String name = tfName.getText().trim();
+        if (name.isEmpty()) {
+            tfName.setError("Vui long nhap ten mon an");
+            valid = false;
+        } else {
+            tfName.setError(null);
+        }
+
         String priceStr = tfPrice.getText().trim();
-        String desc     = tfDesc.getText().trim();
-
-        if (name.isEmpty() || priceStr.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Vui lòng nhập đầy đủ thông tin!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            return;
+        double price    = 0;
+        if (priceStr.isEmpty()) {
+            tfPrice.setError("Vui long nhap gia");
+            valid = false;
+        } else {
+            try {
+                price = Double.parseDouble(priceStr.replaceAll("[,.]", ""));
+                if (price <= 0) throw new NumberFormatException();
+                tfPrice.setError(null);
+            } catch (NumberFormatException ex) {
+                tfPrice.setError("Gia phai la so nguyen duong");
+                valid = false;
+            }
         }
 
-        double price;
-        try {
-            price = Double.parseDouble(priceStr);
-        } catch (NumberFormatException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Giá không hợp lệ!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        if (!valid) return;
+
+        String cat  = (String) cbCategory.getSelectedItem();
+        String desc = tfDesc.getText().trim();
 
         MenuItem saved = item == null
-                ? new MenuItem("", name, cat, price, desc)
-                : new MenuItem(item.getId(), name, cat, price, desc);
-
-        // Phase 6B: gán imageUrl vào MenuItem trước khi callback
-        saved.setImageUrl(tfImageUrl.getText().trim());
+            ? new MenuItem("", name, cat, price, desc)
+            : new MenuItem(item.getId(), name, cat, price, desc);
+        saved.setImageUrl(imageUrlValue);
 
         onSave.accept(saved);
-        dispose();
-    }
-
-    // ─── Layout helpers ───────────────────────────────────────────────────────
-
-    /** Row có chiều cao cố định 34px cho các field thông thường. */
-    private void addRow(JPanel form, GridBagConstraints gbc,
-                        int row, String label, JComponent comp) {
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        JLabel lbl = new JLabel(label);
-        lbl.setFont(UIConstants.FONT_BOLD);
-        lbl.setPreferredSize(new Dimension(100, 32));
-        form.add(lbl, gbc);
-        gbc.gridx = 1; gbc.weightx = 1;
-        comp.setPreferredSize(new Dimension(290, 34));
-        form.add(comp, gbc);
-    }
-
-    /**
-     * Row không ép chiều cao — dùng cho panel ảnh (120px preview).
-     * Label căn top để không bị kéo giãn theo chiều dọc.
-     */
-    private void addRowFreeHeight(JPanel form, GridBagConstraints gbc,
-                                  int row, String label, JComponent comp) {
-        GridBagConstraints lblGbc = (GridBagConstraints) gbc.clone();
-        lblGbc.gridx   = 0;
-        lblGbc.gridy   = row;
-        lblGbc.weightx = 0;
-        lblGbc.anchor  = GridBagConstraints.NORTHWEST;
-        lblGbc.fill    = GridBagConstraints.NONE;
-        lblGbc.insets  = new Insets(14, 6, 7, 6); // căn top với preview
-        JLabel lbl = new JLabel(label);
-        lbl.setFont(UIConstants.FONT_BOLD);
-        lbl.setPreferredSize(new Dimension(100, 32));
-        form.add(lbl, lblGbc);
-
-        GridBagConstraints compGbc = (GridBagConstraints) gbc.clone();
-        compGbc.gridx   = 1;
-        compGbc.gridy   = row;
-        compGbc.weightx = 1;
-        compGbc.fill    = GridBagConstraints.HORIZONTAL;
-        compGbc.anchor  = GridBagConstraints.WEST;
-        form.add(comp, compGbc);
-    }
-
-    private JTextField field() {
-        JTextField tf = new JTextField();
-        tf.setFont(UIConstants.FONT_BODY);
-        tf.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
-                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
-        return tf;
+        close();
     }
 }
