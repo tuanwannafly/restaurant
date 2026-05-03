@@ -2,112 +2,243 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ─────────────────────────────────────────────────────────────────────
+         Project coordinates
+    ───────────────────────────────────────────────────────────────────────── -->
     <groupId>com.restaurant</groupId>
-    <artifactId>smartrestaurant</artifactId>
-    <version>1.0.0</version>
+    <artifactId>smart-restaurant</artifactId>
+    <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>SmartRestaurant Unified</name>
 
+    <name>SmartRestaurant – JavaFX Edition</name>
+    <description>
+        Restaurant Management System migrated from Swing → JavaFX 21.
+        Business logic (DAO, session, data) is kept 100 % intact;
+        only the UI layer is replaced.
+    </description>
+
+    <!-- ─────────────────────────────────────────────────────────────────────
+         Global properties
+    ───────────────────────────────────────────────────────────────────────── -->
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>21</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mainClass>com.restaurant.Main</mainClass>
+
+        <!-- JavaFX version – bump here to upgrade all fx artifacts at once -->
+        <javafx.version>21.0.3</javafx.version>
+
+        <!-- JavaFX Maven plugin -->
+        <javafx.plugin.version>0.0.8</javafx.plugin.version>
+
+        <!-- Other library versions -->
+        <sqlite.version>3.45.3.0</sqlite.version>
+        <hikari.version>5.1.0</hikari.version>
+        <bcrypt.version>0.10.2</bcrypt.version>
+        <jackson.version>2.17.1</jackson.version>
+        <slf4j.version>2.0.13</slf4j.version>
+        <logback.version>1.5.6</logback.version>
+        <junit.version>5.10.3</junit.version>
+        <mockito.version>5.12.0</mockito.version>
     </properties>
 
+    <!-- ─────────────────────────────────────────────────────────────────────
+         Dependencies
+    ───────────────────────────────────────────────────────────────────────── -->
     <dependencies>
-        <!-- Oracle JDBC Driver (Maven Central) -->
+
+        <!-- ══ JavaFX ═══════════════════════════════════════════════════════ -->
+
+        <!-- Core controls: Button, TableView, ComboBox, ListView … -->
         <dependency>
-            <groupId>com.oracle.database.jdbc</groupId>
-            <artifactId>ojdbc11</artifactId>
-            <version>23.4.0.24.05</version>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
         </dependency>
 
-        <!-- BCrypt cho xác thực mật khẩu -->
+        <!-- FXML loader – used by FxUtils.loadFxml() -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- MediaPlayer for notification sounds / background music -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Charts (BarChart, LineChart for HomePanel) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- ══ Database ══════════════════════════════════════════════════════ -->
+
+        <!-- SQLite JDBC – keeps existing DAO layer working unchanged -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>${sqlite.version}</version>
+        </dependency>
+
+        <!-- HikariCP connection pool -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikari.version}</version>
+        </dependency>
+
+        <!-- ══ Security ══════════════════════════════════════════════════════ -->
+
+        <!-- BCrypt password hashing (UserDAO) -->
         <dependency>
             <groupId>org.mindrot</groupId>
             <artifactId>jbcrypt</artifactId>
             <version>0.4</version>
         </dependency>
+
+        <!-- ══ Serialisation ═════════════════════════════════════════════════ -->
+
+        <!-- JSON for token payloads / REST responses -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- ══ Logging ═══════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ══ Testing ═══════════════════════════════════════════════════════ -->
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.11.4</version> <!-- Use the latest version -->
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.formdev</groupId>
-            <artifactId>flatlaf</artifactId>
-            <version>3.4</version>
-        </dependency>
-        <dependency>
-            <groupId>com.miglayout</groupId>
-            <artifactId>miglayout-swing</artifactId>
-            <version>11.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>6.0.3</version>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>21</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>21</version>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13.2</version>
-            <scope>test</scope>
-        </dependency>
+
     </dependencies>
+
 
     <build>
         <plugins>
-            <!-- Fat JAR: đóng gói tất cả dependency vào 1 file -->
+
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>${java.version}</release>
+                    <encoding>UTF-8</encoding>
+                    <!-- Remove the two lines below if you don't use preview features -->
+                    <compilerArgs>
+                        <arg>--enable-preview</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+ 
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>${javafx.plugin.version}</version>
+                <configuration>
+                    <!-- Main JavaFX Application class -->
+                    <mainClass>com.restaurant/com.restaurant.Main</mainClass>
+                    <!-- JVM args forwarded at runtime -->
+                    <options>
+                        <option>--enable-preview</option>
+                        <!-- Anti-aliased text on all platforms -->
+                        <option>-Dawt.useSystemAAFontSettings=on</option>
+                        <option>-Dswing.aatext=true</option>
+                        <!-- Disable DPI scaling overrides (handled by JavaFX) -->
+                        <option>-Dglass.win.uiScale=100%</option>
+                    </options>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire for JUnit 5 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <argLine>--enable-preview</argLine>
+                </configuration>
+            </plugin>
+
+            <!-- Fat-JAR: shade plugin bundles all deps + JavaFX natives -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.2</version>
+                <version>3.6.0</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
                         <goals><goal>shade</goal></goals>
                         <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>fat</shadedClassifierName>
                             <transformers>
                                 <transformer implementation=
                                     "org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>${mainClass}</mainClass>
+                                    <mainClass>com.restaurant.Main</mainClass>
                                 </transformer>
+                                <!-- Merge service-loader files (Hikari, Jackson) -->
+                                <transformer implementation=
+                                    "org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
-                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.12.1</version>
-            </plugin>
-            <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
-                <configuration>
-                    <mainClass>com.restaurant.ui.AppLauncher</mainClass> <!-- Thay bằng class chính của bạn -->
-                </configuration>
-            </plugin>
+
         </plugins>
     </build>
+
 </project>

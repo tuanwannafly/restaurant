@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.scene.shape.*?>
+
+<!--
+    LoginView.fxml
+    Smart Restaurant Management System — Phase 1
+    Card trắng bo góc, gradient nền, email/password, remember-me, forgot-password.
+    Controller: com.restaurant.ui.LoginController
+-->
+<StackPane
+    xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1"
+    fx:controller="com.restaurant.ui.LoginController"
+    styleClass="root-pane"
+    stylesheets="@login.css">
+
+    <!-- ── Nền gradient (vẽ bằng CSS background trên root-pane) ── -->
+
+    <!-- ── Card trắng căn giữa ── -->
+    <VBox
+        fx:id="loginCard"
+        styleClass="login-card"
+        alignment="TOP_CENTER"
+        prefWidth="400"
+        maxWidth="400"
+        spacing="0">
+
+        <!-- ══ Header: logo + tên app ══ -->
+        <VBox alignment="CENTER" spacing="10" styleClass="card-header">
+            <!-- Logo mark: chữ SR trong ô bo góc màu primary -->
+            <StackPane styleClass="logo-mark" prefWidth="52" prefHeight="52">
+                <Rectangle
+                    arcWidth="20" arcHeight="20"
+                    width="52" height="52"
+                    styleClass="logo-rect"/>
+                <Label text="SR" styleClass="logo-initials"/>
+            </StackPane>
+
+            <Label text="Smart Restaurant"   styleClass="app-title"/>
+            <Label text="Hệ thống quản lý nhà hàng" styleClass="app-subtitle"/>
+        </VBox>
+
+        <!-- ══ Form ══ -->
+        <VBox spacing="0" styleClass="form-body">
+
+            <!-- Email -->
+            <Label text="Email / Tên tài khoản" styleClass="field-label"/>
+            <TextField
+                fx:id="tfEmail"
+                promptText="email@example.com"
+                styleClass="input-field"
+                onAction="#doLogin"/>
+
+            <!-- Password -->
+            <Label text="Mật khẩu" styleClass="field-label field-label-gap"/>
+            <PasswordField
+                fx:id="tfPassword"
+                promptText="••••••••"
+                styleClass="input-field"
+                onAction="#doLogin"/>
+
+            <!-- Error label -->
+            <Label
+                fx:id="lblError"
+                text=" "
+                styleClass="error-label"
+                wrapText="true"/>
+
+            <!-- Remember me -->
+            <CheckBox
+                fx:id="chkRememberMe"
+                text="Ghi nhớ đăng nhập 30 ngày"
+                styleClass="remember-check"/>
+
+            <!-- Login button -->
+            <Button
+                fx:id="btnLogin"
+                text="Đăng nhập"
+                styleClass="btn-primary"
+                maxWidth="Infinity"
+                onAction="#doLogin"
+                defaultButton="true"/>
+
+            <!-- Forgot password link -->
+            <HBox alignment="CENTER" styleClass="link-row">
+                <Hyperlink
+                    fx:id="lnkForgot"
+                    text="Quên mật khẩu?"
+                    styleClass="forgot-link"
+                    onAction="#openForgotPasswordFlow"/>
+            </HBox>
+
+        </VBox>
+
+        <!-- ══ Footer ══ -->
+        <HBox alignment="CENTER" styleClass="card-footer">
+            <Label text="Smart Restaurant Management System" styleClass="footer-text"/>
+        </HBox>
+
+    </VBox>
+
+    <!-- Loading overlay (ẩn mặc định, hiện khi Task đang chạy) -->
+    <StackPane
+        fx:id="loadingOverlay"
+        styleClass="loading-overlay"
+        visible="false"
+        managed="false">
+        <VBox alignment="CENTER" spacing="14">
+            <ProgressIndicator styleClass="spinner" prefWidth="44" prefHeight="44"/>
+            <Label text="Đang xác thực…" styleClass="loading-label"/>
+        </VBox>
+    </StackPane>
+
+</StackPane>

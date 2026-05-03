@@ -1,0 +1,318 @@
+/*
+ * login.css — Smart Restaurant · LoginView
+ * JavaFX CSS (not W3C CSS — no box-shadow shorthand, no calc(), no :root)
+ * Compatible with JavaFX 17+
+ *
+ * Design token palette:
+ *   --primary        #2E7D32  (forest green — restaurant brand)
+ *   --primary-dark   #1B5E20
+ *   --surface-card   #FFFFFF
+ *   --surface-bg     #F4F6F4
+ *   --text-primary   #1A2E1A
+ *   --text-secondary #5C7A5C
+ *   --text-tertiary  #94A394
+ *   --danger         #C62828
+ *   --border         #D4E0D4
+ *   --border-focus   #2E7D32
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   ROOT — gradient background
+   ═══════════════════════════════════════════════════════════════ */
+.root-pane {
+    /* Vertical linear gradient: light sage top → slightly deeper bottom */
+    -fx-background-color:
+        linear-gradient(
+            to bottom,
+            #EFF5EF 0%,
+            #DCE9DC 55%,
+            #C8DCC8 100%
+        );
+    -fx-min-width:  520;
+    -fx-min-height: 620;
+    -fx-padding: 24;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD
+   ═══════════════════════════════════════════════════════════════ */
+.login-card {
+    -fx-background-color: white;
+    -fx-background-radius: 18;
+    /* JavaFX simulates shadow with a layered drop-shadow effect */
+    -fx-effect:
+        dropshadow(gaussian, rgba(30,60,30,0.14), 28, 0.12, 0, 6);
+    -fx-padding: 0;
+    /* Clip children to rounded corners */
+    -fx-background-insets: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD HEADER
+   ═══════════════════════════════════════════════════════════════ */
+.card-header {
+    -fx-padding: 40 40 28 40;
+    -fx-background-color: transparent;
+}
+
+/* Logo mark outer pane */
+.logo-mark {
+    -fx-alignment: CENTER;
+}
+
+/* The coloured rectangle */
+.logo-rect {
+    -fx-fill: #2E7D32;
+    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.40), 10, 0.18, 0, 3);
+}
+
+/* "SR" initials inside logo */
+.logo-initials {
+    -fx-text-fill: white;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 22;
+    -fx-font-weight: bold;
+}
+
+.app-title {
+    -fx-text-fill: #1A2E1A;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 22;
+    -fx-font-weight: bold;
+}
+
+.app-subtitle {
+    -fx-text-fill: #5C7A5C;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FORM BODY
+   ═══════════════════════════════════════════════════════════════ */
+.form-body {
+    -fx-padding: 4 40 20 40;
+    -fx-background-color: transparent;
+}
+
+/* Field labels */
+.field-label {
+    -fx-text-fill: #1A2E1A;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 5 0;
+}
+
+/* Extra top gap on second label */
+.field-label-gap {
+    -fx-padding: 16 0 5 0;
+}
+
+/* ── Input fields ───────────────────────────────────────────── */
+.input-field {
+    -fx-pref-height: 42;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 14;
+    -fx-text-fill: #1A2E1A;
+    -fx-prompt-text-fill: #94A394;
+    -fx-background-color: #F8FBF8, white;
+    -fx-background-insets: 0, 1.5;
+    -fx-background-radius: 9, 8;
+    -fx-padding: 0 12 0 12;
+    -fx-border-color: #D4E0D4;
+    -fx-border-radius: 8;
+    -fx-border-width: 1.5;
+}
+
+.input-field:focused {
+    -fx-border-color: #2E7D32;
+    -fx-border-width: 2;
+    -fx-background-color: white, white;
+    -fx-background-insets: 0, 2;
+    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.20), 8, 0.10, 0, 0);
+}
+
+.input-field:hover:!focused {
+    -fx-border-color: #88BB88;
+}
+
+/* ── Error label ────────────────────────────────────────────── */
+.error-label {
+    -fx-text-fill: #C62828;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12;
+    -fx-padding: 6 0 0 2;
+    -fx-min-height: 22;
+}
+
+/* ── Remember-me checkbox ───────────────────────────────────── */
+.remember-check {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+    -fx-text-fill: #5C7A5C;
+    -fx-padding: 10 0 16 0;
+    -fx-cursor: hand;
+}
+
+.remember-check:selected > .box {
+    -fx-background-color: #2E7D32;
+    -fx-border-color: #2E7D32;
+}
+
+.remember-check .mark {
+    -fx-background-color: white;
+}
+
+/* ── Primary button ─────────────────────────────────────────── */
+.btn-primary {
+    -fx-pref-height: 46;
+    -fx-background-color: #2E7D32;
+    -fx-background-radius: 9;
+    -fx-text-fill: white;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 15;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.35), 8, 0.12, 0, 3);
+}
+
+.btn-primary:hover {
+    -fx-background-color: #256427;
+    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.50), 12, 0.18, 0, 4);
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #1B5E20;
+    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.25), 4, 0.08, 0, 1);
+    -fx-translate-y: 1;
+}
+
+.btn-primary:disabled {
+    -fx-background-color: #A5C9A5;
+    -fx-text-fill: #E8F5E8;
+    -fx-effect: none;
+    -fx-cursor: default;
+}
+
+/* Loading state modifier (toggled via styleClass in controller) */
+.btn-primary.loading {
+    -fx-background-color: #1B5E20;
+    -fx-cursor: wait;
+    -fx-opacity: 0.85;
+}
+
+/* ── Forgot-password link ───────────────────────────────────── */
+.link-row {
+    -fx-padding: 14 0 0 0;
+}
+
+.forgot-link {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+    -fx-text-fill: #2E7D32;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+    -fx-underline: false;
+}
+
+.forgot-link:hover {
+    -fx-text-fill: #1B5E20;
+    -fx-underline: true;
+}
+
+.forgot-link:visited {
+    -fx-text-fill: #2E7D32;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD FOOTER
+   ═══════════════════════════════════════════════════════════════ */
+.card-footer {
+    -fx-padding: 18 40 26 40;
+    -fx-background-color: #F8FBF8;
+    -fx-background-radius: 0 0 18 18;
+    -fx-border-color: #EEF4EE transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.footer-text {
+    -fx-text-fill: #94A394;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 11;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING OVERLAY
+   ═══════════════════════════════════════════════════════════════ */
+.loading-overlay {
+    -fx-background-color: rgba(255,255,255,0.82);
+    -fx-background-radius: 18;
+}
+
+.spinner {
+    -fx-progress-color: #2E7D32;
+    -fx-accent: #2E7D32;
+}
+
+.loading-label {
+    -fx-text-fill: #2E7D32;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+    -fx-font-weight: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FORGOT-PASSWORD DIALOG (applied via DialogPane)
+   ═══════════════════════════════════════════════════════════════ */
+.dialog-pane {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #F8FBF8;
+}
+
+.dialog-pane .button-bar .button {
+    -fx-font-family: "Segoe UI";
+    -fx-cursor: hand;
+}
+
+.dialog-pane .button-bar .button:default {
+    -fx-background-color: #2E7D32;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 7;
+}
+
+.dialog-pane .button-bar .button:default:hover {
+    -fx-background-color: #256427;
+}
+
+/* Step-panel labels inside dialogs */
+.step-hint {
+    -fx-text-fill: #5C7A5C;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12;
+    -fx-wrap-text: true;
+}
+
+.step-field-label {
+    -fx-text-fill: #1A2E1A;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13;
+    -fx-font-weight: bold;
+    -fx-padding: 10 0 4 0;
+}
+
+.token-display-field {
+    -fx-font-family: "Courier New", monospace;
+    -fx-font-size: 11;
+    -fx-background-color: #F4F6F4;
+    -fx-border-color: #D4E0D4;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 6 10 6 10;
+    -fx-text-fill: #1A2E1A;
+}
