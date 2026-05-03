@@ -1,9 +1,21 @@
-package com.restaurant.ui;
+package com.restaurant.ui.fx.controller;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.ResourceBundle;
 
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
 import com.restaurant.session.TokenService;
+import com.restaurant.ui.PollManager;
+import com.restaurant.ui.SidebarController;
+import com.restaurant.ui.TopBarController;
 import com.restaurant.ui.control.BadgeLabel;
+
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -18,10 +30,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
-import java.io.IOException;
-import java.net.URL;
-import java.util.*;
 
 /**
  * MainController

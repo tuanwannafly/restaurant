@@ -1,4 +1,4 @@
-package com.restaurant.ui;
+package com.restaurant.ui.fx.controller;
 
 import com.restaurant.dao.UserDAO;
 import com.restaurant.session.AppSession;
