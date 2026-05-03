@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<!--
+  ConfirmOperationDialog.fxml
+  Displays an 8-character Operation Token and prompts the user to retype it.
+  The token is injected by ConfirmOperationDialogController.initData().
+
+  Layout:
+    • Red header  — operation warning
+    • Body        — description, token box (amber), input field, error label
+    • Footer      — Cancel / Confirm buttons
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.ConfirmOperationDialogController"
+      style="-fx-background-color:white;"
+      prefWidth="460" spacing="0">
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" prefHeight="54"
+          style="-fx-background-color:#DC3545;-fx-padding:0 24 0 24;">
+        <Label text="⚠  Xác nhận thao tác nhạy cảm"
+               style="-fx-font-size:16px;-fx-font-weight:bold;-fx-text-fill:white;"/>
+    </HBox>
+
+    <!-- ── Body ─────────────────────────────────────────────────────────────── -->
+    <VBox spacing="14" style="-fx-padding:20 24 8 24;-fx-background-color:white;"
+          VBox.vgrow="ALWAYS">
+
+        <!-- Description -->
+        <Label fx:id="lblDescription" wrapText="true"
+               style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+
+        <!-- Token box -->
+        <HBox alignment="CENTER"
+              style="-fx-background-color:#FFF3CD;-fx-border-color:#FFC107;
+                     -fx-border-radius:6;-fx-background-radius:6;
+                     -fx-padding:8 20 8 20;">
+            <Label fx:id="lblToken" text="--------"
+                   style="-fx-font-family:'Monospace';-fx-font-size:28px;
+                          -fx-font-weight:bold;-fx-text-fill:#856404;
+                          -fx-letter-spacing:4;"/>
+        </HBox>
+
+        <!-- Input prompt -->
+        <Label text="Nhập lại mã xác nhận để tiếp tục:"
+               style="-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:#1E293B;"/>
+
+        <!-- Token input -->
+        <TextField fx:id="tfInput"
+                   promptText="Nhập 8 ký tự..."
+                   onAction="#onConfirm"
+                   style="-fx-font-family:'Monospace';-fx-font-size:18px;
+                          -fx-alignment:center;-fx-border-color:#CBD5E1;
+                          -fx-border-radius:6;-fx-background-radius:6;
+                          -fx-padding:8 12 8 12;"/>
+
+        <!-- Error label (hidden by default) -->
+        <Label fx:id="lblError" text=""
+               style="-fx-font-size:12px;-fx-text-fill:#B00020;"/>
+    </VBox>
+
+    <!-- ── Footer ───────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_RIGHT" spacing="10" prefHeight="56"
+          style="-fx-border-color:#E2E8F0 transparent transparent transparent;
+                 -fx-padding:0 24 0 24;-fx-background-color:white;">
+        <Button text="Hủy" onAction="#onCancel"
+                prefWidth="90" prefHeight="34"
+                style="-fx-background-color:white;-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                       -fx-background-radius:6;-fx-font-size:13px;-fx-cursor:hand;"/>
+        <Button fx:id="btnConfirm" text="Xác nhận" onAction="#onConfirm"
+                prefWidth="120" prefHeight="34"
+                style="-fx-background-color:#DC3545;-fx-text-fill:white;-fx-background-radius:6;
+                       -fx-border-radius:6;-fx-font-size:13px;-fx-cursor:hand;"/>
+    </HBox>
+</VBox>
