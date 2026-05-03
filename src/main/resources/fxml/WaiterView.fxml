@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+    WaiterView.fxml
+    Đặt vào: src/main/resources/fxml/WaiterView.fxml
+    Controller: com.restaurant.ui.fx.controller.WaiterController
+-->
+<BorderPane
+        xmlns:fx="http://javafx.com/fxml/1"
+        fx:controller="com.restaurant.ui.fx.controller.WaiterController"
+        stylesheets="@../css/waiter.css"
+        styleClass="page-root">
+
+    <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+    <top>
+        <HBox styleClass="header-bar" alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+            <Label text="Phục vụ" styleClass="header-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblRestaurant" styleClass="header-restaurant" text=""/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnBack" text="✕  Thoát"
+                    styleClass="btn-outline" onAction="#onBack"/>
+        </HBox>
+    </top>
+
+    <!-- ── TABS ───────────────────────────────────────────────────────────── -->
+    <center>
+        <TabPane fx:id="tabPane"
+                 tabClosingPolicy="UNAVAILABLE"
+                 styleClass="waiter-tabs">
+
+            <!-- ── Tab 1: Phục vụ bàn ──────────────────────────────────── -->
+            <Tab fx:id="tabDeliver" text="🚚  Phục vụ bàn">
+                <BorderPane>
+                    <top>
+                        <HBox styleClass="tab-title-bar"
+                              alignment="CENTER_LEFT" spacing="8">
+                            <padding>
+                                <Insets top="8" right="16" bottom="8" left="16"/>
+                            </padding>
+                            <Label text="Phục vụ bàn" styleClass="section-title"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <ProgressIndicator fx:id="spinner"
+                                               visible="false"
+                                               prefWidth="22" prefHeight="22"/>
+                        </HBox>
+                    </top>
+                    <center>
+                        <ScrollPane fitToWidth="true"
+                                    styleClass="cards-scroll"
+                                    hbarPolicy="NEVER">
+                            <FlowPane fx:id="deliveryCardsPane"
+                                      hgap="14" vgap="14"
+                                      styleClass="cards-flow">
+                                <padding>
+                                    <Insets top="12" right="12"
+                                            bottom="12" left="12"/>
+                                </padding>
+                            </FlowPane>
+                        </ScrollPane>
+                    </center>
+                </BorderPane>
+            </Tab>
+
+            <!-- ── Tab 2: Dọn bàn ─────────────────────────────────────── -->
+            <Tab fx:id="tabClean" text="🧹  Dọn bàn">
+                <BorderPane fx:id="cleanPane">
+                    <center>
+                        <TableView fx:id="cleanTable"
+                                   styleClass="styled-table">
+                            <columns>
+                                <TableColumn fx:id="colCleanName"
+                                             text="Tên bàn"
+                                             prefWidth="160"/>
+                                <TableColumn fx:id="colCleanCap"
+                                             text="Sức chứa"
+                                             prefWidth="100"
+                                             style="-fx-alignment:CENTER;"/>
+                                <TableColumn fx:id="colCleanStatus"
+                                             text="Trạng thái"
+                                             prefWidth="150"/>
+                                <TableColumn fx:id="colCleanAction"
+                                             text="Hành động"
+                                             prefWidth="220"/>
+                            </columns>
+                            <placeholder>
+                                <Label text="🧹  Không có bàn nào cần dọn"
+                                       styleClass="empty-label"/>
+                            </placeholder>
+                        </TableView>
+                    </center>
+                </BorderPane>
+            </Tab>
+
+            <!-- ── Tab 3: Đã hủy ──────────────────────────────────────── -->
+            <Tab fx:id="tabCancelled" text="🚫  Đã hủy">
+                <BorderPane>
+                    <top>
+                        <!-- Stats bar — ẩn khi không có dữ liệu -->
+                        <HBox fx:id="statsBar"
+                              styleClass="stats-bar"
+                              alignment="CENTER_LEFT" spacing="8"
+                              visible="false" managed="false">
+                            <padding>
+                                <Insets top="9" right="16" bottom="9" left="16"/>
+                            </padding>
+                            <Label fx:id="lblCancelCount"
+                                   styleClass="stat-label"/>
+                            <Label text="  |  "
+                                   styleClass="stat-sep"/>
+                            <Label fx:id="lblCancelQty"
+                                   styleClass="stat-qty"/>
+                        </HBox>
+                    </top>
+                    <center>
+                        <TableView fx:id="cancelledTable"
+                                   styleClass="styled-table">
+                            <columns>
+                                <TableColumn fx:id="colCancelTable"
+                                             text="Bàn"
+                                             prefWidth="120"/>
+                                <TableColumn fx:id="colCancelItem"
+                                             text="Tên món"
+                                             prefWidth="220"/>
+                                <TableColumn fx:id="colCancelQty"
+                                             text="SL"
+                                             prefWidth="70"
+                                             style="-fx-alignment:CENTER;"/>
+                                <TableColumn fx:id="colCancelRound"
+                                             text="Lượt"
+                                             prefWidth="70"
+                                             style="-fx-alignment:CENTER;"/>
+                                <TableColumn fx:id="colCancelTime"
+                                             text="Thời gian hủy"
+                                             prefWidth="160"/>
+                            </columns>
+                            <placeholder>
+                                <Label text="✅  Không có món nào bị hủy hôm nay"
+                                       styleClass="empty-label"/>
+                            </placeholder>
+                        </TableView>
+                    </center>
+                </BorderPane>
+            </Tab>
+
+        </TabPane>
+    </center>
+
+    <!-- ── TOAST OVERLAY ──────────────────────────────────────────────────── -->
+    <!-- StackPane wrapper – đặt ở ngoài nếu cần overlay toàn màn hình.
+         Toast được tạo/huỷ động trong WaiterController.showToast(). -->
+
+</BorderPane>

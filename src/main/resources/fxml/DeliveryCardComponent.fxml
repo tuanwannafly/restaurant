@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+    DeliveryCardComponent.fxml
+    Đặt vào: src/main/resources/fxml/DeliveryCardComponent.fxml
+    Controller: com.restaurant.ui.fx.controller.DeliveryCardController
+    Load động trong WaiterController.rebuildDeliveryCards()
+-->
+<VBox
+        xmlns:fx="http://javafx.com/fxml/1"
+        fx:controller="com.restaurant.ui.fx.controller.DeliveryCardController"
+        fx:id="cardRoot"
+        styleClass="delivery-card"
+        prefWidth="260"
+        spacing="0">
+
+    <padding>
+        <Insets top="14" right="14" bottom="14" left="14"/>
+    </padding>
+
+    <!-- ── Tiêu đề: Bàn X · Lượt N ──────────────────────────────────── -->
+    <Label fx:id="lblCardTitle" styleClass="card-title" wrapText="false"/>
+
+    <Region prefHeight="10"/>
+
+    <!-- ── Danh sách món (rows được tạo động bởi controller) ─────────── -->
+    <VBox fx:id="itemsBox" spacing="6"/>
+
+    <!-- ── Separator ─────────────────────────────────────────────────── -->
+    <Region prefHeight="10"/>
+    <Separator styleClass="card-sep"/>
+    <Region prefHeight="10"/>
+
+    <!-- ── Nút hành động ─────────────────────────────────────────────── -->
+    <HBox spacing="8">
+        <Button fx:id="btnDelivering"
+                text="🚶 Đang mang"
+                styleClass="action-btn,btn-warning"
+                onAction="#onDelivering"
+                maxWidth="Infinity"
+                HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnDelivered"
+                text="✔ Đã giao xong"
+                styleClass="action-btn,btn-success"
+                onAction="#onDelivered"
+                maxWidth="Infinity"
+                HBox.hgrow="ALWAYS"/>
+    </HBox>
+
+</VBox>

@@ -1,17 +1,21 @@
 package com.restaurant.ui.dialog;
 
+import java.io.IOException;
+
 import com.restaurant.session.OperationTokenService;
 import com.restaurant.session.OperationType;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.io.IOException;
 
 /**
  * Controller for ConfirmOperationDialog.fxml.
@@ -113,7 +117,7 @@ public class ConfirmOperationDialogController {
 
         lblToken.setText(token);
         lblDescription.setText(
-                "Thao tác "" + type.getDisplayName() + "" không thể hoàn tác.\n\n"
+                "Thao tác " + type.getDisplayName() + " không thể hoàn tác.\n\n"
                 + "Mã xác nhận của bạn có hiệu lực trong 5 phút:");
 
         // Auto-focus the input field once the stage is shown

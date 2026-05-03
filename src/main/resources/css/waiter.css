@@ -1,0 +1,309 @@
+/*
+ * waiter.css — Phase 9 JavaFX Waiter UI
+ * Đặt vào: src/main/resources/css/waiter.css
+ *
+ * Palette:
+ *   Primary   #3B82F6  (blue-500)
+ *   Success   #10B981  (emerald-500)
+ *   Warning   #F59E0B  (amber-500)
+ *   Danger    #EF4444  (red-500)
+ *   BG page   #F3F4F6
+ *   BG white  #FFFFFF
+ *   Border    #E5E7EB
+ *   Text pri  #111827
+ *   Text sec  #6B7280
+ */
+
+/* ── Root ──────────────────────────────────────────────────────────────────── */
+.page-root {
+    -fx-background-color: #F3F4F6;
+    -fx-font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* ── Header bar ────────────────────────────────────────────────────────────── */
+.header-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 4, 0, 0, 1);
+}
+
+.header-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.header-restaurant {
+    -fx-font-size: 13px;
+    -fx-text-fill: #6B7280;
+}
+
+.btn-outline {
+    -fx-background-color: transparent;
+    -fx-border-color: #D1D5DB;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #374151;
+    -fx-font-size: 13px;
+    -fx-padding: 6 14 6 14;
+    -fx-cursor: hand;
+}
+.btn-outline:hover {
+    -fx-background-color: #F9FAFB;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
+.waiter-tabs {
+    -fx-background-color: #F3F4F6;
+    -fx-tab-min-height: 38px;
+}
+
+.waiter-tabs .tab {
+    -fx-background-color: #F3F4F6;
+    -fx-font-size: 13px;
+    -fx-text-fill: #6B7280;
+    -fx-padding: 6 16 6 16;
+}
+
+.waiter-tabs .tab:selected {
+    -fx-background-color: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-text-fill: #3B82F6;
+}
+
+.waiter-tabs .tab-header-area .tab-header-background {
+    -fx-background-color: #F3F4F6;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* ── Tab title bar (Tab 1 header) ──────────────────────────────────────────── */
+.tab-title-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.section-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+/* ── FlowPane scroll (delivery cards) ─────────────────────────────────────── */
+.cards-scroll {
+    -fx-background-color: #F3F4F6;
+    -fx-background: #F3F4F6;
+}
+.cards-scroll > .viewport {
+    -fx-background-color: #F3F4F6;
+}
+
+.cards-flow {
+    -fx-background-color: #F3F4F6;
+}
+
+/* ── Empty state label ─────────────────────────────────────────────────────── */
+.empty-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #9CA3AF;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+    -fx-padding: 40 0 40 0;
+}
+
+/* ── Delivery Card ─────────────────────────────────────────────────────────── */
+.delivery-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 8;
+    -fx-border-color: #E5E7EB;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 6, 0, 0, 2);
+    -fx-cursor: hand;
+}
+
+.delivery-card-hover {
+    -fx-background-color: #F0F9FF;
+    -fx-border-color: #BFDBFE;
+}
+
+.card-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.card-sep {
+    -fx-background-color: #E5E7EB;
+}
+
+.card-error-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #DC2626;
+    -fx-wrap-text: true;
+}
+
+/* ── Item name in card ─────────────────────────────────────────────────────── */
+.item-name-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #374151;
+}
+
+/* ── Item status badges ────────────────────────────────────────────────────── */
+.item-badge {
+    -fx-font-size: 11px;
+    -fx-background-radius: 4;
+    -fx-alignment: center;
+}
+
+.badge-ready {
+    -fx-background-color: #D1FAE5;
+    -fx-text-fill: #065F46;
+}
+
+.badge-delivering {
+    -fx-background-color: #DBEAFE;
+    -fx-text-fill: #1E40AF;
+}
+
+.badge-delivered {
+    -fx-background-color: #E5E7EB;
+    -fx-text-fill: #6B7280;
+}
+
+/* ── Action buttons (card + table) ────────────────────────────────────────── */
+.action-btn {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-cursor: hand;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 6 10 6 10;
+}
+
+.btn-warning {
+    -fx-background-color: #F59E0B;
+}
+.btn-warning:hover {
+    -fx-background-color: #D97706;
+}
+.btn-warning:disabled {
+    -fx-background-color: #FDE68A;
+    -fx-text-fill: #92400E;
+}
+
+.btn-success {
+    -fx-background-color: #10B981;
+}
+.btn-success:hover {
+    -fx-background-color: #059669;
+}
+.btn-success:disabled {
+    -fx-background-color: #A7F3D0;
+    -fx-text-fill: #065F46;
+}
+
+/* ── Styled TableView ──────────────────────────────────────────────────────── */
+.styled-table {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E5E7EB;
+    -fx-font-size: 13px;
+}
+
+.styled-table .column-header-background {
+    -fx-background-color: #F9FAFB;
+}
+
+.styled-table .column-header,
+.styled-table .column-header .label {
+    -fx-background-color: #F9FAFB;
+    -fx-text-fill: #374151;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.styled-table .table-row-cell {
+    -fx-cell-size: 40px;
+    -fx-border-color: transparent transparent #F3F4F6 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.styled-table .table-row-cell:odd {
+    -fx-background-color: #FAFAFA;
+}
+
+.styled-table .table-row-cell:even {
+    -fx-background-color: #FFFFFF;
+}
+
+.styled-table .table-row-cell:selected {
+    -fx-background-color: #EFF6FF;
+    -fx-text-fill: #1E40AF;
+}
+
+/* ── Clean table status badges ─────────────────────────────────────────────── */
+.status-badge {
+    -fx-font-size: 11px;
+    -fx-background-radius: 4;
+    -fx-padding: 3 10 3 10;
+    -fx-alignment: center;
+}
+
+.badge-dirty {
+    -fx-background-color: #FEF3C7;
+    -fx-text-fill: #92400E;
+}
+
+.badge-cleaning {
+    -fx-background-color: #FCE7F3;
+    -fx-text-fill: #9D174D;
+}
+
+/* ── Stats bar (Tab 3) ─────────────────────────────────────────────────────── */
+.stats-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.stat-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #6B7280;
+}
+
+.stat-sep {
+    -fx-font-size: 13px;
+    -fx-text-fill: #D1D5DB;
+}
+
+.stat-qty {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #EF4444;
+}
+
+/* ── Toast notification ────────────────────────────────────────────────────── */
+.toast-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 8, 0, 0, 3);
+    -fx-text-fill: #FFFFFF;
+}
+
+.toast-info {
+    -fx-background-color: #3B82F6;
+}
+
+.toast-success {
+    -fx-background-color: #10B981;
+}
+
+.toast-warning {
+    -fx-background-color: #F59E0B;
+}

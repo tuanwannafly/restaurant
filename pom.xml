@@ -135,6 +135,27 @@
             <scope>runtime</scope>
         </dependency>
 
+            <!-- BCrypt -->
+        <dependency>
+            <groupId>org.mindrot</groupId>
+            <artifactId>jbcrypt</artifactId>
+            <version>0.4</version>
+        </dependency>
+
+        <!-- FlatLaf (Swing UI) -->
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>3.4</version>
+        </dependency>
+
+        <!-- MigLayout (Swing layout) -->
+        <dependency>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout-swing</artifactId>
+            <version>11.0</version>
+        </dependency>
+
         <!-- ══ Testing ═══════════════════════════════════════════════════════ -->
 
         <dependency>
