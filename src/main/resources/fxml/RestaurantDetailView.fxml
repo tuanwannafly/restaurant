@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.restaurant.ui.fx.controller.RestaurantDetailController"
+            styleClass="bg-page">
+
+    <!-- ── NORTH: Page header ──────────────────────────────────────────────── -->
+    <top>
+        <HBox alignment="CENTER_LEFT">
+            <padding><Insets top="24" right="48" bottom="16" left="48"/></padding>
+            <Label text="Quản lý nhà hàng" styleClass="page-title"/>
+        </HBox>
+    </top>
+
+    <!-- ── CENTER: White card with fields ─────────────────────────────────── -->
+    <center>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+                    style="-fx-background: transparent; -fx-background-color: transparent;
+                           -fx-border-color: transparent;">
+            <content>
+                <VBox alignment="TOP_CENTER">
+                    <padding><Insets top="8" right="48" bottom="24" left="48"/></padding>
+
+                    <!-- Card -->
+                    <VBox maxWidth="720" spacing="0"
+                          style="-fx-background-color: white;
+                                 -fx-border-color: #D1D5DB;
+                                 -fx-border-radius: 12;
+                                 -fx-background-radius: 12;
+                                 -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);">
+                        <VBox.vgrow>NEVER</VBox.vgrow>
+                        <padding><Insets top="28" right="32" bottom="32" left="32"/></padding>
+
+                        <!-- Section title -->
+                        <Label text="Chi tiết nhà hàng"
+                               style="-fx-font-size: 17px; -fx-font-weight: bold;
+                                      -fx-text-fill: #111827; -fx-padding: 0 0 20 0;"/>
+
+                        <!-- Fields grid -->
+                        <GridPane hgap="12" vgap="12">
+                            <columnConstraints>
+                                <ColumnConstraints prefWidth="180" minWidth="160" halignment="LEFT"/>
+                                <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                            </columnConstraints>
+
+                            <!-- Row 0: Tên nhà hàng -->
+                            <Label text="Tên nhà hàng"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                            <HBox fx:id="boxName" styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="0">
+                                <Label fx:id="valName" text="—" styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 1: Chủ nhà hàng -->
+                            <Label text="Chủ nhà hàng"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                            <HBox fx:id="boxOwner" styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="1">
+                                <Label fx:id="valOwner" text="Đang tải..." styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 2: Email -->
+                            <Label text="Email"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                            <HBox styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="2">
+                                <Label fx:id="valEmail" text="—" styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 3: SĐT -->
+                            <Label text="SĐT"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                            <HBox styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="3">
+                                <Label fx:id="valPhone" text="—" styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 4: Địa chỉ -->
+                            <Label text="Địa chỉ"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="4"/>
+                            <HBox styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="4">
+                                <Label fx:id="valAddress" text="—" styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 5: Ngày tạo -->
+                            <Label text="Ngày tạo"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="5"/>
+                            <HBox styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="5">
+                                <Label fx:id="valCreatedAt" text="—" styleClass="value-label"/>
+                            </HBox>
+
+                            <!-- Row 6: Trạng thái -->
+                            <Label text="Trạng thái"
+                                   style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                   GridPane.columnIndex="0" GridPane.rowIndex="6"/>
+                            <HBox styleClass="value-box"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="6">
+                                <Label fx:id="valStatus" text="—" styleClass="value-label"/>
+                            </HBox>
+                        </GridPane>
+                    </VBox>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+
+    <!-- ── SOUTH: Back button ─────────────────────────────────────────────── -->
+    <bottom>
+        <HBox>
+            <padding><Insets top="0" right="48" bottom="24" left="48"/></padding>
+            <Button fx:id="btnBack" text="← Quay lại"
+                    styleClass="btn-outline" onAction="#handleBack"
+                    prefWidth="110" prefHeight="34"/>
+        </HBox>
+    </bottom>
+</BorderPane>

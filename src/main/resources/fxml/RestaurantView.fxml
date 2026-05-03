@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.restaurant.ui.fx.controller.RestaurantController"
+            styleClass="bg-page">
+
+    <!-- ── NORTH: Title row + Search/Filter bar ───────────────────────────── -->
+    <top>
+        <VBox spacing="10">
+            <padding><Insets top="24" right="48" bottom="16" left="48"/></padding>
+
+            <!-- Row 1: Page title + Add button -->
+            <HBox alignment="CENTER_LEFT">
+                <Label text="Quản lý nhà hàng" styleClass="page-title" HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnAdd" text="+ Thêm nhà hàng"
+                        styleClass="btn-primary" onAction="#handleAdd"
+                        prefHeight="34"/>
+            </HBox>
+
+            <!-- Row 2: Filter bar -->
+            <HBox spacing="8" alignment="CENTER_LEFT"
+                  style="-fx-background-color: white;
+                         -fx-border-color: #D1D5DB;
+                         -fx-border-radius: 6;
+                         -fx-background-radius: 6;"
+                  padding="0">
+                <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+
+                <TextField fx:id="txtSearch"
+                           promptText="Tên hoặc email nhà hàng..."
+                           prefWidth="280" prefHeight="34"
+                           onAction="#handleSearch"/>
+
+                <Button fx:id="btnSearch" text="Tìm"
+                        styleClass="btn-outline" onAction="#handleSearch"
+                        prefWidth="55" prefHeight="34"/>
+
+                <Separator orientation="VERTICAL" prefHeight="34"/>
+
+                <ComboBox fx:id="cboStatus" prefWidth="150" prefHeight="34"/>
+                <ComboBox fx:id="cboSort"   prefWidth="140" prefHeight="34"/>
+
+                <Button fx:id="btnFilter" text="Lọc"
+                        styleClass="btn-outline" onAction="#handleFilter"
+                        prefWidth="60" prefHeight="34"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <!-- ── CENTER: Table card or empty-state ────────────────────────────────── -->
+    <center>
+        <StackPane fx:id="tableArea">
+            <padding><Insets right="48" left="48"/></padding>
+
+            <!-- TableView -->
+            <TableView fx:id="tableView"
+                       tableMenuButtonVisible="false"
+                       columnResizePolicy="UNCONSTRAINED_RESIZE_POLICY">
+                <columns>
+                    <TableColumn fx:id="colId"     text="ID"            prefWidth="55"  minWidth="55"  maxWidth="55"/>
+                    <TableColumn fx:id="colName"   text="Tên nhà hàng"  prefWidth="210"/>
+                    <TableColumn fx:id="colEmail"  text="Email"         prefWidth="200"/>
+                    <TableColumn fx:id="colDate"   text="Ngày tạo"      prefWidth="105" minWidth="90"/>
+                    <TableColumn fx:id="colStatus" text="Trạng thái"    prefWidth="110" minWidth="90"/>
+                    <TableColumn fx:id="colAction" text="Hành động"     prefWidth="300" minWidth="300"/>
+                </columns>
+                <placeholder>
+                    <Label text="" />
+                </placeholder>
+            </TableView>
+
+            <!-- Empty-state (visible when no data matches filter) -->
+            <VBox fx:id="emptyState" alignment="CENTER" spacing="16"
+                  visible="false" managed="false">
+                <Label text="🏪" style="-fx-font-size: 48px;"/>
+                <Label text="Chưa có nhà hàng nào"
+                       style="-fx-font-size: 20px; -fx-font-weight: bold;
+                              -fx-text-fill: #6B7280;"/>
+                <Label text="Nhấn &quot;+ Thêm nhà hàng&quot; để bắt đầu"
+                       style="-fx-font-size: 14px; -fx-text-fill: #6B7280;"/>
+            </VBox>
+        </StackPane>
+    </center>
+
+    <!-- ── SOUTH: Pagination ────────────────────────────────────────────────── -->
+    <bottom>
+        <HBox fx:id="paginationBox" alignment="CENTER" spacing="8">
+            <padding><Insets top="10" right="48" bottom="24" left="48"/></padding>
+        </HBox>
+    </bottom>
+</BorderPane>
