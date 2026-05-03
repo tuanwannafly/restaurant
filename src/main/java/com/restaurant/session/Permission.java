@@ -113,7 +113,20 @@ public enum Permission {
      * và tách riêng khỏi {@code MANAGE_RESTAURANT} (SUPER_ADMIN) để đảm bảo RESTAURANT_ADMIN
      * không thể can thiệp vào dữ liệu của nhà hàng khác trong cùng hệ thống.
      */
-    EDIT_OWN_RESTAURANT;
+    EDIT_OWN_RESTAURANT,
+
+    // ── Phase 5 additions ─────────────────────────────────────────────────────
+
+    /**
+     * Cho phép truy cập màn hình Thu ngân (CashierPanel) – xem danh sách
+     * đơn hàng chờ thanh toán và đang thanh toán, thực hiện thu tiền.
+     * <p>
+     * Tách riêng khỏi {@code VIEW_ORDER} vì CashierPanel là màn hình chuyên biệt
+     * với luồng nghiệp vụ thanh toán (chọn phương thức, in hóa đơn, xác nhận),
+     * trong khi VIEW_ORDER chỉ là quyền đọc danh sách đơn hàng tổng quát.
+     * Nguyên tắc least-privilege: CASHIER không cần thấy toàn bộ order management.
+     */
+    VIEW_CASHIER;
 
     // ── Role → Permission mapping ─────────────────────────────────────────────
 
@@ -130,7 +143,9 @@ public enum Permission {
                     // Phase 1
                     OPEN_TABLE, UPDATE_ITEM_STATUS, VIEW_KITCHEN, VIEW_WAITER_SERVICE,
                     // Phase 2
-                    REGISTER_STAFF, EDIT_OWN_PROFILE, VIEW_OWN_RESTAURANT, EDIT_OWN_RESTAURANT
+                    REGISTER_STAFF, EDIT_OWN_PROFILE, VIEW_OWN_RESTAURANT, EDIT_OWN_RESTAURANT,
+                    // Phase 5
+                    VIEW_CASHIER
                     // MANAGE_RESTAURANT và ASSIGN_ROLE bị loại trừ theo đặc tả
             ));
 
@@ -166,7 +181,9 @@ public enum Permission {
                     // Phase 1
                     OPEN_TABLE,
                     // Phase 2
-                    EDIT_OWN_PROFILE
+                    EDIT_OWN_PROFILE,
+                    // Phase 5
+                    VIEW_CASHIER
             ));
 
     private static final Set<Permission> EMPTY_PERMS =

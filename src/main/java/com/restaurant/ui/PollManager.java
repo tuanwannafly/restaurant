@@ -6,6 +6,10 @@ import java.util.Map;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.OrderDAO;
+import com.restaurant.session.AppSession;
+
 /**
  * PollManager — Phase 7A: Quản lý tập trung tất cả javax.swing.Timer.
  *
@@ -24,12 +28,42 @@ import javax.swing.Timer;
  * <h3>Thread safety</h3>
  * Tất cả public method phải gọi từ EDT (Swing Event Dispatch Thread).
  * Nếu gọi từ thread khác, dùng {@link SwingUtilities#invokeLater}.
+ *
+ * <h3>Phase 7A hardening</h3>
+ * <ul>
+ *   <li>{@link #register} bọc task trong try-catch — exception không làm
+ *       dừng timer; chỉ log lỗi và tiếp tục poll lần sau.</li>
+ *   <li>Guard "đã đăng ký rồi → bỏ qua" tránh double-register.</li>
+ *   <li>Thêm {@link #unregister(String)} và {@link #activeCount()}.</li>
+ * </ul>
  */
 public final class PollManager {
 
     // ── Singleton ─────────────────────────────────────────────────────────────
 
     private static PollManager instance;
+    private KitchenDAO kitchenDAO = new KitchenDAO();
+    private OrderDAO   orderDAO   = new OrderDAO();
+    private MainFrame  mainFrame;  // inject qua constructor hoặc getter
+
+    private void refreshBadges() {
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+
+        int pendingKitchen  = kitchenDAO.getPendingCount(restaurantId);
+        int readyWaiter     = kitchenDAO.getReadyCount(restaurantId);
+        int paymentRequests = orderDAO.getPaymentRequestedCount(restaurantId);
+
+        SwingUtilities.invokeLater(() -> {
+            if (mainFrame.getBtnKitchen()  != null) mainFrame.getBtnKitchen().setBadgeCount(pendingKitchen);
+            if (mainFrame.getBtnWaiter()   != null) mainFrame.getBtnWaiter().setBadgeCount(readyWaiter);
+            if (mainFrame.getBtnCashier()  != null) mainFrame.getBtnCashier().setBadgeCount(paymentRequests);
+        });
+    }
+
+    // PollManager.getInstance().register("home_stats", () -> {
+    //     loadDashboardData();  // logic cũ
+    //     refreshBadges();      // thêm mới
+    // }, 10_000);
 
     private PollManager() {}
 
@@ -51,8 +85,15 @@ public final class PollManager {
     /**
      * Đăng ký một polling task với key định danh.
      *
-     * <p>Nếu {@code key} đã tồn tại, timer cũ sẽ bị dừng và thay thế bởi
-     * timer mới — tránh chạy đôi. Timer mới được start ngay.
+     * <p><b>Phase 7A changes:</b>
+     * <ul>
+     *   <li>Nếu {@code key} đã tồn tại → bỏ qua (không tạo timer mới, không
+     *       dừng timer cũ). Caller phải gọi {@link #unregister(String)} trước
+     *       nếu muốn thay thế.</li>
+     *   <li>Task được bọc trong try-catch: exception chỉ được log, timer vẫn
+     *       tiếp tục chạy ở lần poll kế tiếp.</li>
+     *   <li>{@code initialDelay = 0} → chạy ngay lần đầu không cần chờ.</li>
+     * </ul>
      *
      * @param key        Định danh duy nhất (e.g. {@code "kitchen"})
      * @param task       Runnable chạy trên EDT mỗi {@code intervalMs} ms
@@ -61,10 +102,24 @@ public final class PollManager {
     public void register(String key, Runnable task, int intervalMs) {
         assertEDT("register");
 
-        // Dừng timer cũ nếu tồn tại
-        stopAndRemove(key);
+        // Guard: đã đăng ký rồi → bỏ qua, tránh double-register
+        if (timers.containsKey(key)) {
+            System.out.printf(
+                "[PollManager] register('%s') bị bỏ qua — key đã tồn tại.%n", key);
+            return;
+        }
 
-        Timer t = new Timer(intervalMs, e -> task.run());
+        Timer t = new Timer(intervalMs, e -> {
+            try {
+                task.run();
+            } catch (Exception ex) {
+                // Log lỗi nhưng KHÔNG dừng timer — tiếp tục poll lần sau
+                System.err.printf(
+                    "[PollManager] Task '%s' lỗi: %s – %s%n",
+                    key, ex.getClass().getSimpleName(), ex.getMessage());
+            }
+        });
+        t.setInitialDelay(0);   // chạy ngay lần đầu
         t.setRepeats(true);
         t.start();
         timers.put(key, t);
@@ -81,7 +136,9 @@ public final class PollManager {
     public void unregister(String key) {
         assertEDT("unregister");
 
-        if (stopAndRemove(key)) {
+        Timer t = timers.remove(key);
+        if (t != null) {
+            t.stop();
             System.out.printf("[PollManager] Unregistered timer '%s'%n", key);
         }
     }
@@ -89,7 +146,7 @@ public final class PollManager {
     /**
      * Dừng và huỷ <b>toàn bộ</b> timer đang đăng ký.
      *
-     * <p>Được gọi từ {@code MainFrame.onLogout()} ngay khi phiên kết thúc.
+     * <p>Được gọi từ {@code MainFrame.handleLogout()} ngay khi phiên kết thúc.
      * Sau khi gọi, map sẽ rỗng — sẵn sàng cho phiên đăng nhập tiếp theo.
      */
     public void stopAll() {
@@ -105,7 +162,7 @@ public final class PollManager {
     }
 
     /**
-     * Trả về số lượng timer đang được quản lý.
+     * Trả về số lượng timer đang chạy.
      * Hữu ích cho unit test và debug.
      */
     public int activeCount() {
@@ -123,19 +180,6 @@ public final class PollManager {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
-     * Dừng và xóa timer theo key.
-     * @return {@code true} nếu key tồn tại (và đã bị xóa)
-     */
-    private boolean stopAndRemove(String key) {
-        Timer existing = timers.remove(key);
-        if (existing != null) {
-            if (existing.isRunning()) existing.stop();
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * Cảnh báo nếu không gọi từ EDT (không throw — chỉ log để không crash
      * production, nhưng giúp dev phát hiện lỗi sớm).
      */
@@ -145,5 +189,37 @@ public final class PollManager {
                 "[PollManager] WARN: %s() được gọi ngoài EDT! " +
                 "Hãy dùng SwingUtilities.invokeLater().%n", method);
         }
+    }
+
+    public static void setInstance(PollManager instance) {
+        PollManager.instance = instance;
+    }
+
+    public KitchenDAO getKitchenDAO() {
+        return kitchenDAO;
+    }
+
+    public void setKitchenDAO(KitchenDAO kitchenDAO) {
+        this.kitchenDAO = kitchenDAO;
+    }
+
+    public OrderDAO getOrderDAO() {
+        return orderDAO;
+    }
+
+    public void setOrderDAO(OrderDAO orderDAO) {
+        this.orderDAO = orderDAO;
+    }
+
+    public MainFrame getMainFrame() {
+        return mainFrame;
+    }
+
+    public void setMainFrame(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
+    }
+
+    public Map<String, Timer> getTimers() {
+        return timers;
     }
 }

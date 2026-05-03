@@ -24,7 +24,7 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
             // ── Look & Feel + Global fonts ────────────────────────────────────
             try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                com.formdev.flatlaf.FlatLightLaf.setup();
 
                 Font globalFont = new Font("Segoe UI", Font.PLAIN, 13);
                 UIManager.put("Button.font",            globalFont);

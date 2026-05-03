@@ -92,15 +92,6 @@ public class TablePanel extends JPanel {
         filterBar.setOpaque(false);
         filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 14, 0));
 
-        searchField = new RoundedTextField("Tìm kiếm");
-        searchField.setPreferredSize(new Dimension(240, 34));
-        searchField.addKeyListener(new KeyAdapter() {
-            @Override public void keyReleased(KeyEvent e) { applyFilter(); }
-        });
-
-        JLabel searchIcon = new JLabel("🔍");
-        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-
         JLabel capLabel = new JLabel("Sức chứa:");
         capLabel.setFont(UIConstants.FONT_BODY);
         capacityFilter = new JComboBox<>(new String[]{"Tất cả", "2", "4", "6", "8", "10", "12+"});
@@ -114,9 +105,6 @@ public class TablePanel extends JPanel {
         statusFilter.setFont(UIConstants.FONT_BODY);
         statusFilter.setPreferredSize(new Dimension(110, 34));
         statusFilter.addActionListener(e -> applyFilter());
-
-        filterBar.add(searchField);
-        filterBar.add(searchIcon);
         filterBar.add(capLabel);
         filterBar.add(capacityFilter);
         filterBar.add(stLabel);
@@ -165,6 +153,13 @@ public class TablePanel extends JPanel {
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setOpaque(false);
         header.add(topBar);
+        
+                searchField = new RoundedTextField("Tìm kiếm");
+                topBar.add(searchField, BorderLayout.SOUTH);
+                searchField.setPreferredSize(new Dimension(240, 34));
+                searchField.addKeyListener(new KeyAdapter() {
+                    @Override public void keyReleased(KeyEvent e) { applyFilter(); }
+                });
         header.add(filterBar);
 
         add(header, BorderLayout.NORTH);
@@ -337,7 +332,7 @@ public class TablePanel extends JPanel {
         addDetailRow(p, gbc, 1, "Tên bàn:", item.getName());
         addDetailRow(p, gbc, 2, "Sức chứa:", item.getCapacity() + " người");
         addDetailRow(p, gbc, 3, "Trạng thái:", item.getStatusDisplay());
-        dlg.add(p);
+        dlg.getContentPane().add(p);
         dlg.setVisible(true);
     }
 

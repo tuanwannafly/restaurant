@@ -1,59 +1,95 @@
 package com.restaurant.ui;
 
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.dao.KitchenDAO.KitchenTicket;
-import com.restaurant.model.Order;
-import com.restaurant.session.AppSession;
-import com.restaurant.session.Permission;
-
-import javax.swing.*;
-import javax.swing.border.AbstractBorder;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
-import java.awt.*;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.Window;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JToggleButton;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.border.AbstractBorder;
+
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.KitchenDAO.KitchenTicket;
+import com.restaurant.data.DataManager;
+import com.restaurant.model.MenuItem;
+import com.restaurant.session.AppSession;
+import com.restaurant.session.Permission;
 
 /**
- * Màn hình bếp (Chef view).
- * <p>
- * Hiển thị các món đang PENDING / ACCEPTED / COOKING nhóm theo bàn dạng card.
- * Auto-refresh mỗi 5 giây bằng {@link Timer}.
- * <p>
- * RBAC: yêu cầu {@link Permission#VIEW_KITCHEN}.
+ * Màn hình bếp (Chef view) – Phase 7B: Polling via ComponentListener + Toast delta.
+ *
+ * <p>Thay đổi so với phiên bản cũ:
+ * <ul>
+ *   <li>Dùng {@link InlineErrorBar#show} thay vì {@code System.err.println} và
+ *       {@link ToastNotification} để hiện lỗi tải dữ liệu.</li>
+ *   <li>Thêm {@link SimpleSpinner} ở góc phải tiêu đề "Chờ chế biến" để báo
+ *       hiệu đang tải — tự hiện/ẩn trước/sau mỗi lần poll.</li>
+ * </ul>
  */
 public class KitchenPanel extends JPanel {
 
     // ─── Constants ────────────────────────────────────────────────────────────
 
-    private static final int  REFRESH_MS        = 5_000;
-    private static final int  CARD_MIN_WIDTH     = 240;
-    private static final int  CARD_PADDING       = 14;
-    private static final int  CARD_GAP           = 14;
-    private static final Color CARD_BG           = Color.WHITE;
-    private static final Color CARD_BORDER       = new Color(0xD1D5DB);
+    private static final int    REFRESH_MS = 5_000;
+    private static final String POLL_KEY   = "kitchen_v2";
 
-    // Status badge colours
-    private static final Color BADGE_PENDING_BG  = new Color(0xFEF3C7);
-    private static final Color BADGE_PENDING_FG  = new Color(0x92400E);
-    private static final Color BADGE_ACCEPTED_BG = new Color(0xDBEAFE);
-    private static final Color BADGE_ACCEPTED_FG = new Color(0x1E40AF);
-    private static final Color BADGE_COOKING_BG  = new Color(0xFCE7F3);
-    private static final Color BADGE_COOKING_FG  = new Color(0x9D174D);
+    private static final Color COLOR_SUCCESS = new Color(0x10B981);
+    private static final Color COLOR_WARNING = new Color(0xF59E0B);
+    private static final Color COLOR_DANGER  = new Color(0xEF4444);
+    private static final Color CARD_HOVER_BG = new Color(0xF0F9FF);
 
     // ─── Fields ───────────────────────────────────────────────────────────────
 
     private final KitchenDAO dao = new KitchenDAO();
 
-    private JPanel  cardsContainer;
-    private JLabel  lastUpdateLabel;
+    private JPanel pendingCardsPanel;
+    private JPanel cookingCardsPanel;
 
-    private final DateTimeFormatter timeFmt =
-            DateTimeFormatter.ofPattern("HH:mm:ss");
+    private String selectedPendingCategory = null;
+    private String selectedCookingCategory = null;
+
+    private List<MenuItem> allMenuItems = new ArrayList<>();
+
+    private Map<String, List<KitchenTicket>> allPendingGroups = new LinkedHashMap<>();
+    private Map<String, List<KitchenTicket>> allCookingGroups = new LinkedHashMap<>();
+
+    private int lastPendingCount = 0;
+
+    /** Spinner hiển thị trạng thái đang tải — đặt ở header panel phía Bắc. */
+    private SimpleSpinner spinner;
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -61,7 +97,6 @@ public class KitchenPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(UIConstants.BG_PAGE);
 
-        // RBAC check
         if (!AppSession.getInstance().hasPermission(Permission.VIEW_KITCHEN)) {
             JLabel denied = new JLabel("Không có quyền truy cập", SwingConstants.CENTER);
             denied.setFont(UIConstants.FONT_TITLE);
@@ -70,349 +105,510 @@ public class KitchenPanel extends JPanel {
             return;
         }
 
+        try {
+            allMenuItems = DataManager.getInstance().getMenuItems();
+        } catch (Exception ignored) {}
+
         buildUI();
-        setupAncestorListener();
+        setupComponentListener();
     }
 
-    // ─── UI construction ──────────────────────────────────────────────────────
+    // ─── UI Construction ──────────────────────────────────────────────────────
 
     private void buildUI() {
-        add(buildHeader(), BorderLayout.NORTH);
+        String rName = "";
+        try {
+            String name = DataManager.getInstance().getMyRestaurant().getName();
+            if (name != null && !name.isEmpty()) rName = name;
+        } catch (Exception ignored) {}
 
-        // Cards area wrapped in scroll pane
-        cardsContainer = new JPanel(new WrapLayout(FlowLayout.LEFT, CARD_GAP, CARD_GAP));
-        cardsContainer.setBackground(UIConstants.BG_PAGE);
-        cardsContainer.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        add(StaffHeader.create("Đầu bếp", rName, () -> {
+            PollManager.getInstance().unregister(POLL_KEY);
+            Window w = SwingUtilities.getWindowAncestor(KitchenPanel.this);
+            if (w != null) w.dispose();
+        }), BorderLayout.NORTH);
 
-        JScrollPane scroll = new JScrollPane(cardsContainer,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        scroll.setBackground(UIConstants.BG_PAGE);
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                buildPendingPanel(), buildCookingPanel());
+        split.setDividerSize(1);
+        split.setBackground(UIConstants.BORDER_COLOR);
+        split.setBorder(null);
+        split.setResizeWeight(0.5);
 
-        add(scroll, BorderLayout.CENTER);
-    }
-
-    private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(UIConstants.BG_WHITE);
-        header.setPreferredSize(new Dimension(0, 56));
-        header.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
-                BorderFactory.createEmptyBorder(0, 20, 0, 20)));
-
-        // Left: title
-        JLabel title = new JLabel("🍳  Màn hình bếp");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 17));
-        title.setForeground(UIConstants.TEXT_PRIMARY);
-
-        // Right: last-update label + refresh button
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        right.setOpaque(false);
-
-        lastUpdateLabel = new JLabel("—");
-        lastUpdateLabel.setFont(UIConstants.FONT_SMALL);
-        lastUpdateLabel.setForeground(UIConstants.TEXT_SECONDARY);
-
-        JButton btnRefresh = new JButton("↻  Làm mới");
-        btnRefresh.setFont(UIConstants.FONT_BODY);
-        btnRefresh.setBackground(UIConstants.PRIMARY);
-        btnRefresh.setForeground(UIConstants.TEXT_WHITE);
-        btnRefresh.setBorderPainted(false);
-        btnRefresh.setFocusPainted(false);
-        btnRefresh.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btnRefresh.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
-        btnRefresh.addActionListener(e -> loadData());
-
-        right.add(lastUpdateLabel);
-        right.add(btnRefresh);
-
-        header.add(title, BorderLayout.WEST);
-        header.add(right,  BorderLayout.EAST);
-        return header;
-    }
-
-    // ─── Data loading ─────────────────────────────────────────────────────────
-
-    /** Called on UI thread to trigger background load. */
-    public void loadData() {
-        long restaurantId = AppSession.getInstance().getRestaurantId();
-
-        SwingWorker<List<KitchenTicket>, Void> worker =
-                new SwingWorker<List<KitchenTicket>, Void>() {
-                    @Override
-                    protected List<KitchenTicket> doInBackground() {
-                        return dao.getActiveTickets(restaurantId);
-                    }
-
-                    @Override
-                    protected void done() {
-                        try {
-                            List<KitchenTicket> tickets = get();
-                            rebuildCards(tickets);
-                            lastUpdateLabel.setText("Cập nhật lúc " +
-                                    LocalTime.now().format(timeFmt));
-                        } catch (Exception ex) {
-                            System.err.println("[KitchenPanel] loadData error: " + ex.getMessage());
-                            ToastNotification.show(
-                                KitchenPanel.this,
-                                "Lỗi tải dữ liệu bếp: " + ex.getMessage(),
-                                ToastNotification.Type.ERROR
-                            );
-                        }
-                    }
-                };
-        worker.execute();
-    }
-
-    /** Rebuild the card grid on the EDT. */
-    private void rebuildCards(List<KitchenTicket> tickets) {
-        cardsContainer.removeAll();
-
-        if (tickets.isEmpty()) {
-            JLabel empty = new JLabel("Không có món nào đang chờ  ✅", SwingConstants.CENTER);
-            empty.setFont(UIConstants.FONT_TITLE);
-            empty.setForeground(UIConstants.TEXT_SECONDARY);
-            // Center it by using a full-width filler
-            JPanel wrapper = new JPanel(new GridBagLayout());
-            wrapper.setOpaque(false);
-            wrapper.add(empty);
-            cardsContainer.setLayout(new BorderLayout());
-            cardsContainer.add(wrapper, BorderLayout.CENTER);
-        } else {
-            cardsContainer.setLayout(new WrapLayout(FlowLayout.LEFT, CARD_GAP, CARD_GAP));
-
-            // Group by tableId preserving order
-            Map<String, List<KitchenTicket>> grouped = new LinkedHashMap<>();
-            for (KitchenTicket t : tickets) {
-                grouped.computeIfAbsent(t.tableId, k -> new ArrayList<>()).add(t);
+        split.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
             }
-
-            for (Map.Entry<String, List<KitchenTicket>> entry : grouped.entrySet()) {
-                cardsContainer.add(buildTableCard(entry.getValue()));
-            }
-        }
-
-        cardsContainer.revalidate();
-        cardsContainer.repaint();
-    }
-
-    // ─── Card builder ─────────────────────────────────────────────────────────
-
-    private JPanel buildTableCard(List<KitchenTicket> items) {
-        KitchenTicket first = items.get(0);
-
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(CARD_BG);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(UIConstants.CORNER_RADIUS, CARD_BORDER),
-                BorderFactory.createEmptyBorder(CARD_PADDING, CARD_PADDING,
-                        CARD_PADDING, CARD_PADDING)));
-        card.setPreferredSize(new Dimension(CARD_MIN_WIDTH, calcCardHeight(items.size())));
-        card.setMinimumSize(new Dimension(CARD_MIN_WIDTH, 0));
-
-        // ── Card header ──
-        JLabel cardTitle = new JLabel("Bàn " + first.tableName +
-                "  ·  Lượt " + first.roundNumber);
-        cardTitle.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        cardTitle.setForeground(UIConstants.TEXT_PRIMARY);
-        cardTitle.setAlignmentX(LEFT_ALIGNMENT);
-        card.add(cardTitle);
-        card.add(Box.createVerticalStrut(10));
-
-        // ── Item rows ──
-        for (KitchenTicket t : items) {
-            card.add(buildItemRow(t));
-            card.add(Box.createVerticalStrut(6));
-        }
-
-        card.add(Box.createVerticalStrut(4));
-        card.add(buildDivider());
-        card.add(Box.createVerticalStrut(10));
-
-        // ── "Tiếp nhận tất cả" button ──
-        JButton btnAccept = makeButton("✔  Tiếp nhận tất cả", UIConstants.WARNING,
-                UIConstants.TEXT_WHITE);
-        btnAccept.setAlignmentX(LEFT_ALIGNMENT);
-        btnAccept.setMaximumSize(new Dimension(Integer.MAX_VALUE, UIConstants.BTN_HEIGHT));
-
-        // Disable if no PENDING items remain
-        boolean hasPending = items.stream()
-                .anyMatch(t -> t.itemStatus == Order.OrderItem.ItemStatus.PENDING);
-        btnAccept.setEnabled(hasPending);
-
-        btnAccept.addActionListener(e -> {
-            btnAccept.setEnabled(false);
-            // PENDING → ACCEPTED → COOKING in sequence
-            SwingWorker<Void, Void> w = new SwingWorker<>() {
-                @Override protected Void doInBackground() throws Exception {
-                    for (KitchenTicket t : items) {
-                        if (t.itemStatus == Order.OrderItem.ItemStatus.PENDING) {
-                            dao.updateItemStatus(t.itemId,
-                                    Order.OrderItem.ItemStatus.ACCEPTED);
-                            dao.updateItemStatus(t.itemId,
-                                    Order.OrderItem.ItemStatus.COOKING);
-                        }
-                    }
-                    return null;
-                }
-                @Override protected void done() {
-                    try { get(); } catch (Exception ex) {
-                        ToastNotification.show(KitchenPanel.this,
-                            "Lỗi cập nhật trạng thái: " + ex.getMessage(),
-                            ToastNotification.Type.ERROR);
-                    }
-                    loadData();
-                }
-            };
-            w.execute();
         });
 
-        card.add(btnAccept);
+        add(split, BorderLayout.CENTER);
+        SwingUtilities.invokeLater(() -> split.setDividerLocation(0.5));
+    }
+
+    // ─── Pending Panel ────────────────────────────────────────────────────────
+
+    private JPanel buildPendingPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(UIConstants.BG_PAGE);
+
+        // ── North: tiêu đề + spinner + filter ────────────────────────────────
+        JPanel north = new JPanel(new BorderLayout());
+        north.setBackground(UIConstants.BG_WHITE);
+        north.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(12, 12, 0, 12)));
+
+        // Tiêu đề + spinner cùng hàng
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+
+        JLabel title = new JLabel("Chờ chế biến", SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(UIConstants.PRIMARY);
+        titleRow.add(title, BorderLayout.CENTER);
+
+        spinner = new SimpleSpinner(20, UIConstants.PRIMARY);
+        spinner.setVisible(false);
+        titleRow.add(spinner, BorderLayout.EAST);
+
+        north.add(titleRow, BorderLayout.NORTH);
+
+        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        filterBar.setOpaque(false);
+        filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+
+        ButtonGroup bg = new ButtonGroup();
+        String[] categories = {"Tất cả", "Món chính", "Đồ uống", "Tráng miệng"};
+        for (String cat : categories) {
+            JToggleButton tb = makeCategoryToggle(cat);
+            if (cat.equals("Tất cả")) tb.setSelected(true);
+            tb.addActionListener(e -> {
+                selectedPendingCategory = cat.equals("Tất cả") ? null : cat;
+                applyPendingFilter();
+            });
+            bg.add(tb);
+            filterBar.add(tb);
+        }
+        north.add(filterBar, BorderLayout.CENTER);
+        panel.add(north, BorderLayout.NORTH);
+
+        pendingCardsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
+        pendingCardsPanel.setBackground(UIConstants.BG_PAGE);
+        pendingCardsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JScrollPane scroll = new JScrollPane(pendingCardsPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ─── Cooking Panel ────────────────────────────────────────────────────────
+
+    private JPanel buildCookingPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(UIConstants.BG_PAGE);
+
+        JPanel north = new JPanel(new BorderLayout());
+        north.setBackground(UIConstants.BG_WHITE);
+        north.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(12, 12, 0, 12)));
+
+        JLabel title = new JLabel("Đang chế biến", SwingConstants.CENTER);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(UIConstants.PRIMARY);
+        north.add(title, BorderLayout.NORTH);
+
+        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        filterBar.setOpaque(false);
+        filterBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+
+        ButtonGroup bg = new ButtonGroup();
+        String[] categories = {"Tất cả", "Món chính", "Đồ uống", "Tráng miệng"};
+        for (String cat : categories) {
+            JToggleButton tb = makeCategoryToggle(cat);
+            if (cat.equals("Tất cả")) tb.setSelected(true);
+            tb.addActionListener(e -> {
+                selectedCookingCategory = cat.equals("Tất cả") ? null : cat;
+                applyCookingFilter();
+            });
+            bg.add(tb);
+            filterBar.add(tb);
+        }
+        north.add(filterBar, BorderLayout.CENTER);
+        panel.add(north, BorderLayout.NORTH);
+
+        cookingCardsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
+        cookingCardsPanel.setBackground(UIConstants.BG_PAGE);
+        cookingCardsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JScrollPane scroll = new JScrollPane(cookingCardsPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ─── Filter Toggle Button ─────────────────────────────────────────────────
+
+    private JToggleButton makeCategoryToggle(String text) {
+        JToggleButton tb = new JToggleButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                if (isSelected()) {
+                    g2.setColor(UIConstants.PRIMARY);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.dispose();
+                    setForeground(Color.WHITE);
+                } else {
+                    g2.setColor(Color.WHITE);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.setColor(UIConstants.PRIMARY);
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                    g2.dispose();
+                    setForeground(UIConstants.PRIMARY);
+                }
+                super.paintComponent(g);
+            }
+        };
+        tb.setFont(UIConstants.FONT_BODY);
+        tb.setPreferredSize(new Dimension(tb.getPreferredSize().width + 28, 30));
+        tb.setBorderPainted(false);
+        tb.setContentAreaFilled(false);
+        tb.setFocusPainted(false);
+        tb.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        tb.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
+        return tb;
+    }
+
+    // ─── ComponentListener ────────────────────────────────────────────────────
+
+    private void setupComponentListener() {
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                PollManager.getInstance().register(POLL_KEY, KitchenPanel.this::doPoll, REFRESH_MS);
+            }
+
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                PollManager.getInstance().unregister(POLL_KEY);
+            }
+        });
+    }
+
+    // ─── doPoll ───────────────────────────────────────────────────────────────
+
+    private void doPoll() {
+        // Hiện spinner trước khi bắt đầu tải
+        if (spinner != null) {
+            spinner.setVisible(true);
+            spinner.start();
+        }
+
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+
+        new SwingWorker<KitchenData, Void>() {
+            @Override
+            protected KitchenData doInBackground() {
+                List<KitchenTicket> all = dao.getActiveTickets(restaurantId);
+
+                List<KitchenTicket> pending = new ArrayList<>();
+                List<KitchenTicket> cooking = new ArrayList<>();
+
+                for (KitchenTicket ticket : all) {
+                    switch (ticket.itemStatus) {
+                        case PENDING:
+                        case ACCEPTED:
+                            pending.add(ticket);
+                            break;
+                        case COOKING:
+                            cooking.add(ticket);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                return new KitchenData(pending, cooking);
+            }
+
+            @Override
+            protected void done() {
+                // Luôn tắt spinner dù thành công hay thất bại
+                if (spinner != null) {
+                    spinner.stop();
+                    spinner.setVisible(false);
+                }
+
+                try {
+                    KitchenData data = get();
+
+                    allPendingGroups = groupByItem(data.pending);
+                    allCookingGroups = groupByItem(data.cooking);
+                    applyPendingFilter();
+                    applyCookingFilter();
+
+                    int newCount = data.pending.size();
+                    if (newCount > lastPendingCount) {
+                        int diff = newCount - lastPendingCount;
+                        ToastNotification.show(
+                                KitchenPanel.this,
+                                "Có " + diff + " món mới cần chế biến!",
+                                ToastNotification.Type.INFO);
+                    }
+                    lastPendingCount = newCount;
+
+                } catch (Exception ex) {
+                    // Dùng InlineErrorBar thay vì System.err / ToastNotification
+                    InlineErrorBar.show(KitchenPanel.this,
+                            "Lỗi tải dữ liệu bếp: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    private static Map<String, List<KitchenTicket>> groupByItem(List<KitchenTicket> tickets) {
+        Map<String, List<KitchenTicket>> map = new LinkedHashMap<>();
+        for (KitchenTicket t : tickets) {
+            map.computeIfAbsent(t.itemName, k -> new ArrayList<>()).add(t);
+        }
+        return map;
+    }
+
+    // ─── Public API ───────────────────────────────────────────────────────────
+
+    public void loadData() {
+        doPoll();
+    }
+
+    // ─── Filter ───────────────────────────────────────────────────────────────
+
+    private void applyPendingFilter() {
+        Map<String, List<KitchenTicket>> filtered = allPendingGroups.entrySet().stream()
+                .filter(e -> selectedPendingCategory == null
+                        || getCategoryOf(e.getKey()).equals(selectedPendingCategory))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new));
+        rebuildPendingCards(filtered);
+    }
+
+    private void applyCookingFilter() {
+        Map<String, List<KitchenTicket>> filtered = allCookingGroups.entrySet().stream()
+                .filter(e -> selectedCookingCategory == null
+                        || getCategoryOf(e.getKey()).equals(selectedCookingCategory))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new));
+        rebuildCookingCards(filtered);
+    }
+
+    private String getCategoryOf(String itemName) {
+        for (MenuItem item : allMenuItems) {
+            if (itemName.equals(item.getName())) {
+                String cat = item.getCategory();
+                return cat != null ? cat : "Khác";
+            }
+        }
+        return "Khác";
+    }
+
+    // ─── Rebuild Cards ────────────────────────────────────────────────────────
+
+    private void rebuildPendingCards(Map<String, List<KitchenTicket>> grouped) {
+        pendingCardsPanel.removeAll();
+
+        if (grouped.isEmpty()) {
+            pendingCardsPanel.setLayout(new BorderLayout());
+            pendingCardsPanel.add(
+                    new EmptyStatePanel("🍽", "Không có món nào đang chờ",
+                            "Tất cả đã được chế biến ✓"),
+                    BorderLayout.CENTER);
+        } else {
+            pendingCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 12, 12));
+            for (Map.Entry<String, List<KitchenTicket>> entry : grouped.entrySet()) {
+                pendingCardsPanel.add(buildPendingCard(entry.getKey(), entry.getValue()));
+            }
+        }
+
+        pendingCardsPanel.revalidate();
+        pendingCardsPanel.repaint();
+    }
+
+    private void rebuildCookingCards(Map<String, List<KitchenTicket>> grouped) {
+        cookingCardsPanel.removeAll();
+
+        if (grouped.isEmpty()) {
+            cookingCardsPanel.setLayout(new BorderLayout());
+            cookingCardsPanel.add(
+                    new EmptyStatePanel("👨‍🍳", "Không có món nào đang chế biến", null),
+                    BorderLayout.CENTER);
+        } else {
+            cookingCardsPanel.setLayout(new WrapLayout(FlowLayout.LEFT, 12, 12));
+            for (Map.Entry<String, List<KitchenTicket>> entry : grouped.entrySet()) {
+                cookingCardsPanel.add(buildCookingCard(entry.getKey(), entry.getValue()));
+            }
+        }
+
+        cookingCardsPanel.revalidate();
+        cookingCardsPanel.repaint();
+    }
+
+    // ─── Card builders ────────────────────────────────────────────────────────
+
+    private JPanel buildPendingCard(String itemName, List<KitchenTicket> tickets) {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(8, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+        card.setPreferredSize(new Dimension(220, 130));
+        card.setMinimumSize(new Dimension(220, 0));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JLabel nameLabel = new JLabel(itemName);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
+        nameLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        int totalQty = sumQuantity(tickets);
+        JLabel qtyLabel = new JLabel("Số lượng chờ: " + totalQty);
+        qtyLabel.setFont(UIConstants.FONT_BODY);
+        qtyLabel.setForeground(UIConstants.TEXT_PRIMARY);
+        qtyLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        long waitMinutes = calcWaitMinutes(tickets);
+        JLabel waitLabel = new JLabel("Chờ lâu nhất: " + waitMinutes + " phút");
+        waitLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        if (waitMinutes < 10) {
+            waitLabel.setFont(UIConstants.FONT_BODY);
+            waitLabel.setForeground(COLOR_SUCCESS);
+        } else if (waitMinutes <= 20) {
+            waitLabel.setFont(UIConstants.FONT_BODY);
+            waitLabel.setForeground(COLOR_WARNING);
+        } else {
+            waitLabel.setFont(UIConstants.FONT_BODY.deriveFont(Font.BOLD));
+            waitLabel.setForeground(COLOR_DANGER);
+        }
+
+        card.add(nameLabel);
+        card.add(Box.createVerticalStrut(8));
+        card.add(qtyLabel);
+        card.add(Box.createVerticalStrut(4));
+        card.add(waitLabel);
+
+        card.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { card.setBackground(CARD_HOVER_BG); }
+            @Override public void mouseExited(MouseEvent e)  { card.setBackground(Color.WHITE); }
+            @Override public void mouseClicked(MouseEvent e) { openPendingDetailDialog(itemName, tickets); }
+        });
+
         return card;
     }
 
-    /** One row per item inside a card. */
-    private JPanel buildItemRow(KitchenTicket t) {
-        JPanel row = new JPanel(new BorderLayout(8, 0));
-        row.setOpaque(false);
-        row.setAlignmentX(LEFT_ALIGNMENT);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+    private JPanel buildCookingCard(String itemName, List<KitchenTicket> tickets) {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(8, UIConstants.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+        card.setPreferredSize(new Dimension(220, 130));
+        card.setMinimumSize(new Dimension(220, 0));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        // Left: item name + quantity
-        JLabel nameQty = new JLabel(t.itemName + " × " + t.quantity);
-        nameQty.setFont(UIConstants.FONT_BODY);
-        nameQty.setForeground(UIConstants.TEXT_PRIMARY);
+        JLabel nameLabel = new JLabel(itemName);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        nameLabel.setForeground(UIConstants.TEXT_PRIMARY);
+        nameLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        // Center: status badge
-        JLabel badge = makeBadge(t.itemStatus);
-
-        // Right: "Hoàn thành" button (only for COOKING items)
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        right.setOpaque(false);
-
-        if (t.itemStatus == Order.OrderItem.ItemStatus.COOKING) {
-            JButton btnDone = makeSmallButton("✓ Xong", UIConstants.SUCCESS);
-            btnDone.addActionListener(e -> {
-                btnDone.setEnabled(false);
-                SwingWorker<Void, Void> w = new SwingWorker<>() {
-                    @Override protected Void doInBackground() throws Exception {
-                        dao.updateItemStatus(t.itemId,
-                                Order.OrderItem.ItemStatus.READY);
-                        return null;
-                    }
-                    @Override protected void done() {
-                        try { get(); } catch (Exception ex) {
-                            ToastNotification.show(KitchenPanel.this,
-                                "Lỗi cập nhật trạng thái: " + ex.getMessage(),
-                                ToastNotification.Type.ERROR);
-                        }
-                        loadData();
-                    }
-                };
-                w.execute();
-            });
-            right.add(btnDone);
+        String assignedTo = "Đang chế biến";
+        if (!tickets.isEmpty() && tickets.get(0).assignedTo != null
+                && !tickets.get(0).assignedTo.isBlank()) {
+            assignedTo = tickets.get(0).assignedTo;
         }
+        JLabel staffLabel = new JLabel(assignedTo);
+        staffLabel.setFont(UIConstants.FONT_BODY);
+        staffLabel.setForeground(UIConstants.TEXT_SECONDARY);
+        staffLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-        row.add(nameQty, BorderLayout.WEST);
-        row.add(badge,   BorderLayout.CENTER);
-        row.add(right,   BorderLayout.EAST);
-        return row;
-    }
+        int totalQty = sumQuantity(tickets);
+        JLabel qtyLabel = new JLabel("Số lượng: " + totalQty);
+        qtyLabel.setFont(UIConstants.FONT_BODY);
+        qtyLabel.setForeground(UIConstants.TEXT_PRIMARY);
+        qtyLabel.setAlignmentX(LEFT_ALIGNMENT);
 
-    // ─── AncestorListener — delegate lifecycle to PollManager ─────────────────
+        card.add(nameLabel);
+        card.add(Box.createVerticalStrut(8));
+        card.add(staffLabel);
+        card.add(Box.createVerticalStrut(4));
+        card.add(qtyLabel);
 
-    private void setupAncestorListener() {
-        addAncestorListener(new AncestorListener() {
-            /** Panel được thêm vào container → bắt đầu polling. */
-            @Override
-            public void ancestorAdded(AncestorEvent e) {
-                // Tải dữ liệu ngay lập tức, sau đó polling định kỳ qua PollManager.
-                loadData();
-                PollManager.getInstance().register("kitchen", KitchenPanel.this::loadData, REFRESH_MS);
-            }
-
-            /** Panel bị remove khỏi container → dừng polling, giải phóng timer. */
-            @Override
-            public void ancestorRemoved(AncestorEvent e) {
-                PollManager.getInstance().unregister("kitchen");
-            }
-
-            @Override
-            public void ancestorMoved(AncestorEvent e) {}
+        card.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { card.setBackground(CARD_HOVER_BG); }
+            @Override public void mouseExited(MouseEvent e)  { card.setBackground(Color.WHITE); }
+            @Override public void mouseClicked(MouseEvent e) { openCookingDetailDialog(itemName, tickets); }
         });
+
+        return card;
     }
 
-    // ─── Widget helpers ───────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private JLabel makeBadge(Order.OrderItem.ItemStatus status) {
-        String text;
-        Color bg, fg;
-        switch (status) {
-            case PENDING:
-                text = "Chờ";
-                bg = BADGE_PENDING_BG; fg = BADGE_PENDING_FG; break;
-            case ACCEPTED:
-                text = "Đã nhận";
-                bg = BADGE_ACCEPTED_BG; fg = BADGE_ACCEPTED_FG; break;
-            case COOKING:
-                text = "Đang nấu";
-                bg = BADGE_COOKING_BG; fg = BADGE_COOKING_FG; break;
-            default:
-                text = status.name();
-                bg = UIConstants.HEADER_BG; fg = UIConstants.TEXT_SECONDARY;
+    private long calcWaitMinutes(List<KitchenTicket> tickets) {
+        return tickets.stream()
+                .map(t -> t.createdAt)
+                .filter(Objects::nonNull)
+                .mapToLong(dt -> Duration.between(dt, LocalDateTime.now()).toMinutes())
+                .max()
+                .orElse(0L);
+    }
+
+    private int sumQuantity(List<KitchenTicket> tickets) {
+        return tickets.stream().mapToInt(t -> t.quantity).sum();
+    }
+
+    // ─── Detail Dialogs (Phase 3C – placeholder) ──────────────────────────────
+
+    private void openPendingDetailDialog(String itemName, List<KitchenTicket> tickets) {
+        // Phase 3C implement
+    }
+
+    private void openCookingDetailDialog(String itemName, List<KitchenTicket> tickets) {
+        // Phase 3C implement
+    }
+
+    // ─── KitchenData ──────────────────────────────────────────────────────────
+
+    private static final class KitchenData {
+        final List<KitchenTicket> pending;
+        final List<KitchenTicket> cooking;
+
+        KitchenData(List<KitchenTicket> pending, List<KitchenTicket> cooking) {
+            this.pending = pending;
+            this.cooking = cooking;
         }
-        JLabel lbl = new JLabel(text, SwingConstants.CENTER);
-        lbl.setFont(UIConstants.FONT_SMALL);
-        lbl.setForeground(fg);
-        lbl.setOpaque(true);
-        lbl.setBackground(bg);
-        lbl.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
-        return lbl;
     }
 
-    private JButton makeButton(String text, Color bg, Color fg) {
-        JButton btn = new JButton(text);
-        btn.setFont(UIConstants.FONT_BOLD);
-        btn.setBackground(bg);
-        btn.setForeground(fg);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(0, UIConstants.BTN_HEIGHT));
-        return btn;
-    }
-
-    private JButton makeSmallButton(String text, Color bg) {
-        JButton btn = new JButton(text);
-        btn.setFont(UIConstants.FONT_SMALL);
-        btn.setBackground(bg);
-        btn.setForeground(UIConstants.TEXT_WHITE);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(70, 24));
-        return btn;
-    }
-
-    private JSeparator buildDivider() {
-        JSeparator sep = new JSeparator();
-        sep.setForeground(UIConstants.BORDER_COLOR);
-        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        sep.setAlignmentX(LEFT_ALIGNMENT);
-        return sep;
-    }
-
-    /** Estimate card height based on item count. */
-    private int calcCardHeight(int itemCount) {
-        // header(28) + gap(10) + items(34*n) + gaps(6*(n-1)) + divider(1+10+10) + button(34) + padding(28)
-        return 28 + 10 + (34 + 6) * itemCount + 55 + 2 * CARD_PADDING;
-    }
-
-    // ─── RoundedBorder inner class ────────────────────────────────────────────
+    // ─── Inner classes ────────────────────────────────────────────────────────
 
     private static class RoundedBorder extends AbstractBorder {
         private final int   radius;
@@ -438,9 +634,6 @@ public class KitchenPanel extends JPanel {
             return new Insets(radius / 2, radius / 2, radius / 2, radius / 2);
         }
     }
-
-    // ─── WrapLayout inner class ───────────────────────────────────────────────
-    // Lightweight wrap layout that respects container width.
 
     private static class WrapLayout extends FlowLayout {
         WrapLayout(int align, int hgap, int vgap) {
@@ -479,16 +672,16 @@ public class KitchenPanel extends JPanel {
                         Dimension d = preferred ? m.getPreferredSize() : m.getMinimumSize();
                         if (rowWidth + d.width > maxWidth && rowWidth > 0) {
                             addRow(dim, rowWidth, rowHeight);
-                            rowWidth = 0;
+                            rowWidth  = 0;
                             rowHeight = 0;
                         }
                         if (rowWidth != 0) rowWidth += hgap;
-                        rowWidth += d.width;
-                        rowHeight = Math.max(rowHeight, d.height);
+                        rowWidth  += d.width;
+                        rowHeight  = Math.max(rowHeight, d.height);
                     }
                 }
                 addRow(dim, rowWidth, rowHeight);
-                dim.width += insets.left + insets.right + hgap * 2;
+                dim.width  += insets.left + insets.right + hgap * 2;
                 dim.height += insets.top + insets.bottom + vgap * 2;
                 return dim;
             }

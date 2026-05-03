@@ -1,13 +1,20 @@
 package com.restaurant.ui;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GridLayout;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -17,47 +24,59 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
+import javax.swing.JSpinner;
 import javax.swing.ListSelectionModel;
+import javax.swing.SpinnerDateModel;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
+
+import net.miginfocom.swing.MigLayout;
 
 import com.restaurant.dao.StatsDAO;
 
 /**
- * Panel thống kê doanh thu & trạng thái bàn — chỉ RESTAURANT_ADMIN+ thấy.
+ * Stats panel: revenue summary, top-5 items, table occupancy.
+ *
+ * Layout (MigLayout):
+ *   NORTH  — top bar (title + refresh button)
+ *   CENTER — scrollable content:
+ *              date-range picker (JSpinner × 2)
+ *              3 revenue metric cards
+ *              top-5 items table (StyledTable)
+ *              table-status cards + styled progress bar
+ *
+ * No emoji; all labels in Vietnamese without diacritics.
  */
 public class StatsPanel extends JPanel {
 
-    // ── Date filter fields ────────────────────────────────────────────────────
-    private JTextField  txtFrom;
-    private JTextField  txtTo;
-    private LocalDate   dateFrom = LocalDate.now().minusDays(30);
-    private LocalDate   dateTo   = LocalDate.now();
+    // ── Date range ────────────────────────────────────────────────────────────
+    private JSpinner spinFrom;
+    private JSpinner spinTo;
+    private LocalDate dateFrom = LocalDate.now().minusDays(30);
+    private LocalDate dateTo   = LocalDate.now();
 
-    // ── Section 1 — Doanh thu ─────────────────────────────────────────────────
+    // ── Revenue cards ─────────────────────────────────────────────────────────
     private JLabel lblRevenue;
     private JLabel lblOrderCount;
     private JLabel lblAvgOrder;
 
-    // ── Section 2 — Top 5 món ─────────────────────────────────────────────────
+    // ── Top items table ───────────────────────────────────────────────────────
     private DefaultTableModel topItemsModel;
 
-    // ── Section 3 — Trạng thái bàn ───────────────────────────────────────────
-    private JLabel        lblAvailable;
-    private JLabel        lblOccupied;
-    private JLabel        lblReserved;
-    private JProgressBar  progressTable;
+    // ── Table status ──────────────────────────────────────────────────────────
+    private JLabel       lblAvailable;
+    private JLabel       lblOccupied;
+    private JLabel       lblReserved;
+    private JProgressBar progressTable;
 
-    // ── Status ────────────────────────────────────────────────────────────────
+    // ── Status / loading ──────────────────────────────────────────────────────
     private JLabel lblStatus;
 
-    // ── DAO ───────────────────────────────────────────────────────────────────
     private final StatsDAO dao = new StatsDAO();
 
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Constructor
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     public StatsPanel() {
         setLayout(new BorderLayout());
@@ -65,170 +84,162 @@ public class StatsPanel extends JPanel {
         buildUI();
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Build UI
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     private void buildUI() {
-        // ── NORTH: TopBar ─────────────────────────────────────────────────────
-        JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setOpaque(false);
-        topBar.setBorder(BorderFactory.createEmptyBorder(24, 48, 12, 48));
 
-        JLabel title = new JLabel("Thống kê & Doanh thu");
+        // ── NORTH: top bar ────────────────────────────────────────────────────
+        add(buildTopBar(), BorderLayout.NORTH);
+
+        // ── CENTER: scrollable body ───────────────────────────────────────────
+        JPanel body = new JPanel(new MigLayout(
+                "fillx, insets 0 48 24 48, gapy 0",
+                "[grow]",
+                "[]16[]12[]24[]12[]24[]12[]12[]"));
+        body.setBackground(UIConstants.BG_PAGE);
+
+        body.add(buildDateFilter(),                       "growx, wrap");
+        body.add(buildSectionHeader("Doanh thu"),         "growx, wrap");
+        body.add(buildRevenueCards(),                     "growx, wrap");
+        body.add(buildSectionHeader("Top 5 mon ban chay"), "growx, wrap");
+        body.add(buildTopItemsTable(),                    "growx, h 220!, wrap");
+        body.add(buildSectionHeader("Trang thai ban"),    "growx, wrap");
+        body.add(buildTableStatusCards(),                 "growx, wrap");
+        body.add(buildOccupancyBar(),                     "growx, wrap");
+
+        JScrollPane scroll = new JScrollPane(body);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setBackground(UIConstants.BG_PAGE);
+        scroll.getViewport().setBackground(UIConstants.BG_PAGE);
+        add(scroll, BorderLayout.CENTER);
+    }
+
+    // ── Top bar ───────────────────────────────────────────────────────────────
+
+    private JPanel buildTopBar() {
+        JPanel bar = new JPanel(new MigLayout(
+                "fillx, insets 20 48 12 48",
+                "[grow]push[]8[]",
+                "[]"));
+        bar.setOpaque(false);
+
+        JLabel title = new JLabel("Thong ke & Doanh thu");
         title.setFont(UIConstants.FONT_TITLE);
         title.setForeground(UIConstants.TEXT_PRIMARY);
-
-        JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        topRight.setOpaque(false);
 
         lblStatus = new JLabel("");
         lblStatus.setFont(UIConstants.FONT_BODY);
         lblStatus.setForeground(UIConstants.TEXT_SECONDARY);
 
-        RoundedButton btnRefresh = new RoundedButton("↻  Làm mới");
+        RoundedButton btnRefresh = new RoundedButton("Lam moi");
         btnRefresh.setPreferredSize(new Dimension(110, UIConstants.BTN_HEIGHT));
         btnRefresh.addActionListener(e -> loadAll());
 
-        topRight.add(lblStatus);
-        topRight.add(btnRefresh);
-
-        topBar.add(title,    BorderLayout.WEST);
-        topBar.add(topRight, BorderLayout.EAST);
-        add(topBar, BorderLayout.NORTH);
-
-        // ── CENTER: Scrollable content ────────────────────────────────────────
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBackground(UIConstants.BG_PAGE);
-        content.setBorder(BorderFactory.createEmptyBorder(0, 48, 24, 48));
-
-        // Date filter
-        content.add(buildDateFilter());
-        content.add(Box.createVerticalStrut(20));
-
-        // Section 1 — Doanh thu
-        content.add(buildSectionHeader("📊  Doanh thu"));
-        content.add(Box.createVerticalStrut(10));
-        content.add(buildRevenueCards());
-        content.add(Box.createVerticalStrut(24));
-
-        // Section 2 — Top 5 món
-        content.add(buildSectionHeader("🍽️  Top 5 món bán chạy"));
-        content.add(Box.createVerticalStrut(10));
-        content.add(buildTopItemsTable());
-        content.add(Box.createVerticalStrut(24));
-
-        // Section 3 — Trạng thái bàn
-        content.add(buildSectionHeader("🪑  Trạng thái bàn hiện tại"));
-        content.add(Box.createVerticalStrut(10));
-        content.add(buildTableStats());
-        content.add(Box.createVerticalStrut(8));
-        content.add(buildProgressBar());
-
-        JScrollPane scrollPane = new JScrollPane(content);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        scrollPane.setBackground(UIConstants.BG_PAGE);
-        scrollPane.getViewport().setBackground(UIConstants.BG_PAGE);
-        add(scrollPane, BorderLayout.CENTER);
+        bar.add(title,      "growx");
+        bar.add(lblStatus,  "");
+        bar.add(btnRefresh, "");
+        return bar;
     }
 
-    // ── Date filter ───────────────────────────────────────────────────────────
+    // ── Date filter (JSpinner) ────────────────────────────────────────────────
 
     private JPanel buildDateFilter() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        panel.setOpaque(false);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        JPanel p = new JPanel(new MigLayout("insets 0, gapy 0", "[]8[]16[]8[]12[]", "[]"));
+        p.setOpaque(false);
 
-        JLabel lblFrom = new JLabel("Từ ngày:");
-        lblFrom.setFont(UIConstants.FONT_BODY);
-        lblFrom.setForeground(UIConstants.TEXT_PRIMARY);
+        spinFrom = makeDateSpinner(dateFrom);
+        spinTo   = makeDateSpinner(dateTo);
 
-        txtFrom = new JTextField(dateFrom.toString(), 10);
-        txtFrom.setFont(UIConstants.FONT_BODY);
-        txtFrom.setToolTipText("yyyy-MM-dd");
+        JLabel lFrom = sideLabel("Tu ngay:");
+        JLabel lTo   = sideLabel("Den ngay:");
 
-        JLabel lblTo = new JLabel("Đến ngày:");
-        lblTo.setFont(UIConstants.FONT_BODY);
-        lblTo.setForeground(UIConstants.TEXT_PRIMARY);
-
-        txtTo = new JTextField(dateTo.toString(), 10);
-        txtTo.setFont(UIConstants.FONT_BODY);
-        txtTo.setToolTipText("yyyy-MM-dd");
-
-        RoundedButton btnApply = new RoundedButton("Áp dụng");
+        RoundedButton btnApply = new RoundedButton("Ap dung");
         btnApply.setPreferredSize(new Dimension(90, UIConstants.BTN_HEIGHT));
         btnApply.addActionListener(e -> applyDateFilter());
 
-        panel.add(lblFrom);
-        panel.add(txtFrom);
-        panel.add(lblTo);
-        panel.add(txtTo);
-        panel.add(btnApply);
+        p.add(lFrom,     "");
+        p.add(spinFrom,  "w 120!");
+        p.add(lTo,       "");
+        p.add(spinTo,    "w 120!");
+        p.add(btnApply,  "");
+        return p;
+    }
 
-        return panel;
+    private JSpinner makeDateSpinner(LocalDate initial) {
+        Date d = Date.from(initial.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        SpinnerDateModel model = new SpinnerDateModel(d, null, null, java.util.Calendar.DAY_OF_MONTH);
+        JSpinner sp = new JSpinner(model);
+        JSpinner.DateEditor editor = new JSpinner.DateEditor(sp, "dd/MM/yyyy");
+        sp.setEditor(editor);
+        sp.setFont(UIConstants.FONT_BODY);
+        sp.setPreferredSize(new Dimension(120, UIConstants.BTN_HEIGHT));
+        return sp;
     }
 
     private void applyDateFilter() {
         try {
-            LocalDate from = LocalDate.parse(txtFrom.getText().trim());
-            LocalDate to   = LocalDate.parse(txtTo.getText().trim());
+            LocalDate from = toLocalDate((Date) spinFrom.getValue());
+            LocalDate to   = toLocalDate((Date) spinTo.getValue());
             if (from.isAfter(to)) {
                 JOptionPane.showMessageDialog(this,
-                    "Ngày bắt đầu phải trước ngày kết thúc",
-                    "Lỗi ngày", JOptionPane.WARNING_MESSAGE);
+                        "Ngay bat dau phai truoc ngay ket thuc.",
+                        "Loi ngay", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             dateFrom = from;
             dateTo   = to;
             loadAll();
-        } catch (DateTimeParseException ex) {
+        } catch (Exception ex) {
             JOptionPane.showMessageDialog(this,
-                "Định dạng ngày không hợp lệ. Vui lòng nhập theo dạng yyyy-MM-dd",
-                "Lỗi định dạng", JOptionPane.WARNING_MESSAGE);
+                    "Khong doc duoc ngay tu spinner: " + ex.getMessage(),
+                    "Loi", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private static LocalDate toLocalDate(Date d) {
+        return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 
     // ── Section header ────────────────────────────────────────────────────────
 
     private JLabel buildSectionHeader(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        lbl.setForeground(UIConstants.TEXT_PRIMARY);
-        lbl.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel lbl = new JLabel(text.toUpperCase());
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
         return lbl;
     }
 
-    // ── Section 1: Revenue cards ──────────────────────────────────────────────
+    // ── Revenue cards (3 across) ──────────────────────────────────────────────
 
     private JPanel buildRevenueCards() {
-        JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
+        JPanel row = new JPanel(new MigLayout(
+                "fillx, insets 0, gap 16 0",
+                "[grow,fill][grow,fill][grow,fill]",
+                "[90!]"));
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        row.setAlignmentX(LEFT_ALIGNMENT);
 
-        lblRevenue    = new JLabel("0 đ");
-        lblOrderCount = new JLabel("0 đơn");
-        lblAvgOrder   = new JLabel("0 đ");
+        lblRevenue    = metricValueLabel("0 d");
+        lblOrderCount = metricValueLabel("0 don");
+        lblAvgOrder   = metricValueLabel("0 d");
 
-        row.add(buildMetricCard("Tổng doanh thu",    lblRevenue));
-        row.add(buildMetricCard("Số đơn hoàn thành", lblOrderCount));
-        row.add(buildMetricCard("Trung bình / đơn",  lblAvgOrder));
+        row.add(buildMetricCard("Tong doanh thu",    lblRevenue,    new Color(0x3B82F6)));
+        row.add(buildMetricCard("So don hoan thanh", lblOrderCount, new Color(0x10B981)));
+        row.add(buildMetricCard("Trung binh / don",  lblAvgOrder,   new Color(0xF59E0B)), "wrap");
 
         return row;
     }
 
-    // ── Section 2: Top items table ────────────────────────────────────────────
+    // ── Top items table ───────────────────────────────────────────────────────
 
     private JPanel buildTopItemsTable() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setAlignmentX(LEFT_ALIGNMENT);
-        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
 
         topItemsModel = new DefaultTableModel(
-                new String[]{"Hạng", "Tên món", "Số lượng", "Doanh thu (đ)"}, 0) {
+                new String[]{ "Hang", "Ten mon", "So luong", "Doanh thu (d)" }, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
 
@@ -244,115 +255,182 @@ public class StatsPanel extends JPanel {
         return wrapper;
     }
 
-    // ── Section 3: Table status cards ────────────────────────────────────────
+    // ── Table status cards (3 across) ────────────────────────────────────────
 
-    private JPanel buildTableStats() {
-        JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
+    private JPanel buildTableStatusCards() {
+        JPanel row = new JPanel(new MigLayout(
+                "fillx, insets 0, gap 16 0",
+                "[grow,fill][grow,fill][grow,fill]",
+                "[90!]"));
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        row.setAlignmentX(LEFT_ALIGNMENT);
 
-        lblAvailable = new JLabel("0");
-        lblOccupied  = new JLabel("0");
-        lblReserved  = new JLabel("0");
+        lblAvailable = metricValueLabel("0");
+        lblOccupied  = metricValueLabel("0");
+        lblReserved  = metricValueLabel("0");
 
-        row.add(buildMetricCard("Bàn trống",      lblAvailable));
-        row.add(buildMetricCard("Đang phục vụ",   lblOccupied));
-        row.add(buildMetricCard("Đặt trước",       lblReserved));
+        row.add(buildMetricCard("Ban trong",    lblAvailable, new Color(0x10B981)));
+        row.add(buildMetricCard("Dang phuc vu", lblOccupied,  new Color(0xEF4444)));
+        row.add(buildMetricCard("Dat truoc",    lblReserved,  new Color(0xF59E0B)), "wrap");
 
         return row;
     }
 
-    private JPanel buildProgressBar() {
-        JPanel panel = new JPanel(new BorderLayout(8, 0));
-        panel.setOpaque(false);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        panel.setAlignmentX(LEFT_ALIGNMENT);
+    // ── Occupancy progress bar ────────────────────────────────────────────────
 
-        JLabel lbl = new JLabel("Tỷ lệ sử dụng bàn:");
-        lbl.setFont(UIConstants.FONT_BODY);
-        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+    private JPanel buildOccupancyBar() {
+        JPanel p = new JPanel(new MigLayout("insets 0", "[]12[grow]", "[]"));
+        p.setOpaque(false);
 
-        progressTable = new JProgressBar(0, 100);
-        progressTable.setStringPainted(true);
-        progressTable.setString("0/0 bàn đang dùng");
-        progressTable.setFont(UIConstants.FONT_BODY);
-        progressTable.setForeground(UIConstants.PRIMARY);
-        progressTable.setBackground(UIConstants.BG_PAGE);
-        progressTable.setPreferredSize(new Dimension(0, 24));
+        JLabel lbl = sideLabel("Ti le su dung:");
 
-        panel.add(lbl,           BorderLayout.WEST);
-        panel.add(progressTable, BorderLayout.CENTER);
-        return panel;
+        // Custom-painted gradient progress bar
+        progressTable = new JProgressBar(0, 100) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth(), h = getHeight();
+                int r = h / 2;
+
+                // Track
+                g2.setColor(new Color(0xE5E7EB));
+                g2.fillRoundRect(0, 0, w, h, r, r);
+
+                // Fill gradient
+                int fillW = (int) (w * (double) getValue() / getMaximum());
+                if (fillW > 0) {
+                    Color c1 = new Color(0x3B82F6);
+                    Color c2 = new Color(0x10B981);
+                    g2.setPaint(new GradientPaint(0, 0, c1, fillW, 0, c2));
+                    g2.fillRoundRect(0, 0, fillW, h, r, r);
+
+                    // Shine highlight
+                    g2.setColor(new Color(255, 255, 255, 40));
+                    g2.fillRoundRect(0, 0, fillW, h / 2, r, r);
+                }
+
+                // Border
+                g2.setColor(new Color(0xD1D5DB));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, r, r);
+
+                // Text
+                String txt = getString();
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                g2.setColor(getValue() > 55 ? Color.WHITE : new Color(0x374151));
+                java.awt.FontMetrics fm = g2.getFontMetrics();
+                int tx = (w - fm.stringWidth(txt)) / 2;
+                int ty = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(txt, tx, ty);
+
+                g2.dispose();
+            }
+        };
+        progressTable.setStringPainted(false);   // we paint it ourselves
+        progressTable.setString("0/0 ban dang dung");
+        progressTable.setOpaque(false);
+        progressTable.setPreferredSize(new Dimension(0, 26));
+
+        p.add(lbl,           "");
+        p.add(progressTable, "growx");
+        return p;
     }
 
-    // ── Metric card helper ────────────────────────────────────────────────────
+    // ── Metric card ───────────────────────────────────────────────────────────
 
-    private JPanel buildMetricCard(String title, JLabel valueLabel) {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(UIConstants.BG_WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1),
-                BorderFactory.createEmptyBorder(16, 20, 16, 20)));
+    /**
+     * White card with thin left accent line, title + bold value.
+     */
+    private JPanel buildMetricCard(String title, JLabel valueLbl, Color accent) {
+
+        JPanel card = new JPanel(new MigLayout("insets 16 20 16 20, fillx", "[grow]", "[]6[]")) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth(), h = getHeight(), r = 10;
+                // Shadow
+                g2.setColor(new Color(0, 0, 0, 14));
+                g2.fillRoundRect(1, 3, w - 2, h, r, r);
+                // Body
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, w - 1, h - 1, r, r);
+                // Left accent bar
+                g2.setColor(accent);
+                g2.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(2, r / 2, 2, h - 1 - r / 2);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
 
         JLabel lblTitle = new JLabel(title);
-        lblTitle.setFont(UIConstants.FONT_BODY);
+        lblTitle.setFont(UIConstants.FONT_SMALL);
         lblTitle.setForeground(UIConstants.TEXT_SECONDARY);
-        lblTitle.setAlignmentX(LEFT_ALIGNMENT);
 
-        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        valueLabel.setForeground(UIConstants.PRIMARY);
-        valueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        valueLbl.setForeground(UIConstants.TEXT_PRIMARY);
 
-        card.add(lblTitle);
-        card.add(Box.createVerticalStrut(8));
-        card.add(valueLabel);
-
+        card.add(lblTitle,  "growx, wrap");
+        card.add(valueLbl,  "growx");
         return card;
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // Data loading
-    // ═════════════════════════════════════════════════════════════════════════
-
-    /** Inner bundle để truyền kết quả từ worker về EDT. */
-    private static class StatBundle {
-        StatsDAO.RevenueStats revenue;
-        List<StatsDAO.TopItem> topItems;
-        StatsDAO.TableStats   tables;
+    private JLabel metricValueLabel(String initial) {
+        JLabel lbl = new JLabel(initial);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        lbl.setForeground(UIConstants.TEXT_PRIMARY);
+        return lbl;
     }
 
+    private JLabel sideLabel(String text) {
+        JLabel lbl = new JLabel(text);
+        lbl.setFont(UIConstants.FONT_BODY);
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+        return lbl;
+    }
+
+    // =========================================================================
+    // Data loading
+    // =========================================================================
+
+    private static class StatBundle {
+        StatsDAO.RevenueStats   revenue;
+        List<StatsDAO.TopItem>  topItems;
+        StatsDAO.TableStats     tables;
+    }
+
+    /** Full async refresh — called on button click and on panel open. */
     public void loadAll() {
         showLoading(true);
-
         new SwingWorker<StatBundle, Void>() {
             @Override
             protected StatBundle doInBackground() {
-                StatBundle bundle = new StatBundle();
-                bundle.revenue  = dao.getRevenue(dateFrom, dateTo);
-                bundle.topItems = dao.getTopItems(dateFrom, dateTo, 5);
-                bundle.tables   = dao.getTableStats();
-                return bundle;
+                StatBundle b = new StatBundle();
+                b.revenue  = dao.getRevenue(dateFrom, dateTo);
+                b.topItems = dao.getTopItems(dateFrom, dateTo, 5);
+                b.tables   = dao.getTableStats();
+                return b;
             }
 
             @Override
             protected void done() {
                 try {
-                    StatBundle bundle = get();
-                    updateRevenueUI(bundle.revenue);
-                    updateTopItemsUI(bundle.topItems);
-                    updateTableStatsUI(bundle.tables);
-                } catch (InterruptedException e) {
+                    StatBundle b = get();
+                    updateRevenueUI(b.revenue);
+                    updateTopItemsUI(b.topItems);
+                    updateTableStatsUI(b.tables);
+                } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     JOptionPane.showMessageDialog(StatsPanel.this,
-                        "Tải thống kê bị gián đoạn",
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-                } catch (java.util.concurrent.ExecutionException e) {
-                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                            "Tai thong ke bi gian doan.",
+                            "Loi", JOptionPane.ERROR_MESSAGE);
+                } catch (ExecutionException ex) {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     JOptionPane.showMessageDialog(StatsPanel.this,
-                        "Lỗi tải thống kê: " + cause.getMessage(),
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                            "Loi tai thong ke: " + cause.getMessage(),
+                            "Loi", JOptionPane.ERROR_MESSAGE);
                 } finally {
                     showLoading(false);
                 }
@@ -360,12 +438,12 @@ public class StatsPanel extends JPanel {
         }.execute();
     }
 
-    // ── UI updaters (run on EDT via done()) ───────────────────────────────────
+    // ── EDT updaters ──────────────────────────────────────────────────────────
 
     private void updateRevenueUI(StatsDAO.RevenueStats stats) {
-        lblRevenue.setText(formatVnd(stats.totalRevenue));
-        lblOrderCount.setText(stats.orderCount + " đơn");
-        lblAvgOrder.setText(formatVnd(stats.avgPerOrder));
+        lblRevenue   .setText(formatVnd(stats.totalRevenue));
+        lblOrderCount.setText(stats.orderCount + " don");
+        lblAvgOrder  .setText(formatVnd(stats.avgPerOrder));
     }
 
     private void updateTopItemsUI(List<StatsDAO.TopItem> items) {
@@ -383,21 +461,22 @@ public class StatsPanel extends JPanel {
 
     private void updateTableStatsUI(StatsDAO.TableStats ts) {
         lblAvailable.setText(String.valueOf(ts.available));
-        lblOccupied.setText(String.valueOf(ts.occupied));
-        lblReserved.setText(String.valueOf(ts.reserved));
+        lblOccupied .setText(String.valueOf(ts.occupied));
+        lblReserved .setText(String.valueOf(ts.reserved));
 
         int pct = ts.total > 0 ? (ts.occupied * 100 / ts.total) : 0;
         progressTable.setValue(pct);
-        progressTable.setString(ts.occupied + "/" + ts.total + " bàn đang dùng");
+        progressTable.setString(ts.occupied + "/" + ts.total + " ban dang dung");
+        progressTable.repaint();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Misc helpers ──────────────────────────────────────────────────────────
 
     private void showLoading(boolean show) {
-        lblStatus.setText(show ? "Đang tải..." : "");
+        lblStatus.setText(show ? "Dang tai..." : "");
     }
 
-    private String formatVnd(long value) {
-        return String.format("%,.0f đ", (double) value);
+    private static String formatVnd(long value) {
+        return String.format("%,.0f d", (double) value);
     }
 }

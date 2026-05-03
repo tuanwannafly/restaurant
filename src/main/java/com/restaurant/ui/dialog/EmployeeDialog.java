@@ -1,24 +1,11 @@
 package com.restaurant.ui.dialog;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.Window;
-import java.util.List;
+import java.awt.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.function.Consumer;
 
-import javax.swing.BorderFactory;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
+import javax.swing.*;
 
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.data.DataManager;
@@ -27,52 +14,49 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.OperationType;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
-import com.restaurant.ui.RoundedButton;
+import com.restaurant.ui.AppComboBox;
+import com.restaurant.ui.AppTextField;
 import com.restaurant.ui.UIConstants;
 
 /**
- * Dialog thêm / cập nhật thông tin nhân viên.
+ * EmployeeDialog — Phase 4 (redesigned)
  *
- * <p><b>Phase 5B — Role Assignment:</b><br>
- * {@code cmbRole} chỉ hiện khi người dùng có quyền {@link Permission#ASSIGN_ROLE}.
- * Danh sách role được lọc theo cấp bậc:
- * <ul>
- *   <li>SUPER_ADMIN → toàn bộ role</li>
- *   <li>RESTAURANT_ADMIN → WAITER / CHEF / CASHIER</li>
- *   <li>Không có quyền → cmbRole ẩn hoàn toàn</li>
- * </ul>
+ * <p>Extends {@link AppDialog}. Uses {@link AppTextField} / {@link AppComboBox}
+ * for consistent look-and-feel, inline validation, and a styled date spinner.
  *
- * <p><b>Giai đoạn 3 — Operation Token:</b><br>
- * Khi thực hiện thay đổi role của nhân viên khác, dialog yêu cầu xác nhận
- * bằng {@link ConfirmOperationDialog} trước khi gọi DAO.
- *
- * <p>Khi dialog ở chế độ <em>thêm mới</em> (chưa có employeeId),
- * cmbRole hiện nhưng bị disable với tooltip hướng dẫn.
+ * <p>Phase 5B role-assignment behaviour is preserved unchanged.
  */
-public class EmployeeDialog extends JDialog {
-    private Consumer<Employee> onSave;
-    private Employee item;
+public class EmployeeDialog extends AppDialog {
 
-    private JTextField tfId, tfName, tfCccd, tfPhone, tfAddress, tfStartDate;
+    // ── Fields ───────────────────────────────────────────────────────────────
+    private AppTextField    tfId, tfName, tfCccd, tfPhone, tfAddress;
+    private JSpinner        spinDate;      // styled date picker
+    private AppComboBox<String> cmbRole;
 
-    // ── Role assignment (Phase 5B) ─────────────────────────────────────────
-    /** null nếu người dùng không có quyền ASSIGN_ROLE — row role bị ẩn hoàn toàn. */
-    private JComboBox<String> cmbRole;
-    /** Danh sách role được phép gán theo cấp bậc của người dùng hiện tại. */
-    private List<String> allowedRoles;
-    /** Có hiện UI gán role không (dựa vào hasPermission). */
-    private final boolean canAssignRole;
+    // Error labels (wired in buildBody)
+    private JLabel errName, errPhone, errDate;
 
-    private final EmployeeDAO employeeDAO = new EmployeeDAO();
+    // ── Role assignment (Phase 5B) ────────────────────────────────────────────
+    private       List<String>     allowedRoles;
+    private final boolean          canAssignRole;
+    private final EmployeeDAO      employeeDAO = new EmployeeDAO();
+
+    // ── Data ─────────────────────────────────────────────────────────────────
+    private final Employee         item;
+    private final Consumer<Employee> onSave;
+
+    // ── Date format ──────────────────────────────────────────────────────────
+    private static final String DATE_PATTERN = "dd/MM/yyyy";
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     public EmployeeDialog(Window owner, Employee item, Consumer<Employee> onSave) {
-        super(owner, item == null ? "Thêm nhân viên" : "Cập nhật nhân viên", ModalityType.APPLICATION_MODAL);
-        this.item = item;
+        super(owner);
+        this.item   = item;
         this.onSave = onSave;
 
-        // ── Quyết định hiện/ẩn cmbRole ────────────────────────────────────
+        // Phase 5B: determine allowed roles
         this.canAssignRole = AppSession.getInstance().hasPermission(Permission.ASSIGN_ROLE);
-
         if (canAssignRole) {
             if (RbacGuard.getInstance().isSuperAdmin()) {
                 allowedRoles = List.of("WAITER", "CHEF", "CASHIER", "RESTAURANT_ADMIN", "SUPER_ADMIN");
@@ -83,102 +67,102 @@ public class EmployeeDialog extends JDialog {
             }
         }
 
-        buildUI();
-        if (item != null) fillData();
-
-        int height = (canAssignRole && allowedRoles != null && !allowedRoles.isEmpty()) ? 500 : 460;
-        setSize(500, height);
+        // Finish layout (super() calls buildBody via template, but we need size after)
+        int h = (canAssignRole && allowedRoles != null && !allowedRoles.isEmpty()) ? 520 : 480;
+        setSize(540, h);
         setLocationRelativeTo(owner);
         setResizable(false);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── AppDialog contract ───────────────────────────────────────────────────
 
-    private void buildUI() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(Color.WHITE);
+    @Override
+    protected String getDialogTitle() {
+        return item == null ? "Thêm nhân viên mới" : "Cập nhật thông tin nhân viên";
+    }
 
-        JLabel title = new JLabel(item == null ? "Thêm nhân viên mới" : "Cập nhật thông tin nhân viên");
-        title.setFont(UIConstants.FONT_TITLE);
-        title.setBorder(BorderFactory.createEmptyBorder(20, 24, 12, 24));
-        root.add(title, BorderLayout.NORTH);
+    @Override
+    protected String getSaveLabel() {
+        return item == null ? "Thêm" : "Lưu";
+    }
 
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setBackground(Color.WHITE);
-        form.setBorder(BorderFactory.createEmptyBorder(0, 24, 12, 24));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(7, 6, 7, 6);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
+    @Override
+    protected JPanel buildBody() {
+        FormBuilder fb = new FormBuilder();
 
-        tfId        = field();
-        tfName      = field();
-        tfCccd      = field();
-        tfPhone     = field();
-        tfAddress   = field();
-        tfStartDate = field();
-
+        // ── ID ────────────────────────────────────────────────────────────
+        tfId = new AppTextField();
+        tfId.setFont(UIConstants.FONT_BODY);
         if (item == null) {
             tfId.setText(DataManager.getInstance().generateEmployeeId());
             tfId.setEditable(false);
-            tfId.setBackground(new Color(0xF3F4F6));
+            tfId.setEnabled(false);
+        } else {
+            tfId.setText(item.getId());
+            tfId.setEditable(false);
+            tfId.setEnabled(false);
         }
+        fb.addRow("ID:", tfId);
 
-        addRow(form, gbc, 0, "ID:",           tfId);
-        addRow(form, gbc, 1, "Họ và tên:",    tfName);
-        addRow(form, gbc, 2, "CCCD:",          tfCccd);
-        addRow(form, gbc, 3, "SDT:",           tfPhone);
-        addRow(form, gbc, 4, "Địa chỉ:",      tfAddress);
-        addRow(form, gbc, 5, "Ngày vào làm:", tfStartDate);
+        // ── Name ──────────────────────────────────────────────────────────
+        tfName = new AppTextField("Nhập họ và tên...");
+        errName = fb.addRow("Họ và tên *:", tfName);
+        tfName.attachErrorLabel(errName);
 
-        // ── Phase 5B: cmbRole ──────────────────────────────────────────────
+        // ── CCCD ──────────────────────────────────────────────────────────
+        tfCccd = new AppTextField("12 chữ số");
+        fb.addRow("CCCD:", tfCccd);
+
+        // ── Phone ─────────────────────────────────────────────────────────
+        tfPhone = new AppTextField("0xxxxxxxxx");
+        errPhone = fb.addRow("SDT *:", tfPhone);
+        tfPhone.attachErrorLabel(errPhone);
+
+        // ── Address ───────────────────────────────────────────────────────
+        tfAddress = new AppTextField("Địa chỉ...");
+        fb.addRow("Địa chỉ:", tfAddress);
+
+        // ── Start Date (JSpinner) ─────────────────────────────────────────
+        spinDate = buildStyledDateSpinner();
+        errDate = fb.addRow("Ngày vào làm:", spinDate);
+
+        // ── Role (Phase 5B) ───────────────────────────────────────────────
         if (canAssignRole && allowedRoles != null && !allowedRoles.isEmpty()) {
-            cmbRole = new JComboBox<>(allowedRoles.toArray(new String[0]));
+            cmbRole = new AppComboBox<>(allowedRoles.toArray(new String[0]));
             cmbRole.setFont(UIConstants.FONT_BODY);
-
             if (item == null) {
                 cmbRole.setEnabled(false);
                 cmbRole.setToolTipText("Gán role sau khi tạo nhân viên");
             }
-
-            addRow(form, gbc, 6, "Role:", cmbRole);
+            fb.addRow("Role:", cmbRole);
         }
 
-        root.add(form, BorderLayout.CENTER);
+        // ── Pre-fill when editing ─────────────────────────────────────────
+        if (item != null) fillData();
 
-        // ── Button bar ─────────────────────────────────────────────────────
-        JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 12));
-        btnBar.setBackground(Color.WHITE);
-        btnBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIConstants.BORDER_COLOR));
-
-        RoundedButton btnCancel = RoundedButton.outline("Hủy");
-        btnCancel.setPreferredSize(new Dimension(90, UIConstants.BTN_HEIGHT));
-        btnCancel.addActionListener(e -> dispose());
-
-        RoundedButton btnSave = new RoundedButton(item == null ? "Thêm" : "Lưu");
-        btnSave.setPreferredSize(new Dimension(100, UIConstants.BTN_HEIGHT));
-        btnSave.addActionListener(e -> save());
-
-        btnBar.add(btnCancel);
-        btnBar.add(btnSave);
-        root.add(btnBar, BorderLayout.SOUTH);
-        setContentPane(root);
+        return fb.getPanel();
     }
 
+    // ── Fill data ────────────────────────────────────────────────────────────
+
     private void fillData() {
-        tfId.setText(item.getId());
-        tfId.setEditable(false);
-        tfId.setBackground(new Color(0xF3F4F6));
         tfName.setText(item.getName());
         tfCccd.setText(item.getCccd());
         tfPhone.setText(item.getPhone());
         tfAddress.setText(item.getAddress());
-        tfStartDate.setText(item.getStartDate());
+
+        // Parse date string → spinner
+        if (item.getStartDate() != null && !item.getStartDate().isBlank()) {
+            try {
+                Date d = new SimpleDateFormat(DATE_PATTERN).parse(item.getStartDate());
+                spinDate.setValue(d);
+            } catch (Exception ignored) {}
+        }
 
         if (cmbRole != null && item.getRole() != null) {
-            String systemRole = toSystemRole(item.getRole());
+            String sysRole = toSystemRole(item.getRole());
             for (int i = 0; i < cmbRole.getItemCount(); i++) {
-                if (cmbRole.getItemAt(i).equalsIgnoreCase(systemRole)) {
+                if (cmbRole.getItemAt(i).equalsIgnoreCase(sysRole)) {
                     cmbRole.setSelectedIndex(i);
                     break;
                 }
@@ -186,94 +170,121 @@ public class EmployeeDialog extends JDialog {
         }
     }
 
-    private void save() {
-        String id        = tfId.getText().trim();
-        String name      = tfName.getText().trim();
-        String cccd      = tfCccd.getText().trim();
-        String phone     = tfPhone.getText().trim();
-        String address   = tfAddress.getText().trim();
-        String startDate = tfStartDate.getText().trim();
+    // ── Validation + Save ────────────────────────────────────────────────────
 
-        if (name.isEmpty() || phone.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Vui lòng nhập Họ tên và SDT!",
-                    "Lỗi",
-                    JOptionPane.ERROR_MESSAGE);
-            return;
+    @Override
+    protected void onSave() {
+        boolean valid = true;
+
+        String name = tfName.getText().trim();
+        if (name.isEmpty()) {
+            tfName.setError("Vui lòng nhập họ và tên");
+            valid = false;
+        } else {
+            tfName.setError(null);
         }
 
-        // Gọi callback lưu thông tin cơ bản của nhân viên
+        String phone = tfPhone.getText().trim();
+        if (phone.isEmpty()) {
+            tfPhone.setError("Vui lòng nhập số điện thoại");
+            valid = false;
+        } else if (!phone.matches("0\\d{9}")) {
+            tfPhone.setError("SDT phải có 10 chữ số, bắt đầu bằng 0");
+            valid = false;
+        } else {
+            tfPhone.setError(null);
+        }
+
+        if (!valid) return;
+
+        String id        = tfId.getText().trim();
+        String cccd      = tfCccd.getText().trim();
+        String address   = tfAddress.getText().trim();
+        String startDate = new SimpleDateFormat(DATE_PATTERN).format((Date) spinDate.getValue());
+
+        // Callback with basic employee info
         onSave.accept(new Employee(id, name, cccd, phone, address, startDate,
                 item != null ? item.getRole() : Employee.Role.PHUC_VU));
 
-        // ── Phase 5B + Giai đoạn 3: gán role với Operation Token ──────────
+        // ── Phase 5B + Phase 3: role assignment with Operation Token ──────
         if (cmbRole != null && cmbRole.isEnabled() && item != null) {
             String selectedRole = (String) cmbRole.getSelectedItem();
             if (selectedRole != null && !selectedRole.isBlank()) {
-
-                // Xác định targetId = user_id liên kết với nhân viên
                 long targetId = resolveTargetUserId(id);
-
-                // ── Operation Token: yêu cầu xác nhận trước khi đổi role ──
                 boolean confirmed = ConfirmOperationDialog.show(
                     this, OperationType.CHANGE_ROLE, targetId);
                 if (!confirmed) {
-                    // Người dùng huỷ → đóng dialog mà không thay đổi role
-                    dispose();
+                    close();
                     return;
                 }
-
                 try {
                     employeeDAO.updateUserRole(id, selectedRole);
                     JOptionPane.showMessageDialog(this,
-                            "Thay đổi role sẽ có hiệu lực sau lần đăng nhập tiếp theo của nhân viên này.",
-                            "Thông báo",
-                            JOptionPane.INFORMATION_MESSAGE);
+                        "Thay đổi role sẽ có hiệu lực sau lần đăng nhập tiếp theo.",
+                        "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 } catch (SecurityException ex) {
                     JOptionPane.showMessageDialog(this,
-                            "Không có quyền thực hiện thao tác này:\n" + ex.getMessage(),
-                            "Lỗi phân quyền",
-                            JOptionPane.ERROR_MESSAGE);
-                } catch (IllegalStateException ex) {
-                    JOptionPane.showMessageDialog(this,
-                            ex.getMessage(),
-                            "Lỗi",
-                            JOptionPane.WARNING_MESSAGE);
-                } catch (IllegalArgumentException ex) {
-                    JOptionPane.showMessageDialog(this,
-                            ex.getMessage(),
-                            "Lỗi role",
-                            JOptionPane.ERROR_MESSAGE);
+                        "Không có quyền:\n" + ex.getMessage(),
+                        "Lỗi phân quyền", JOptionPane.ERROR_MESSAGE);
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(this,
-                            "Lỗi không xác định khi cập nhật role:\n" + ex.getMessage(),
-                            "Lỗi",
-                            JOptionPane.ERROR_MESSAGE);
+                        "Lỗi khi cập nhật role:\n" + ex.getMessage(),
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
                 }
             }
         }
 
-        dispose();
+        close();
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ── Date spinner ─────────────────────────────────────────────────────────
 
     /**
-     * Lấy user_id liên kết với employeeId để dùng làm targetId cho Operation Token.
-     * Nếu nhân viên chưa có tài khoản, trả về 0 (token vẫn hợp lệ — type đủ để nhận diện).
+     * Build a {@link JSpinner} configured for date input, styled to match
+     * {@link AppTextField} (border, font, height).
      */
+    private JSpinner buildStyledDateSpinner() {
+        SpinnerDateModel model = new SpinnerDateModel(
+            new Date(), null, null, Calendar.DAY_OF_MONTH);
+        JSpinner spinner = new JSpinner(model);
+
+        JSpinner.DateEditor editor = new JSpinner.DateEditor(spinner, DATE_PATTERN);
+        editor.getTextField().setFont(UIConstants.FONT_BODY);
+        editor.getTextField().setHorizontalAlignment(SwingConstants.LEFT);
+        spinner.setEditor(editor);
+        spinner.setFont(UIConstants.FONT_BODY);
+
+        // Match AppTextField border style
+        spinner.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(0xCBD5E1), 1, true),
+            BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+
+        // Focus highlight
+        editor.getTextField().addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusGained(java.awt.event.FocusEvent e) {
+                spinner.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(0x3B82F6), 2, true),
+                    BorderFactory.createEmptyBorder(2, 7, 2, 7)));
+            }
+            @Override public void focusLost(java.awt.event.FocusEvent e) {
+                spinner.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(0xCBD5E1), 1, true),
+                    BorderFactory.createEmptyBorder(3, 8, 3, 8)));
+            }
+        });
+
+        return spinner;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private long resolveTargetUserId(String employeeId) {
         try {
             java.util.Optional<Long> opt = employeeDAO.findUserId(employeeId);
             return opt.isPresent() ? opt.get() : 0L;
-        } catch (Exception ignored) {
-            return 0L;
-        }
+        } catch (Exception ignored) { return 0L; }
     }
 
-    /**
-     * Chuyển {@link Employee.Role} sang tên role hệ thống (khớp với bảng roles trong DB).
-     */
     private String toSystemRole(Employee.Role role) {
         if (role == null) return "WAITER";
         return switch (role) {
@@ -282,25 +293,5 @@ public class EmployeeDialog extends JDialog {
             case QUAN_LY  -> "RESTAURANT_ADMIN";
             default       -> "WAITER";
         };
-    }
-
-    private void addRow(JPanel form, GridBagConstraints gbc, int row, String label, JComponent comp) {
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
-        JLabel lbl = new JLabel(label);
-        lbl.setFont(UIConstants.FONT_BOLD);
-        lbl.setPreferredSize(new Dimension(110, 32));
-        form.add(lbl, gbc);
-        gbc.gridx = 1; gbc.weightx = 1;
-        comp.setPreferredSize(new Dimension(300, 34));
-        form.add(comp, gbc);
-    }
-
-    private JTextField field() {
-        JTextField tf = new JTextField();
-        tf.setFont(UIConstants.FONT_BODY);
-        tf.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(UIConstants.BORDER_COLOR, 1, true),
-            BorderFactory.createEmptyBorder(4, 10, 4, 10)));
-        return tf;
     }
 }
