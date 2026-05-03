@@ -61,7 +61,6 @@ module com.restaurant {
     // JavaFX UI packages
     exports com.restaurant.ui.fx;
     exports com.restaurant.ui.fx.controller;
-    exports com.restaurant.ui.fx.component;
 
     // =========================================================================
     // OPENS – reflective access required by JavaFX / Jackson

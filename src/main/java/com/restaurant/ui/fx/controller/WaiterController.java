@@ -1,8 +1,16 @@
 package com.restaurant.ui.fx.controller;
 
+import java.io.IOException;
+import java.net.URL;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+import java.util.ResourceBundle;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import com.restaurant.dao.KitchenDAO;
 import com.restaurant.dao.TableDAO;
-import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
 
@@ -13,26 +21,29 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.util.Duration;
-
-import java.io.IOException;
-import java.net.URL;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
-import java.util.ResourceBundle;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Controller cho WaiterView.fxml — Phase 9 JavaFX.
@@ -149,7 +160,9 @@ public class WaiterController implements Initializable {
                 new SimpleStringProperty(cell.getValue().getName()));
 
         colCleanCap.setCellValueFactory(cell ->
-                new SimpleIntegerProperty(cell.getValue().getCapacity()).asObject());
+            (ObservableValue<Number>) (ObservableValue<?>)
+                new SimpleIntegerProperty(cell.getValue().getCapacity()).asObject()
+        );
 
         colCleanStatus.setCellValueFactory(cell ->
                 new SimpleStringProperty(cell.getValue().getStatusDisplay()));
