@@ -28,7 +28,7 @@ module com.restaurant {
 
     // ── Security ─────────────────────────────────────────────────────────────
 
-    requires at.favre.lib.bcrypt;
+    requires bcrypt;
 
     // ── Serialisation ────────────────────────────────────────────────────────
 

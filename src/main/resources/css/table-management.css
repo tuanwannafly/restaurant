@@ -1,0 +1,360 @@
+/*
+ * table-management.css  —  Phase 5
+ * Áp dụng cho: TableView.fxml, TableCardComponent.fxml,
+ *              OpenTableDialog.fxml, PaymentDialog.fxml
+ *
+ * Add to Scene:
+ *   scene.getStylesheets().add(
+ *       getClass().getResource("/css/table-management.css").toExternalForm());
+ */
+
+/* ═══════════════════════════  ROOT  ══════════════════════════════════════ */
+
+.page-root {
+    -fx-background-color: #F8F9FA;
+}
+
+/* ═══════════════════════════  TYPOGRAPHY  ════════════════════════════════ */
+
+.page-title {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F2937;
+}
+
+.section-label {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F2937;
+}
+
+.form-label {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #374151;
+    -fx-pref-width: 130px;
+    -fx-pref-height: 36px;
+}
+
+.filter-label {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #374151;
+}
+
+.count-badge {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-text-fill: #6B7280;
+    -fx-background-color: #E5E7EB;
+    -fx-background-radius: 12;
+    -fx-padding: 2 10 2 10;
+}
+
+/* ═══════════════════════════  INPUTS  ════════════════════════════════════ */
+
+.search-field,
+.form-field {
+    -fx-background-color: white;
+    -fx-border-color: #D1D5DB;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-padding: 0 12 0 12;
+}
+
+.search-field:focused,
+.form-field:focused {
+    -fx-border-color: #3B82F6;
+    -fx-effect: dropshadow(gaussian, rgba(59,130,246,0.25), 6, 0, 0, 0);
+}
+
+.filter-combo {
+    -fx-background-color: white;
+    -fx-border-color: #D1D5DB;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+}
+
+/* ═══════════════════════════  BUTTONS  ═══════════════════════════════════ */
+
+.btn-primary {
+    -fx-background-color: #3B82F6;
+    -fx-text-fill: white;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+
+.btn-primary:hover {
+    -fx-background-color: #2563EB;
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #1D4ED8;
+}
+
+.btn-outline {
+    -fx-background-color: transparent;
+    -fx-border-color: #D1D5DB;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #374151;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+.btn-outline:hover {
+    -fx-background-color: #F3F4F6;
+}
+
+/* ─── Card action buttons ─────────────────────────────────────────────── */
+
+.card-btn-danger {
+    -fx-background-color: #FEF2F2;
+    -fx-border-color: #FECACA;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #EF4444;
+    -fx-font-size: 13px;
+    -fx-pref-width: 36px;
+    -fx-pref-height: 28px;
+    -fx-cursor: hand;
+}
+.card-btn-danger:hover { -fx-background-color: #FEE2E2; }
+
+.card-btn-primary {
+    -fx-background-color: #EFF6FF;
+    -fx-border-color: #BFDBFE;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #3B82F6;
+    -fx-font-size: 13px;
+    -fx-pref-width: 36px;
+    -fx-pref-height: 28px;
+    -fx-cursor: hand;
+}
+.card-btn-primary:hover { -fx-background-color: #DBEAFE; }
+
+.card-btn-info {
+    -fx-background-color: #F5F3FF;
+    -fx-border-color: #DDD6FE;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #6366F1;
+    -fx-font-size: 13px;
+    -fx-pref-width: 36px;
+    -fx-pref-height: 28px;
+    -fx-cursor: hand;
+}
+.card-btn-info:hover { -fx-background-color: #EDE9FE; }
+
+/* ═══════════════════════════  HEADER / FOOTER  ═══════════════════════════ */
+
+.page-header {
+    -fx-background-color: #F8F9FA;
+}
+
+.header-sep {
+    -fx-opacity: 0.6;
+}
+
+.dialog-header {
+    -fx-background-color: #F8F9FA;
+    -fx-border-color: transparent transparent #E5E7EB transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.dialog-title {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F2937;
+}
+
+.dialog-subtitle {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-text-fill: #9CA3AF;
+}
+
+.dialog-footer {
+    -fx-background-color: #F9FAFB;
+    -fx-border-color: #E5E7EB transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* ═══════════════════════════  TABLE CARD  ════════════════════════════════ */
+
+.table-card {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #E5E7EB;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 8, 0, 0, 2);
+    -fx-cursor: hand;
+}
+
+.table-card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.14), 14, 0, 0, 4);
+    -fx-border-color: #C7D2FE;
+}
+
+.card-status-bar {
+    -fx-background-radius: 12 12 0 0;
+}
+
+.card-body {
+    -fx-background-color: transparent;
+}
+
+.card-table-name {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F2937;
+}
+
+.card-caption {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-text-fill: #6B7280;
+}
+
+.card-status-badge {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.card-actions {
+    -fx-background-color: #F9FAFB;
+    -fx-background-radius: 0 0 12 12;
+    -fx-border-color: #F3F4F6 transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* ═══════════════════════════  SCROLL PANES  ══════════════════════════════ */
+
+.cards-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.cards-scroll > .viewport {
+    -fx-background-color: #F8F9FA;
+}
+
+.cards-tile {
+    -fx-background-color: #F8F9FA;
+}
+
+.payment-scroll {
+    -fx-background-color: white;
+    -fx-border-color: transparent;
+}
+
+.payment-scroll > .viewport {
+    -fx-background-color: white;
+}
+
+.payment-body {
+    -fx-background-color: white;
+}
+
+/* ═══════════════════════════  PAYMENT DIALOG  ════════════════════════════ */
+
+.payment-header {
+    -fx-background-color: #3B82F6;
+}
+
+.payment-header-title {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+
+.payment-table {
+    -fx-background-color: white;
+    -fx-border-color: #E5E7EB;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+}
+
+.payment-table .column-header {
+    -fx-background-color: #F3F4F6;
+    -fx-font-weight: bold;
+}
+
+.payment-table .table-row-cell:odd {
+    -fx-background-color: #FAFAFA;
+}
+
+.payment-table .table-row-cell:selected {
+    -fx-background-color: #DBEAFE;
+    -fx-text-fill: #1E40AF;
+}
+
+.table-placeholder {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #9CA3AF;
+}
+
+.total-caption {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F2937;
+}
+
+.total-amount {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #EF4444;
+}
+
+.payment-radio {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #374151;
+}
+
+/* ─── QR panel ─────────────────────────────────────────────────────────── */
+
+.qr-panel {
+    -fx-background-color: #F9FAFB;
+    -fx-border-color: #E5E7EB;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.qr-hint {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-text-fill: #9CA3AF;
+}
+
+/* ═══════════════════════════  DIALOG ROOT  ═══════════════════════════════ */
+
+.dialog-root {
+    -fx-background-color: white;
+}
+
+.dialog-form {
+    -fx-background-color: white;
+}

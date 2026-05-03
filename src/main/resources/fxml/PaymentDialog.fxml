@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  PaymentDialog.fxml  —  Phase 5 / Phase 6
+  Dialog thanh toán khi nhân viên double-click bàn OCCUPIED.
+
+  Layout (BorderPane):
+    TOP    : colored header  (title)
+    CENTER : ScrollPane  →  VBox
+               ├─ Section "Chi tiết đơn hàng"
+               │    └─ TableView<OrderItem>  (fx:id=tvItems)
+               ├─ Separator
+               ├─ Total row
+               ├─ Section "Hình thức thanh toán"
+               │    ├─ RadioButton cash
+               │    └─ RadioButton transfer
+               └─ QR placeholder panel  (fx:id=qrPanel, hidden by default)
+    BOTTOM : footer  (Hủy | Xác nhận thanh toán)
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.dialog.PaymentDialogController"
+            prefWidth="520" prefHeight="600"
+            styleClass="dialog-root">
+
+    <!-- ══════  TOP — header  ═════════════════════════════════════════ -->
+    <top>
+        <HBox styleClass="payment-header" alignment="CENTER_LEFT">
+            <padding><Insets top="16" right="24" bottom="16" left="24"/></padding>
+            <Label fx:id="lblHeader"
+                   text="Thanh toán"
+                   styleClass="payment-header-title"/>
+        </HBox>
+    </top>
+
+    <!-- ══════  CENTER — scrollable body  ════════════════════════════= -->
+    <center>
+        <ScrollPane fitToWidth="true"
+                    hbarPolicy="NEVER"
+                    styleClass="payment-scroll">
+
+            <VBox spacing="0" styleClass="payment-body">
+                <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+
+                <!-- ── Section title ──────────────────────────────── -->
+                <Label text="Chi tiết đơn hàng" styleClass="section-label"/>
+                <VBox><padding><Insets top="10"/></padding></VBox>
+
+                <!-- ── Order items table ──────────────────────────── -->
+                <TableView fx:id="tvItems"
+                           prefHeight="220"
+                           styleClass="payment-table"
+                           editable="false"
+                           columnResizePolicy="CONSTRAINED_RESIZE_POLICY">
+
+                    <columns>
+                        <TableColumn fx:id="colName"  text="Món"            prefWidth="180"/>
+                        <TableColumn fx:id="colQty"   text="SL"             prefWidth="40"  style="-fx-alignment: CENTER-RIGHT;"/>
+                        <TableColumn fx:id="colPrice" text="Đơn giá (₫)"   prefWidth="120" style="-fx-alignment: CENTER-RIGHT;"/>
+                        <TableColumn fx:id="colTotal" text="Thành tiền (₫)" prefWidth="130" style="-fx-alignment: CENTER-RIGHT;"/>
+                    </columns>
+
+                    <placeholder>
+                        <Label text="Đang tải danh sách món…"
+                               styleClass="table-placeholder"/>
+                    </placeholder>
+                </TableView>
+
+                <!-- ── Separator ─────────────────────────────────── -->
+                <VBox><padding><Insets top="16"/></padding></VBox>
+                <Separator/>
+                <VBox><padding><Insets top="16"/></padding></VBox>
+
+                <!-- ── Total row ──────────────────────────────────── -->
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Tổng cộng:" styleClass="total-caption"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblTotal" text="0 ₫" styleClass="total-amount"/>
+                </HBox>
+
+                <!-- ── Spacer ─────────────────────────────────────── -->
+                <VBox><padding><Insets top="20"/></padding></VBox>
+
+                <!-- ── Payment method section ─────────────────────── -->
+                <Label text="Hình thức thanh toán" styleClass="section-label"/>
+                <VBox><padding><Insets top="10"/></padding></VBox>
+
+                <HBox spacing="24" alignment="CENTER_LEFT">
+                    <!-- RadioButtons share a ToggleGroup declared in controller -->
+                    <RadioButton fx:id="rboCash"
+                                 text="💵  Tiền mặt"
+                                 styleClass="payment-radio"
+                                 selected="true"
+                                 onAction="#onPaymentMethodChanged"/>
+                    <RadioButton fx:id="rboTransfer"
+                                 text="📱  Chuyển khoản (QR)"
+                                 styleClass="payment-radio"
+                                 onAction="#onPaymentMethodChanged"/>
+                </HBox>
+
+                <!-- ── QR placeholder (hidden until transfer selected) ── -->
+                <VBox><padding><Insets top="16"/></padding></VBox>
+
+                <VBox fx:id="qrPanel"
+                      managed="false" visible="false"
+                      styleClass="qr-panel"
+                      alignment="CENTER" spacing="8">
+                    <padding><Insets top="16" right="0" bottom="16" left="0"/></padding>
+
+                    <!-- QR visual drawn in controller via Canvas,
+                         or use a static placeholder ImageView -->
+                    <javafx.scene.canvas.Canvas fx:id="qrCanvas"
+                                               width="180" height="180"/>
+
+                    <Label text="QR code tài khoản ngân hàng"
+                           styleClass="qr-hint"/>
+                </VBox>
+
+            </VBox>
+        </ScrollPane>
+    </center>
+
+    <!-- ══════  BOTTOM — footer  ═══════════════════════════════════════ -->
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" spacing="12"
+              styleClass="dialog-footer">
+            <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+
+            <Button text="Hủy"
+                    prefWidth="100" prefHeight="36"
+                    styleClass="btn-outline"
+                    onAction="#onCancel"
+                    cancelButton="true"/>
+
+            <Button fx:id="btnConfirm"
+                    text="✅  Xác nhận thanh toán"
+                    prefWidth="200" prefHeight="36"
+                    styleClass="btn-primary"
+                    onAction="#onConfirmPayment"
+                    defaultButton="true"
+                    disable="true"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

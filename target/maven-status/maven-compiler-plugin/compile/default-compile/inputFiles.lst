@@ -1,85 +1,103 @@
-C:\work\do an\src\main\java\com\restaurant\dao\EmployeeDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\KitchenDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\MenuItemDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\OrderDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\ReportDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\RestaurantDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\StatsDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\TableDAO.java
-C:\work\do an\src\main\java\com\restaurant\dao\UserDAO.java
-C:\work\do an\src\main\java\com\restaurant\data\DataManager.java
-C:\work\do an\src\main\java\com\restaurant\db\DBConnection.java
-C:\work\do an\src\main\java\com\restaurant\integration\FullOrderFlowIntegrationTest.java
-C:\work\do an\src\main\java\com\restaurant\Main.java
-C:\work\do an\src\main\java\com\restaurant\model\Employee.java
-C:\work\do an\src\main\java\com\restaurant\model\MenuItem.java
-C:\work\do an\src\main\java\com\restaurant\model\Order.java
-C:\work\do an\src\main\java\com\restaurant\model\Report.java
-C:\work\do an\src\main\java\com\restaurant\model\Restaurant.java
-C:\work\do an\src\main\java\com\restaurant\model\TableItem.java
-C:\work\do an\src\main\java\com\restaurant\session\AppSession.java
-C:\work\do an\src\main\java\com\restaurant\session\AuditLogger.java
-C:\work\do an\src\main\java\com\restaurant\session\OperationTokenService.java
-C:\work\do an\src\main\java\com\restaurant\session\OperationType.java
-C:\work\do an\src\main\java\com\restaurant\session\Permission.java
-C:\work\do an\src\main\java\com\restaurant\session\RbacGuard.java
-C:\work\do an\src\main\java\com\restaurant\session\RbacTest.java
-C:\work\do an\src\main\java\com\restaurant\session\RefreshTokenService.java
-C:\work\do an\src\main\java\com\restaurant\session\SessionExpiredException.java
-C:\work\do an\src\main\java\com\restaurant\session\TokenService.java
-C:\work\do an\src\main\java\com\restaurant\session\TokenStorage.java
-C:\work\do an\src\main\java\com\restaurant\ui\AdminStatsPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\AppBadge.java
-C:\work\do an\src\main\java\com\restaurant\ui\AppButton.java
-C:\work\do an\src\main\java\com\restaurant\ui\AppComboBox.java
-C:\work\do an\src\main\java\com\restaurant\ui\AppTextField.java
-C:\work\do an\src\main\java\com\restaurant\ui\AuditLogPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\BadgeButton.java
-C:\work\do an\src\main\java\com\restaurant\ui\CashierPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\AppDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\CashierPaymentDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\ConfirmOperationDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\EmployeeDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\EmployeeDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\KitchenCookingDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\KitchenPendingDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\MenuDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\MenuDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\MenuStatDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\MyProfileDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\OpenTableDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\OrderDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\OrderStatDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\PaymentDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\RegisterStaffDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\ReportAddDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\ReportDetailDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\RestaurantDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\dialog\TableDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\EmployeePanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\EmptyStatePanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\FlatLafConfig.java
-C:\work\do an\src\main\java\com\restaurant\ui\HomePanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\ImageLoader.java
-C:\work\do an\src\main\java\com\restaurant\ui\InlineErrorBar.java
-C:\work\do an\src\main\java\com\restaurant\ui\KitchenPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\LoginDialog.java
-C:\work\do an\src\main\java\com\restaurant\ui\MainFrame.java
-C:\work\do an\src\main\java\com\restaurant\ui\MenuPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\MyRestaurantInfoPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\OrderPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\PollManager.java
-C:\work\do an\src\main\java\com\restaurant\ui\ReportPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\RestaurantDetailPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\RestaurantPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\RoundedButton.java
-C:\work\do an\src\main\java\com\restaurant\ui\RoundedTextField.java
-C:\work\do an\src\main\java\com\restaurant\ui\SimpleSpinner.java
-C:\work\do an\src\main\java\com\restaurant\ui\StaffHeader.java
-C:\work\do an\src\main\java\com\restaurant\ui\StatsPanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\StyledTable.java
-C:\work\do an\src\main\java\com\restaurant\ui\TableOrderFrame.java
-C:\work\do an\src\main\java\com\restaurant\ui\TablePanel.java
-C:\work\do an\src\main\java\com\restaurant\ui\ToastNotification.java
-C:\work\do an\src\main\java\com\restaurant\ui\UIConstants.java
-C:\work\do an\src\main\java\com\restaurant\ui\WaiterServicePanel.java
+C:\work\doan\src\main\java\com\restaurant\dao\EmployeeDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\KitchenDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\MenuItemDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\OrderDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\ReportDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\RestaurantDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\StatsDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\TableDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\UserDAO.java
+C:\work\doan\src\main\java\com\restaurant\data\DataManager.java
+C:\work\doan\src\main\java\com\restaurant\db\DBConnection.java
+C:\work\doan\src\main\java\com\restaurant\integration\FullOrderFlowIntegrationTest.java
+C:\work\doan\src\main\java\com\restaurant\Main.java
+C:\work\doan\src\main\java\com\restaurant\model\Employee.java
+C:\work\doan\src\main\java\com\restaurant\model\MenuItem.java
+C:\work\doan\src\main\java\com\restaurant\model\Order.java
+C:\work\doan\src\main\java\com\restaurant\model\Report.java
+C:\work\doan\src\main\java\com\restaurant\model\Restaurant.java
+C:\work\doan\src\main\java\com\restaurant\model\TableItem.java
+C:\work\doan\src\main\java\com\restaurant\session\AppSession.java
+C:\work\doan\src\main\java\com\restaurant\session\AuditLogger.java
+C:\work\doan\src\main\java\com\restaurant\session\OperationTokenService.java
+C:\work\doan\src\main\java\com\restaurant\session\OperationType.java
+C:\work\doan\src\main\java\com\restaurant\session\Permission.java
+C:\work\doan\src\main\java\com\restaurant\session\RbacGuard.java
+C:\work\doan\src\main\java\com\restaurant\session\RbacTest.java
+C:\work\doan\src\main\java\com\restaurant\session\RefreshTokenService.java
+C:\work\doan\src\main\java\com\restaurant\session\SessionExpiredException.java
+C:\work\doan\src\main\java\com\restaurant\session\TokenService.java
+C:\work\doan\src\main\java\com\restaurant\session\TokenStorage.java
+C:\work\doan\src\main\java\com\restaurant\ui\ActivityListCell.java
+C:\work\doan\src\main\java\com\restaurant\ui\AdminStatsPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\AppBadge.java
+C:\work\doan\src\main\java\com\restaurant\ui\AppButton.java
+C:\work\doan\src\main\java\com\restaurant\ui\AppComboBox.java
+C:\work\doan\src\main\java\com\restaurant\ui\AppTextField.java
+C:\work\doan\src\main\java\com\restaurant\ui\AuditLogPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\BadgeButton.java
+C:\work\doan\src\main\java\com\restaurant\ui\CashierPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\cell\ActionTableCell.java
+C:\work\doan\src\main\java\com\restaurant\ui\control\BadgeLabel.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\AppDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\CashierPaymentDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\ConfirmOperationDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\EmployeeDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\EmployeeDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\KitchenCookingDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\KitchenPendingDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\MenuDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\MenuDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\MenuDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\MenuStatDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\MyProfileDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\OpenTableDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\OpenTableDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\OrderDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\OrderStatDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\PaymentDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\PaymentDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\RegisterStaffDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\ReportAddDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\ReportDetailDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\RestaurantDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\TableDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\EmployeePanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\EmptyStatePanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\FlatLafConfig.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\util\FxUtils.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\util\PollManagerFx.java
+C:\work\doan\src\main\java\com\restaurant\ui\HomeController.java
+C:\work\doan\src\main\java\com\restaurant\ui\HomePanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\ImageLoader.java
+C:\work\doan\src\main\java\com\restaurant\ui\InlineErrorBar.java
+C:\work\doan\src\main\java\com\restaurant\ui\KitchenPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\LoginController.java
+C:\work\doan\src\main\java\com\restaurant\ui\LoginDialog.java
+C:\work\doan\src\main\java\com\restaurant\ui\MainController.java
+C:\work\doan\src\main\java\com\restaurant\ui\MainFrame.java
+C:\work\doan\src\main\java\com\restaurant\ui\MenuController.java
+C:\work\doan\src\main\java\com\restaurant\ui\MenuPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\MyRestaurantInfoPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\OrderPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\PollManager.java
+C:\work\doan\src\main\java\com\restaurant\ui\ReportPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\RestaurantDetailPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\RestaurantPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\RoundedButton.java
+C:\work\doan\src\main\java\com\restaurant\ui\RoundedTextField.java
+C:\work\doan\src\main\java\com\restaurant\ui\SidebarController.java
+C:\work\doan\src\main\java\com\restaurant\ui\SimpleSpinner.java
+C:\work\doan\src\main\java\com\restaurant\ui\StaffHeader.java
+C:\work\doan\src\main\java\com\restaurant\ui\StatCard.java
+C:\work\doan\src\main\java\com\restaurant\ui\StatsPanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\StyledTable.java
+C:\work\doan\src\main\java\com\restaurant\ui\TableCardController.java
+C:\work\doan\src\main\java\com\restaurant\ui\TableController.java
+C:\work\doan\src\main\java\com\restaurant\ui\TableOrderFrame.java
+C:\work\doan\src\main\java\com\restaurant\ui\TablePanel.java
+C:\work\doan\src\main\java\com\restaurant\ui\ToastNotification.java
+C:\work\doan\src\main\java\com\restaurant\ui\TopBarController.java
+C:\work\doan\src\main\java\com\restaurant\ui\UIConstants.java
+C:\work\doan\src\main\java\com\restaurant\ui\WaiterServicePanel.java
+C:\work\doan\src\main\java\module-info.java
