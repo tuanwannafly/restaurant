@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.chart.*?>
+<?import javafx.geometry.*?>
+
+<!--
+    StatsView.fxml  — Phase 11
+    Tương đương StatsPanel.java (Swing → JavaFX)
+    Controller: com.restaurant.ui.StatsController
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.StatsController"
+            style="-fx-background-color: #F8F9FA;">
+
+    <!-- ═══════════════════════════════════════════════════
+         TOP  —  title + refresh
+    ═══════════════════════════════════════════════════ -->
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="12"
+              style="-fx-padding: 24 48 12 48; -fx-background-color: #F8F9FA;">
+            <Label text="Thống kê &amp; Doanh thu"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22px;
+                          -fx-font-weight: bold; -fx-text-fill: #111827;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblStatus" text=""
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12px;
+                          -fx-text-fill: #9CA3AF;"/>
+            <Button text="↻ Làm mới"
+                    onAction="#loadAll"
+                    style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                           -fx-font-weight: bold; -fx-background-color: #3B82F6;
+                           -fx-text-fill: white; -fx-background-radius: 8;
+                           -fx-padding: 8 18 8 18; -fx-cursor: hand;"/>
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════════════════════
+         CENTER  —  scrollable body
+    ═══════════════════════════════════════════════════ -->
+    <center>
+        <ScrollPane fitToWidth="true"
+                    style="-fx-background-color: #F8F9FA; -fx-background: #F8F9FA;
+                           -fx-border-color: transparent;">
+            <VBox spacing="0"
+                  style="-fx-padding: 0 48 32 48; -fx-background-color: #F8F9FA;">
+
+                <!-- ── Date filter ──────────────────────────────────────── -->
+                <HBox alignment="CENTER_LEFT" spacing="10"
+                      style="-fx-padding: 0 0 20 0;">
+                    <Label text="Từ ngày:"
+                           style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                                  -fx-text-fill: #6B7280;"/>
+                    <DatePicker fx:id="dpFrom"
+                                prefWidth="135"
+                                style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;"/>
+                    <Label text="Đến ngày:"
+                           style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                                  -fx-text-fill: #6B7280;"/>
+                    <DatePicker fx:id="dpTo"
+                                prefWidth="135"
+                                style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;"/>
+                    <Button text="Áp dụng"
+                            onAction="#applyDateFilter"
+                            style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                                   -fx-background-color: #F3F4F6; -fx-text-fill: #374151;
+                                   -fx-border-color: #D1D5DB; -fx-border-radius: 8;
+                                   -fx-background-radius: 8; -fx-padding: 7 14 7 14;
+                                   -fx-cursor: hand;"/>
+                </HBox>
+
+                <!-- ── Section: Doanh thu ──────────────────────────────── -->
+                <Label text="DOANH THU"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                              -fx-font-weight: bold; -fx-text-fill: #9CA3AF;
+                              -fx-padding: 0 0 10 0;"/>
+
+                <!-- 3 revenue metric cards -->
+                <GridPane hgap="16" vgap="0"
+                          style="-fx-padding: 0 0 24 0;">
+                    <columnConstraints>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                    </columnConstraints>
+                    <!-- Card 1: Tổng doanh thu -->
+                    <VBox fx:id="cardRevenue"
+                          spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 6, 0, 0, 2);"
+                          GridPane.columnIndex="0">
+                        <Label text="TỔNG DOANH THU"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                                      -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
+                        <Label fx:id="lblRevenue"
+                               text="— ₫"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22px;
+                                      -fx-font-weight: bold; -fx-text-fill: #3B82F6;"/>
+                    </VBox>
+                    <!-- Card 2: Số đơn -->
+                    <VBox fx:id="cardOrders"
+                          spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 6, 0, 0, 2);"
+                          GridPane.columnIndex="1">
+                        <Label text="SỐ ĐƠN HOÀN THÀNH"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                                      -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
+                        <Label fx:id="lblOrderCount"
+                               text="0 đơn"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22px;
+                                      -fx-font-weight: bold; -fx-text-fill: #10B981;"/>
+                    </VBox>
+                    <!-- Card 3: Trung bình -->
+                    <VBox fx:id="cardAvg"
+                          spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 6, 0, 0, 2);"
+                          GridPane.columnIndex="2">
+                        <Label text="TRUNG BÌNH / ĐƠN"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                                      -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
+                        <Label fx:id="lblAvgOrder"
+                               text="— ₫"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22px;
+                                      -fx-font-weight: bold; -fx-text-fill: #F59E0B;"/>
+                    </VBox>
+                </GridPane>
+
+                <!-- ── Section: Top 5 món bán chạy ────────────────────── -->
+                <Label text="TOP 5 MÓN BÁN CHẠY"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                              -fx-font-weight: bold; -fx-text-fill: #9CA3AF;
+                              -fx-padding: 0 0 10 0;"/>
+
+                <!-- Split: BarChart (trái) + TableView detail (phải) -->
+                <HBox spacing="16" style="-fx-padding: 0 0 24 0;">
+                    <!-- BarChart — số lượng theo tên món -->
+                    <BarChart fx:id="barChart"
+                              HBox.hgrow="ALWAYS"
+                              prefHeight="220"
+                              animated="false"
+                              legendVisible="false"
+                              style="-fx-background-color: white; -fx-background-radius: 10;
+                                     -fx-padding: 8; -fx-effect: dropshadow(gaussian,rgba(0,0,0,0.07),6,0,0,2);">
+                        <xAxis>
+                            <CategoryAxis fx:id="chartXAxis"
+                                          label="Món ăn"
+                                          tickLabelRotation="-25"
+                                          style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11px;"/>
+                        </xAxis>
+                        <yAxis>
+                            <NumberAxis fx:id="chartYAxis"
+                                        label="Số lượng"
+                                        style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11px;"/>
+                        </yAxis>
+                    </BarChart>
+
+                    <!-- Detail table -->
+                    <VBox spacing="6" prefWidth="320">
+                        <Label text="Chi tiết top 5"
+                               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12px;
+                                      -fx-font-weight: bold; -fx-text-fill: #374151;"/>
+                        <TableView fx:id="topItemsTable"
+                                   prefHeight="220"
+                                   style="-fx-background-color: white; -fx-background-radius: 10;
+                                          -fx-effect: dropshadow(gaussian,rgba(0,0,0,0.07),6,0,0,2);">
+                            <columns>
+                                <TableColumn fx:id="colRank"    text="#"            prefWidth="35"/>
+                                <TableColumn fx:id="colItem"    text="Tên món"      prefWidth="130"/>
+                                <TableColumn fx:id="colQty"     text="SL"           prefWidth="50"/>
+                                <TableColumn fx:id="colItemRev" text="Doanh thu"    prefWidth="100"/>
+                            </columns>
+                            <placeholder>
+                                <Label text="Không có dữ liệu"
+                                       style="-fx-text-fill: #9CA3AF; -fx-font-size: 12px;"/>
+                            </placeholder>
+                        </TableView>
+                    </VBox>
+                </HBox>
+
+                <!-- ── Section: Trạng thái bàn ────────────────────────── -->
+                <Label text="TRẠNG THÁI BÀN"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10px;
+                              -fx-font-weight: bold; -fx-text-fill: #9CA3AF;
+                              -fx-padding: 0 0 10 0;"/>
+
+                <!-- 3 table status cards -->
+                <GridPane hgap="16"
+                          style="-fx-padding: 0 0 16 0;">
+                    <columnConstraints>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="33.3"/>
+                    </columnConstraints>
+                    <VBox spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian,rgba(0,0,0,0.07),6,0,0,2);"
+                          GridPane.columnIndex="0">
+                        <Label text="BÀN TRỐNG"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:10px;
+                                      -fx-font-weight:bold;-fx-text-fill:#9CA3AF;"/>
+                        <Label fx:id="lblAvailable" text="0"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:22px;
+                                      -fx-font-weight:bold;-fx-text-fill:#10B981;"/>
+                    </VBox>
+                    <VBox spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian,rgba(0,0,0,0.07),6,0,0,2);"
+                          GridPane.columnIndex="1">
+                        <Label text="ĐANG PHỤC VỤ"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:10px;
+                                      -fx-font-weight:bold;-fx-text-fill:#9CA3AF;"/>
+                        <Label fx:id="lblOccupied" text="0"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:22px;
+                                      -fx-font-weight:bold;-fx-text-fill:#EF4444;"/>
+                    </VBox>
+                    <VBox spacing="6"
+                          style="-fx-background-color: white; -fx-background-radius: 10;
+                                 -fx-padding: 16 20 16 20; -fx-effect: dropshadow(gaussian,rgba(0,0,0,0.07),6,0,0,2);"
+                          GridPane.columnIndex="2">
+                        <Label text="ĐẶT TRƯỚC"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:10px;
+                                      -fx-font-weight:bold;-fx-text-fill:#9CA3AF;"/>
+                        <Label fx:id="lblReserved" text="0"
+                               style="-fx-font-family:'Segoe UI';-fx-font-size:22px;
+                                      -fx-font-weight:bold;-fx-text-fill:#F59E0B;"/>
+                    </VBox>
+                </GridPane>
+
+                <!-- Occupancy progress bar -->
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label text="Tỷ lệ sử dụng:"
+                           style="-fx-font-family:'Segoe UI';-fx-font-size:13px;
+                                  -fx-text-fill:#6B7280;"/>
+                    <ProgressBar fx:id="progressTable"
+                                 progress="0"
+                                 prefHeight="22"
+                                 HBox.hgrow="ALWAYS"
+                                 maxWidth="Infinity"
+                                 style="-fx-background-radius: 11; -fx-accent: #3B82F6;"/>
+                    <Label fx:id="lblOccupancyPct"
+                           text="0 / 0 bàn"
+                           style="-fx-font-family:'Segoe UI';-fx-font-size:12px;
+                                  -fx-font-weight:bold;-fx-text-fill:#374151;
+                                  -fx-min-width:90;"/>
+                </HBox>
+
+            </VBox>
+        </ScrollPane>
+    </center>
+
+</BorderPane>

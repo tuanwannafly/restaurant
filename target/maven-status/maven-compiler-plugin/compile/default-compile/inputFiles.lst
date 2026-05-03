@@ -70,10 +70,15 @@ C:\work\doan\src\main\java\com\restaurant\ui\EmployeeController.java
 C:\work\doan\src\main\java\com\restaurant\ui\EmployeePanel.java
 C:\work\doan\src\main\java\com\restaurant\ui\EmptyStatePanel.java
 C:\work\doan\src\main\java\com\restaurant\ui\FlatLafConfig.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\CashierController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\CashierPaymentDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\DeliveryCardController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\LoginController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\MainController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\WaiterController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\util\FxUtils.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\util\PollManagerFx.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\util\ToastNotificationFx.java
 C:\work\doan\src\main\java\com\restaurant\ui\HomeController.java
 C:\work\doan\src\main\java\com\restaurant\ui\HomePanel.java
 C:\work\doan\src\main\java\com\restaurant\ui\ImageLoader.java
