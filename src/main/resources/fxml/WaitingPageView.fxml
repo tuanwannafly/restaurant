@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.restaurant.ui.fx.controller.WaitingPageController"
+            styleClass="page-root">
+
+    <top>
+        <HBox styleClass="top-bar" alignment="CENTER_LEFT">
+            <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS">
+                <Label text="⛁" styleClass="logo-icon"/>
+                <Label text="SmartRestaurant" styleClass="logo-text"/>
+            </HBox>
+            <Label text="Đang xử lý yêu cầu" styleClass="page-title" HBox.hgrow="ALWAYS"
+                   alignment="CENTER"/>
+            <HBox alignment="CENTER_RIGHT" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
+                <Button text="✕" styleClass="btn-ghost-sm" onAction="#onClose"
+                        tooltip="Đóng màn hình bàn"/>
+            </HBox>
+        </HBox>
+    </top>
+
+    <center>
+        <!-- Centered card -->
+        <StackPane>
+            <VBox alignment="CENTER" spacing="20" styleClass="waiting-card"
+                  maxWidth="480" maxHeight="300">
+                <!-- Spinner icon -->
+                <Label fx:id="lblIcon" text="⏳" styleClass="waiting-icon"/>
+
+                <Label text="Đang xử lý" styleClass="waiting-title"/>
+
+                <Label text="Nhân viên đang đến để thực hiện yêu cầu thanh toán"
+                       styleClass="waiting-sub" wrapText="true"
+                       maxWidth="300" alignment="CENTER"/>
+
+                <Label text="Vui lòng chờ trong giây lát."
+                       styleClass="label-hint"/>
+            </VBox>
+        </StackPane>
+    </center>
+</BorderPane>
