@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  HomeView.fxml
+  Dashboard chính — SUPER_ADMIN / RESTAURANT_ADMIN
+  Layout:
+    ScrollPane
+      └─ VBox (padding 28 56)
+           ├─ VBox  header (greeting + date)
+           ├─ HBox  section-bar (label + dot + countdown)
+           ├─ GridPane  2×2 stat-cards
+           └─ VBox  recent-activity (label + ListView)
+-->
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+<?import com.restaurant.ui.StatCard?>
+
+<ScrollPane
+    fitToWidth="true"
+    hbarPolicy="NEVER"
+    style="-fx-background: #F3F4F6; -fx-background-color: #F3F4F6; -fx-border-color: transparent;"
+    xmlns:fx="http://javafx.com/fxml/1"
+    fx:controller="com.restaurant.ui.HomeController">
+
+    <!-- ── Root container ───────────────────────────────────────────────── -->
+    <VBox spacing="0"
+          style="-fx-background-color: #F3F4F6;"
+          maxWidth="Infinity">
+        <padding><Insets top="28" right="56" bottom="28" left="56"/></padding>
+
+        <!-- ── Header ── -->
+        <VBox spacing="3">
+            <Label fx:id="lblGreeting"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22; -fx-font-weight: bold; -fx-text-fill: #111827;"/>
+            <Label fx:id="lblSubtitle"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13; -fx-text-fill: #6B7280;"/>
+            <VBox.margin><Insets bottom="12"/></VBox.margin>
+        </VBox>
+
+        <!-- ── Section bar: title | ● dot | countdown ── -->
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="TỔNG QUAN HỆ THỐNG"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10; -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <!-- Pulsing dot — colour toggled by HomeController -->
+            <Label fx:id="lblRefreshDot" text="●"
+                   style="-fx-font-size: 11; -fx-text-fill: #10B981;"/>
+            <Label fx:id="lblRefreshText" text="Cập nhật sau: 30s"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11; -fx-text-fill: #6B7280;"/>
+            <VBox.margin><Insets bottom="18"/></VBox.margin>
+        </HBox>
+
+        <!-- ── 2 × 2 Stat-card grid ── -->
+        <GridPane fx:id="cardsGrid" hgap="16" vgap="16">
+            <columnConstraints>
+                <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+            </columnConstraints>
+            <rowConstraints>
+                <RowConstraints minHeight="130" prefHeight="130"/>
+                <RowConstraints minHeight="130" prefHeight="130"/>
+            </rowConstraints>
+
+            <!-- Row 0 -->
+            <StatCard fx:id="cardActive"
+                      maxWidth="Infinity"
+                      GridPane.columnIndex="0" GridPane.rowIndex="0"
+                      GridPane.hgrow="ALWAYS"/>
+            <StatCard fx:id="cardNew"
+                      maxWidth="Infinity"
+                      GridPane.columnIndex="1" GridPane.rowIndex="0"
+                      GridPane.hgrow="ALWAYS"/>
+
+            <!-- Row 1 -->
+            <StatCard fx:id="cardRevenue"
+                      maxWidth="Infinity"
+                      GridPane.columnIndex="0" GridPane.rowIndex="1"
+                      GridPane.hgrow="ALWAYS"/>
+            <StatCard fx:id="cardOrders"
+                      maxWidth="Infinity"
+                      GridPane.columnIndex="1" GridPane.rowIndex="1"
+                      GridPane.hgrow="ALWAYS"/>
+
+            <VBox.margin><Insets bottom="24"/></VBox.margin>
+        </GridPane>
+
+        <!-- ── Recent-activity section ── -->
+        <VBox spacing="8">
+            <Label text="HOẠT ĐỘNG GẦN ĐÂY"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10; -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
+            <!--
+                Background and cell colours are managed by ActivityListCell;
+                the ListView itself is kept transparent with only a border frame.
+            -->
+            <ListView fx:id="activityList"
+                      prefHeight="192"
+                      maxWidth="Infinity"
+                      style="-fx-background-color: transparent;
+                             -fx-background-insets: 0;
+                             -fx-padding: 0;
+                             -fx-border-color: #E5E7EB;
+                             -fx-border-radius: 6;
+                             -fx-background-radius: 6;
+                             -fx-border-width: 1;"/>
+        </VBox>
+
+    </VBox>
+</ScrollPane>
