@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  StatCardComponent.fxml  (REDESIGNED)
+  StatCardComponent.fxml  (REDESIGNED v2)
   Reusable stat card — loaded by StatCard.java (fx:root pattern).
 -->
 
@@ -13,24 +13,27 @@
 
 <fx:root type="javafx.scene.layout.HBox"
          alignment="CENTER_LEFT"
-         spacing="16"
+         spacing="20"
          maxWidth="Infinity"
          xmlns:fx="http://javafx.com/fxml/1">
 
-    <padding><Insets top="22" right="24" bottom="22" left="22"/></padding>
+    <padding><Insets top="24" right="26" bottom="24" left="24"/></padding>
 
     <!-- Icon circle — drawn programmatically in StatCard.drawIcon() -->
-    <Canvas fx:id="iconCanvas" width="52" height="52"/>
+    <Canvas fx:id="iconCanvas" width="56" height="56"/>
 
     <!-- Value + title -->
-    <VBox spacing="4" HBox.hgrow="ALWAYS">
+    <VBox spacing="5" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
         <Label fx:id="lblValue"
                text="—"
-               style="-fx-font-family: 'Segoe UI Semibold'; -fx-font-size: 30;
-                      -fx-font-weight: bold; -fx-text-fill: #0F172A;"/>
+               style="-fx-font-family: 'Segoe UI Semibold', 'Segoe UI';
+                      -fx-font-size: 34;
+                      -fx-font-weight: bold;
+                      -fx-text-fill: #0F172A;"/>
         <Label fx:id="lblTitle"
                text=""
-               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12;
+               style="-fx-font-family: 'Segoe UI';
+                      -fx-font-size: 12.5;
                       -fx-text-fill: #94A3B8;"/>
     </VBox>
 

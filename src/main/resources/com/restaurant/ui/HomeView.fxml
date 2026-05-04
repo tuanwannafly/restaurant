@@ -20,74 +20,77 @@
 <ScrollPane
     fitToWidth="true"
     hbarPolicy="NEVER"
-    style="-fx-background: #F3F4F6; -fx-background-color: #F3F4F6; -fx-border-color: transparent;"
+    styleClass="home-scroll"
     xmlns:fx="http://javafx.com/fxml/1"
     fx:controller="com.restaurant.ui.HomeController">
 
-    <VBox spacing="0"
-          style="-fx-background-color: #F3F4F6;"
-          maxWidth="Infinity">
-        <padding><Insets top="28" right="56" bottom="28" left="56"/></padding>
+    <VBox spacing="0" styleClass="home-root" maxWidth="Infinity">
 
-        <!-- Header -->
-        <VBox spacing="3">
-            <Label fx:id="lblGreeting"
-                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22; -fx-font-weight: bold; -fx-text-fill: #111827;"/>
-            <Label fx:id="lblSubtitle"
-                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13; -fx-text-fill: #6B7280;"/>
-            <VBox.margin><Insets bottom="12"/></VBox.margin>
-        </VBox>
+        <!-- ── Header Banner ───────────────────────────────────── -->
+        <HBox styleClass="home-header-banner" alignment="CENTER_LEFT" spacing="0">
+            <padding><Insets top="26" right="48" bottom="26" left="48"/></padding>
 
-        <!-- Section bar -->
-        <HBox alignment="CENTER_LEFT" spacing="8">
-            <Label text="TỔNG QUAN HỆ THỐNG"
-                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10; -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Label fx:id="lblRefreshDot" text="●"
-                   style="-fx-font-size: 10; -fx-text-fill: #10B981;"/>
-            <Label fx:id="lblRefreshText" text="Cập nhật sau: 30s"
-                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11; -fx-text-fill: #6B7280;"/>
-            <VBox.margin><Insets bottom="18"/></VBox.margin>
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblGreeting" styleClass="home-greeting"/>
+                <Label fx:id="lblSubtitle" styleClass="home-subtitle"/>
+            </VBox>
+
+            <HBox alignment="CENTER_RIGHT" spacing="6">
+                <Label fx:id="lblRefreshDot" text="●" styleClass="home-dot"/>
+                <Label fx:id="lblRefreshText" text="Cập nhật sau: 30s"
+                       styleClass="home-refresh-text"/>
+            </HBox>
         </HBox>
 
-        <!-- 2x2 Stat-card grid -->
-        <GridPane fx:id="cardsGrid" hgap="16" vgap="16">
-            <columnConstraints>
-                <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-                <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-            </columnConstraints>
-            <rowConstraints>
-                <RowConstraints minHeight="130" prefHeight="130"/>
-                <RowConstraints minHeight="130" prefHeight="130"/>
-            </rowConstraints>
+        <!-- ── Body ────────────────────────────────────────────── -->
+        <VBox spacing="0" styleClass="home-body">
+            <padding><Insets top="28" right="48" bottom="36" left="48"/></padding>
 
-            <StatCard fx:id="cardActive"  maxWidth="Infinity"
-                      GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
-            <StatCard fx:id="cardNew"     maxWidth="Infinity"
-                      GridPane.columnIndex="1" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
-            <StatCard fx:id="cardRevenue" maxWidth="Infinity"
-                      GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
-            <StatCard fx:id="cardOrders"  maxWidth="Infinity"
-                      GridPane.columnIndex="1" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+            <!-- Section label: Stats -->
+            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="12">
+                <Region styleClass="home-section-accent"/>
+                <Label text="TỔNG QUAN HỆ THỐNG" styleClass="home-section-label"/>
+                <VBox.margin><Insets bottom="16"/></VBox.margin>
+            </HBox>
 
-            <VBox.margin><Insets bottom="24"/></VBox.margin>
-        </GridPane>
+            <!-- 2x2 Stat-card grid -->
+            <GridPane fx:id="cardsGrid" hgap="16" vgap="16">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                </columnConstraints>
+                <rowConstraints>
+                    <RowConstraints minHeight="136" prefHeight="144"/>
+                    <RowConstraints minHeight="136" prefHeight="144"/>
+                </rowConstraints>
 
-        <!-- Recent Activity -->
-        <VBox spacing="8">
-            <Label text="HOẠT ĐỘNG GẦN ĐÂY"
-                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 10; -fx-font-weight: bold; -fx-text-fill: #9CA3AF;"/>
-            <ListView fx:id="activityList"
-                      prefHeight="192"
-                      maxWidth="Infinity"
-                      style="-fx-background-color: transparent;
-                             -fx-background-insets: 0;
-                             -fx-padding: 0;
-                             -fx-border-color: #E5E7EB;
-                             -fx-border-radius: 6;
-                             -fx-background-radius: 6;
-                             -fx-border-width: 1;"/>
+                <StatCard fx:id="cardActive"  maxWidth="Infinity"
+                          GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
+                <StatCard fx:id="cardNew"     maxWidth="Infinity"
+                          GridPane.columnIndex="1" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
+                <StatCard fx:id="cardRevenue" maxWidth="Infinity"
+                          GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+                <StatCard fx:id="cardOrders"  maxWidth="Infinity"
+                          GridPane.columnIndex="1" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+
+                <VBox.margin><Insets bottom="32"/></VBox.margin>
+            </GridPane>
+
+            <!-- Section label: Activity -->
+            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="12">
+                <Region styleClass="home-section-accent"/>
+                <Label text="HOAT DONG GAN DAY" styleClass="home-section-label"/>
+                <VBox.margin><Insets bottom="14"/></VBox.margin>
+            </HBox>
+
+            <!-- Activity card container -->
+            <VBox styleClass="home-activity-card">
+                <ListView fx:id="activityList"
+                          prefHeight="222"
+                          maxWidth="Infinity"
+                          styleClass="home-activity-list"/>
+            </VBox>
+
         </VBox>
-
     </VBox>
 </ScrollPane>

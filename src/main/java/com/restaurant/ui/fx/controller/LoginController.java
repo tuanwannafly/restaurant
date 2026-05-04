@@ -1,682 +1,318 @@
 package com.restaurant.ui.fx.controller;
 
-import java.net.URL;
-import java.util.Optional;
-import java.util.ResourceBundle;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import com.restaurant.dao.UserDAO;
-import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
 import com.restaurant.session.RefreshTokenService;
-import com.restaurant.session.SessionExpiredException;
 import com.restaurant.session.TokenStorage;
 
 import javafx.animation.FadeTransition;
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
-import javafx.geometry.Insets;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.DialogPane;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
 import javafx.util.Duration;
 
 /**
- * Controller cho {@code LoginView.fxml}.
+ * LoginController — JavaFX controller for {@code LoginView.fxml}.
  *
- * <h3>Trách nhiệm</h3>
+ * <h3>Responsibilities</h3>
  * <ul>
- *   <li>Silent re-auth: kiểm tra refresh token trên disk khi initialize → tự login lại.</li>
- *   <li>Login thường: gọi {@link UserDAO#login(String, String)} trong {@link Task}
- *       để không block JavaFX thread.</li>
- *   <li>Remember me: sau login thành công, sinh refresh token và lưu qua
- *       {@link TokenStorage}.</li>
- *   <li>Forgot-password: flow 2 bước (generate token → reset password) dùng
- *       JavaFX {@link Dialog}.</li>
- *   <li>Loading overlay + button disabled state trong suốt thời gian Task chạy.</li>
+ *   <li>Validate email + password inputs.</li>
+ *   <li>Delegate authentication to {@link UserDAO#login}.</li>
+ *   <li>Persist a refresh-token to disk when "Ghi nhớ đăng nhập" is checked.</li>
+ *   <li>Notify the caller via {@link #setOnLoginSuccess} / {@link #setOnLoginCancelled}.</li>
  * </ul>
  *
- * <h3>Lưu ý thread</h3>
- * Mọi cập nhật UI phải chạy trên JavaFX Application Thread (JAT).
- * Task.onSucceeded / onFailed tự động chạy trên JAT nên an toàn.
- * Tuy nhiên các lời gọi {@link Platform#runLater} được giữ lại để an toàn
- * nếu một số callback được gọi từ pool thread.
+ * <h3>Thread model</h3>
+ * Login runs on a daemon {@link Task} thread so the UI stays responsive.
+ * All UI updates are routed back to the FX Application Thread via
+ * {@link Platform#runLater}.
+ *
+ * <p><b>File:</b>
+ * {@code src/main/java/com/restaurant/ui/fx/controller/LoginController.java}
  */
-public class LoginController implements Initializable {
+public class LoginController {
 
-    // ── FXML bindings ─────────────────────────────────────────────────────────
+    // ── FXML nodes ────────────────────────────────────────────────────────────
 
-    @FXML private VBox          loginCard;
     @FXML private TextField     tfEmail;
-    @FXML private PasswordField tfPassword;
-    @FXML private CheckBox      chkRememberMe;
+    @FXML private HBox          boxEmail;
+
+    @FXML private PasswordField pfPassword;
+    @FXML private TextField     tfPasswordVisible;
+    @FXML private HBox          boxPassword;
+    @FXML private Button        btnTogglePass;
+
+    @FXML private CheckBox      chkRemember;
     @FXML private Label         lblError;
     @FXML private Button        btnLogin;
-    @FXML private Hyperlink     lnkForgot;
-    @FXML private StackPane     loadingOverlay;
+
+    // ── Callbacks set by Main ─────────────────────────────────────────────────
+
+    private Runnable onLoginSuccess;
+    private Runnable onLoginCancelled;
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    /** Callback được set bởi caller sau khi FXML load (thường là Main). */
-    private Runnable onLoginSuccess;
+    private boolean passwordVisible = false;
 
-    // FIX 1: thêm field + setter cho onLoginCancelled (dùng bởi Main.java line 239)
-    /** Callback được gọi khi người dùng đóng cửa sổ login mà chưa đăng nhập. */
-    private Runnable onLoginCancelled;
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /**
-     * Shared daemon executor — giới hạn 1 thread để tránh race giữa các lần
-     * click liên tiếp. Shutdown khi Stage đóng.
+     * Called by the FX runtime after all @FXML fields are injected.
+     * Wire up Enter-key shortcuts and keep both password views in sync.
      */
-    private final ExecutorService executor =
-            Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "LoginTask-Thread");
-                t.setDaemon(true);
-                return t;
-            });
+    @FXML
+    private void initialize() {
+        // Enter key on email field → focus password
+        tfEmail.setOnAction(e -> pfPassword.requestFocus());
 
-    private final UserDAO userDAO = new UserDAO();
+        // Enter key on either password view → submit login
+        pfPassword.setOnAction(e -> onLogin());
+        tfPasswordVisible.setOnAction(e -> onLogin());
 
-    // ── Initializable ─────────────────────────────────────────────────────────
+        // Keep visible/hidden password fields in sync
+        tfPasswordVisible.textProperty().bindBidirectional(pfPassword.textProperty());
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        // Card entrance animation (fade-in + slide-up)
-        loginCard.setOpacity(0);
-        loginCard.setTranslateY(24);
-        FadeTransition fade = new FadeTransition(Duration.millis(380), loginCard);
-        fade.setFromValue(0); fade.setToValue(1);
-        Timeline slide = new Timeline(
-            new KeyFrame(Duration.ZERO,
-                new KeyValue(loginCard.translateYProperty(), 24)),
-            new KeyFrame(Duration.millis(380),
-                new KeyValue(loginCard.translateYProperty(), 0))
-        );
-        fade.play();
-        slide.play();
-
-        // Silent re-auth: kiểm tra refresh token đã lưu trên disk
-        attemptSilentAuth();
+        // Focus email on open
+        Platform.runLater(() -> tfEmail.requestFocus());
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ── Public API (called by Main) ───────────────────────────────────────────
 
-    /**
-     * Đặt callback được gọi khi đăng nhập (kể cả silent auth) thành công.
-     * Callback luôn được gọi trên JavaFX Application Thread.
-     *
-     * @param callback Runnable mở màn hình chính
-     */
+    /** Callback invoked on the FX thread after a successful login. */
     public void setOnLoginSuccess(Runnable callback) {
         this.onLoginSuccess = callback;
     }
 
-    // FIX 1: setter cho onLoginCancelled
     /**
-     * Đặt callback được gọi khi người dùng đóng cửa sổ login mà không đăng nhập.
-     * Thường dùng để thoát ứng dụng: {@code loginController.setOnLoginCancelled(Platform::exit)}.
-     *
-     * @param callback Runnable xử lý hủy đăng nhập (vd: Platform::exit)
+     * Callback invoked on the FX thread when the user closes the window
+     * without logging in (not currently wired to a button, but Main wires it
+     * to the stage close-request handler).
      */
     public void setOnLoginCancelled(Runnable callback) {
         this.onLoginCancelled = callback;
     }
 
-    /**
-     * Gọi callback onLoginCancelled nếu đã được set.
-     * Nên được gọi từ Stage.setOnCloseRequest() trong Main.java.
-     */
-    public void notifyLoginCancelled() {
-        if (onLoginCancelled != null) onLoginCancelled.run();
-    }
+    // ── FXML handlers ─────────────────────────────────────────────────────────
 
-    // ── Silent re-auth ────────────────────────────────────────────────────────
-
-    /**
-     * Thử tự động đăng nhập lại bằng refresh token đã lưu trên disk.
-     *
-     * <p>Luồng:
-     * <ol>
-     *   <li>{@link TokenStorage#loadRefreshToken()} → nếu không có → dừng.</li>
-     *   <li>{@link RefreshTokenService#validateAndRotate(String)} → nếu không hợp lệ → dừng.</li>
-     *   <li>{@link UserDAO#loginByUserId(long)} → load session.</li>
-     *   <li>Gọi {@link #onLoginSuccess}.</li>
-     * </ol>
-     *
-     * Hiện loading overlay trong lúc chạy. Nếu thất bại thì ẩn overlay,
-     * để người dùng đăng nhập tay bình thường.
-     */
-    private void attemptSilentAuth() {
-        Optional<String> savedToken = TokenStorage.getInstance().loadRefreshToken();
-        if (savedToken.isEmpty()) return;  // không có token → đăng nhập tay
-
-        // Hiện loading overlay với nội dung "Đang khôi phục phiên…"
-        setLoadingOverlayText("Đang khôi phục phiên…");
-        showLoading(true);
-
-        Task<Boolean> silentTask = new Task<>() {
-            @Override
-            protected Boolean call() {
-                // Xác thực + rotate token
-                Optional<Long> userIdOpt =
-                        RefreshTokenService.getInstance().validateAndRotate(savedToken.get());
-
-                if (userIdOpt.isEmpty()) return false;
-
-                // Load AppSession từ DB
-                return userDAO.loginByUserId(userIdOpt.get());
-            }
-        };
-
-        silentTask.setOnSucceeded(e -> {
-            if (silentTask.getValue()) {
-                fireLoginSuccess();   // vào thẳng main screen
-            } else {
-                // Token hết hạn hoặc revoked — xoá file, để login tay
-                TokenStorage.getInstance().clearSavedToken();
-                showLoading(false);
-            }
-        });
-
-        silentTask.setOnFailed(e -> {
-            Throwable ex = silentTask.getException();
-            System.err.println("[LoginController] Silent auth thất bại: " + ex.getMessage());
-            TokenStorage.getInstance().clearSavedToken();
-            showLoading(false);
-        });
-
-        executor.submit(silentTask);
-    }
-
-    // ── Login action ──────────────────────────────────────────────────────────
-
-    /**
-     * Xử lý sự kiện bấm nút "Đăng nhập" (hoặc nhấn Enter).
-     * Validate client-side trước, sau đó chạy Task DB.
-     */
+    /** Toggle show / hide password. */
     @FXML
-    private void doLogin() {
-        String email    = tfEmail.getText().trim();
-        String password = tfPassword.getText();
+    private void onTogglePassword() {
+        passwordVisible = !passwordVisible;
 
-        // Client-side validation
-        if (email.isEmpty() || password.isEmpty()) {
-            showError("Vui lòng nhập email và mật khẩu.");
-            shakeError();
+        pfPassword.setVisible(!passwordVisible);
+        pfPassword.setManaged(!passwordVisible);
+        tfPasswordVisible.setVisible(passwordVisible);
+        tfPasswordVisible.setManaged(passwordVisible);
+
+        btnTogglePass.setText(passwordVisible ? "🙈" : "👁");
+
+        // Move caret to end of revealed field
+        if (passwordVisible) {
+            tfPasswordVisible.positionCaret(tfPasswordVisible.getText().length());
+            tfPasswordVisible.requestFocus();
+        } else {
+            pfPassword.positionCaret(pfPassword.getText().length());
+            pfPassword.requestFocus();
+        }
+    }
+
+    /** Primary action: validate inputs, then run auth on a background thread. */
+    @FXML
+    private void onLogin() {
+        clearError();
+        clearFieldErrors();
+
+        String email    = tfEmail.getText().trim();
+        String password = pfPassword.getText();
+
+        // ── Client-side validation ────────────────────────────────────────
+        if (email.isEmpty()) {
+            shakeField(boxEmail);
+            showError("Vui lòng nhập địa chỉ email.");
+            tfEmail.requestFocus();
+            return;
+        }
+        if (!email.contains("@") || !email.contains(".")) {
+            setFieldError(boxEmail);
+            showError("Địa chỉ email không hợp lệ.");
+            tfEmail.requestFocus();
+            return;
+        }
+        if (password.isEmpty()) {
+            shakeField(boxPassword);
+            showError("Vui lòng nhập mật khẩu.");
+            pfPassword.requestFocus();
             return;
         }
 
-        clearError();
-        showLoading(true);
-        setLoadingOverlayText("Đang xác thực…");
-
-        Task<LoginResult> loginTask = buildLoginTask(email, password);
-
-        loginTask.setOnSucceeded(e -> {
-            showLoading(false);
-            LoginResult result = loginTask.getValue();
-
-            // FIX 2: null-guard trước khi dereference result
-            if (result == null) {
-                showError("Lỗi không xác định. Vui lòng thử lại.");
-                shakeError();
-                return;
-            }
-
-            if (result.success()) {
-                handleLoginSuccess();
-            } else {
-                // FIX 3: null-safe errorMessage (LoginResult.ok() để errorMessage = null)
-                showError(result.errorMessage() != null
-                        ? result.errorMessage()
-                        : "Đăng nhập thất bại.");
-                shakeError();
-                tfPassword.clear();
-                tfPassword.requestFocus();
-            }
-        });
-
-        loginTask.setOnFailed(e -> {
-            showLoading(false);
-            Throwable ex = loginTask.getException();
-            if (ex instanceof SessionExpiredException) {
-                showError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-            } else {
-                showError("Lỗi kết nối: " + ex.getMessage());
-            }
-            shakeError();
-        });
-
-        executor.submit(loginTask);
-    }
-
-    /**
-     * Tạo Task thực hiện login DB. Trả về {@link LoginResult} — không throw exception
-     * đến onFailed (chỉ wrap exception thật sự bất ngờ).
-     */
-    private Task<LoginResult> buildLoginTask(String email, String password) {
-        return new Task<>() {
-            @Override
-            protected LoginResult call() throws Exception {
-                try {
-                    boolean ok = userDAO.login(email, password);
-                    if (ok) {
-                        return LoginResult.ok();
-                    } else {
-                        return LoginResult.failure("Email hoặc mật khẩu không đúng.");
-                    }
-                } catch (SecurityException se) {
-                    // AuditLogger đã ghi nhận brute-force lock
-                    return LoginResult.failure(
-                        "Tài khoản bị khoá tạm thời 15 phút do nhập sai quá nhiều lần.");
-                }
-                // Các exception khác (DB, network) sẽ bubble lên onFailed
-            }
-        };
-    }
-
-    // FIX 4: bỏ parameter LoginResult result vì không bao giờ được dùng trong method body
-    /**
-     * Xử lý sau khi Task login trả về success = true.
-     * Nếu "ghi nhớ" được chọn → sinh + lưu refresh token (fire-and-forget).
-     */
-    private void handleLoginSuccess() {
-        if (chkRememberMe.isSelected()) {
-            saveRefreshTokenAsync();
+        // ── Check account lock (fast, synchronous) ────────────────────────
+        if (AuditLogger.getInstance().isAccountLocked(email)) {
+            setFieldError(boxEmail);
+            showError("Tài khoản đang bị khoá tạm thời do đăng nhập sai nhiều lần.\n"
+                    + "Vui lòng thử lại sau vài phút.");
+            return;
         }
-        fireLoginSuccess();
-    }
 
-    /** Sinh refresh token trong background (không block UI; lỗi chỉ log, không ném). */
-    private void saveRefreshTokenAsync() {
-        long userId = AppSession.getInstance().getUserId();
-        executor.submit(() -> {
-            try {
-                String rt = RefreshTokenService.getInstance().generateRefreshToken(userId);
-                TokenStorage.getInstance().saveRefreshToken(rt);
-            } catch (Exception ex) {
-                System.err.println("[LoginController] Không lưu được refresh token: "
-                        + ex.getMessage());
-            }
-        });
-    }
+        // ── Run auth on background thread ─────────────────────────────────
+        setLoading(true);
 
-    /** Gọi callback onLoginSuccess trên JAT và đóng executor. */
-    private void fireLoginSuccess() {
-        Platform.runLater(() -> {
-            if (onLoginSuccess != null) onLoginSuccess.run();
-            shutdownExecutor();
-        });
-    }
-
-    // ── Forgot-password flow ──────────────────────────────────────────────────
-
-    /**
-     * Flow 2 bước đặt lại mật khẩu — mỗi bước là một JavaFX {@link Dialog}.
-     *
-     * <ul>
-     *   <li>Bước 1: Nhập email → gọi
-     *       {@link UserDAO#generatePasswordResetToken(String)} → hiện token.</li>
-     *   <li>Bước 2: Nhập token + mật khẩu mới →
-     *       {@link UserDAO#resetPasswordWithToken(String, String)}.</li>
-     * </ul>
-     */
-    @FXML
-    private void openForgotPasswordFlow() {
-        // ── Bước 1: Thu thập email ────────────────────────────────────────────
-        String email = showStep1EmailDialog();
-        if (email == null) return; // người dùng Cancel
-
-        // Gọi DB trong Task để không block JAT
-        String token = runGenerateTokenTask(email);
-        if (token == null) return; // lỗi hoặc email không tồn tại (đã show dialog)
-
-        // Hiện token cho người dùng (trong app UI vì không có email server)
-        showTokenInfoDialog(token);
-
-        // ── Bước 2: Nhập token + mật khẩu mới ───────────────────────────────
-        openResetStep2(token);
-    }
-
-    /** Hiện Dialog nhập email (Bước 1). Trả về email trim hoặc null nếu Cancel. */
-    private String showStep1EmailDialog() {
-        Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Quên mật khẩu — Bước 1/2: Nhập email");
-        dialog.setHeaderText(null);
-
-        // Nút OK / Cancel
-        ButtonType okType = new ButtonType("Tiếp theo", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
-
-        // Nội dung
-        VBox content = new VBox(8);
-        content.setPadding(new Insets(12, 4, 8, 4));
-        content.setPrefWidth(360);
-
-        Label hint = new Label(
-            "Nhập email tài khoản của bạn. Hệ thống sẽ tạo token đặt lại mật khẩu\n"
-          + "(hết hạn sau 15 phút).");
-        hint.getStyleClass().add("step-hint");
-        hint.setWrapText(true);
-
-        Label lbl = new Label("Email:");
-        lbl.getStyleClass().add("step-field-label");
-
-        TextField tfResetEmail = new TextField();
-        tfResetEmail.setPromptText("email@example.com");
-        tfResetEmail.getStyleClass().add("input-field");
-        tfResetEmail.setPrefHeight(40);
-
-        content.getChildren().addAll(hint, lbl, tfResetEmail);
-        dialog.getDialogPane().setContent(content);
-
-        // Disable OK nếu email trống
-        Button okBtn = (Button) dialog.getDialogPane().lookupButton(okType);
-        okBtn.setDisable(true);
-        tfResetEmail.textProperty().addListener((obs, o, n) ->
-            okBtn.setDisable(n.trim().isEmpty()));
-
-        // Enter gửi form
-        tfResetEmail.setOnAction(e -> okBtn.fire());
-
-        dialog.setResultConverter(bt ->
-            bt == okType ? tfResetEmail.getText().trim() : null);
-
-        applyDialogStylesheet(dialog.getDialogPane());
-        Platform.runLater(tfResetEmail::requestFocus);
-
-        return dialog.showAndWait().orElse(null);
-    }
-
-    /**
-     * Chạy {@link UserDAO#generatePasswordResetToken(String)} trong Task
-     * (blocking, gọi từ JAT — dùng {@code Task.get()} để đợi kết quả).
-     *
-     * @param email email đã nhập ở bước 1
-     * @return token string hoặc null nếu email không tồn tại / lỗi
-     */
-    private String runGenerateTokenTask(String email) {
-        Task<String> task = new Task<>() {
-            @Override
-            protected String call() {
-                return userDAO.generatePasswordResetToken(email);
-            }
-        };
-
-        executor.submit(task);
-
-        try {
-            String token = task.get();
-            if (token == null) {
-                Platform.runLater(() ->
-                    showAlert(Alert.AlertType.WARNING,
-                        "Không tìm thấy",
-                        "Email không tồn tại hoặc tài khoản đã bị khoá."));
-            }
-            return token;
-        } catch (Exception ex) {
-            Platform.runLater(() ->
-                showAlert(Alert.AlertType.ERROR,
-                    "Lỗi kết nối",
-                    "Không thể kết nối cơ sở dữ liệu: " + ex.getMessage()));
-            return null;
-        }
-    }
-
-    /** Hiện dialog thông tin token (copy để dùng ở bước 2). */
-    private void showTokenInfoDialog(String token) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Token đã được tạo");
-        dialog.setHeaderText(null);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.OK);
-
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(12, 4, 8, 4));
-        content.setPrefWidth(440);
-
-        Label title = new Label("Token đặt lại mật khẩu (hết hạn sau 15 phút):");
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 13;");
-
-        TextField tfToken = new TextField(token);
-        tfToken.setEditable(false);
-        tfToken.getStyleClass().add("token-display-field");
-        tfToken.setPrefHeight(38);
-        // Select all để dễ copy
-        tfToken.setOnMouseClicked(e -> tfToken.selectAll());
-
-        Label copyHint = new Label("Nhấp vào ô token để chọn toàn bộ, rồi Ctrl+C để sao chép.");
-        copyHint.getStyleClass().add("step-hint");
-
-        content.getChildren().addAll(title, tfToken, copyHint);
-        dialog.getDialogPane().setContent(content);
-
-        applyDialogStylesheet(dialog.getDialogPane());
-        dialog.showAndWait();
-    }
-
-    /**
-     * Bước 2: Dialog nhập token + mật khẩu mới + xác nhận.
-     * Gọi {@link UserDAO#resetPasswordWithToken(String, String)}.
-     *
-     * @param prefillToken token đã sinh ở bước 1 (được điền sẵn vào field)
-     */
-    private void openResetStep2(String prefillToken) {
-        Dialog<ResetResult> dialog = new Dialog<>();
-        dialog.setTitle("Quên mật khẩu — Bước 2/2: Đặt mật khẩu mới");
-        dialog.setHeaderText(null);
-
-        ButtonType confirmType = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(confirmType, ButtonType.CANCEL);
-
-        // ── Form fields ───────────────────────────────────────────────────────
-        VBox content = new VBox(4);
-        content.setPadding(new Insets(12, 4, 8, 4));
-        content.setPrefWidth(400);
-
-        Label lblToken = new Label("Token xác nhận:");
-        lblToken.getStyleClass().add("step-field-label");
-        TextField tfToken = new TextField(prefillToken);
-        tfToken.setPromptText("Dán token vào đây");
-        tfToken.getStyleClass().addAll("input-field", "token-display-field");
-        tfToken.setPrefHeight(40);
-
-        Label lblNew = new Label("Mật khẩu mới (tối thiểu 6 ký tự):");
-        lblNew.getStyleClass().add("step-field-label");
-        PasswordField pfNew = new PasswordField();
-        pfNew.setPromptText("••••••••");
-        pfNew.getStyleClass().add("input-field");
-        pfNew.setPrefHeight(40);
-
-        Label lblConfirm = new Label("Xác nhận mật khẩu mới:");
-        lblConfirm.getStyleClass().add("step-field-label");
-        PasswordField pfConfirm = new PasswordField();
-        pfConfirm.setPromptText("••••••••");
-        pfConfirm.getStyleClass().add("input-field");
-        pfConfirm.setPrefHeight(40);
-
-        // Inline validation label
-        Label lblStepError = new Label(" ");
-        lblStepError.setStyle("-fx-text-fill: #C62828; -fx-font-size: 12;");
-
-        content.getChildren().addAll(
-            lblToken, tfToken,
-            lblNew,   pfNew,
-            lblConfirm, pfConfirm,
-            lblStepError
-        );
-        dialog.getDialogPane().setContent(content);
-
-        // ── Validation guards on OK button ────────────────────────────────────
-        Button confirmBtn = (Button) dialog.getDialogPane().lookupButton(confirmType);
-        confirmBtn.setDisable(true);
-
-        Runnable validateStep2 = () -> {
-            String t    = tfToken.getText().trim();
-            String np   = pfNew.getText();
-            String conf = pfConfirm.getText();
-            boolean valid = !t.isEmpty() && np.length() >= 6 && np.equals(conf);
-            confirmBtn.setDisable(!valid);
-            if (!t.isEmpty() && np.length() > 0 && np.length() < 6) {
-                lblStepError.setText("Mật khẩu mới phải có ít nhất 6 ký tự.");
-            } else if (!np.isEmpty() && !conf.isEmpty() && !np.equals(conf)) {
-                lblStepError.setText("Xác nhận mật khẩu không khớp.");
-            } else {
-                lblStepError.setText(" ");
-            }
-        };
-
-        tfToken.textProperty().addListener((o, ov, nv) -> validateStep2.run());
-        pfNew.textProperty().addListener((o, ov, nv)     -> validateStep2.run());
-        pfConfirm.textProperty().addListener((o, ov, nv) -> validateStep2.run());
-
-        dialog.setResultConverter(bt -> bt == confirmType
-            ? new ResetResult(tfToken.getText().trim(), pfNew.getText())
-            : null);
-
-        applyDialogStylesheet(dialog.getDialogPane());
-        Platform.runLater(pfNew::requestFocus);
-
-        Optional<ResetResult> optResult = dialog.showAndWait();
-        if (optResult.isEmpty()) return; // Cancel
-
-        runResetTask(optResult.get().token(), optResult.get().newPassword());
-    }
-
-    /**
-     * Thực thi {@link UserDAO#resetPasswordWithToken} trong Task và hiện kết quả.
-     */
-    private void runResetTask(String token, String newPassword) {
-        Task<Boolean> task = new Task<>() {
+        Task<Boolean> loginTask = new Task<>() {
             @Override
             protected Boolean call() {
-                return userDAO.resetPasswordWithToken(token, newPassword);
+                return new UserDAO().login(email, password);
             }
         };
 
-        executor.submit(task);
+        loginTask.setOnSucceeded(evt -> {
+            setLoading(false);
+            boolean ok = loginTask.getValue();
 
-        try {
-            boolean ok = task.get();
             if (ok) {
-                showAlert(Alert.AlertType.INFORMATION,
-                    "Thành công",
-                    "Đặt lại mật khẩu thành công!\nVui lòng đăng nhập lại với mật khẩu mới.");
+                // ── Persist refresh-token if "Ghi nhớ" is checked ──────────
+                if (chkRemember.isSelected()) {
+                    try {
+                        String token = RefreshTokenService.getInstance()
+                                .generateRefreshToken(getUserIdFromSession());
+                        TokenStorage.getInstance().saveRefreshToken(token);
+                    } catch (Exception ex) {
+                        System.err.println("[LoginController] Không lưu được refresh-token: "
+                                + ex.getMessage());
+                        // Non-fatal — login still succeeded
+                    }
+                } else {
+                    TokenStorage.getInstance().clearSavedToken();
+                }
+
+                if (onLoginSuccess != null) {
+                    onLoginSuccess.run();
+                }
             } else {
-                showAlert(Alert.AlertType.ERROR,
-                    "Thất bại",
-                    "Token không hợp lệ hoặc đã hết hạn.\nVui lòng thử lại từ bước 1.");
+                setFieldError(boxEmail);
+                setFieldError(boxPassword);
+                shakeField(boxPassword);
+                showError("Email hoặc mật khẩu không đúng.\n"
+                        + "Vui lòng kiểm tra lại thông tin đăng nhập.");
+                pfPassword.clear();
+                if (passwordVisible) tfPasswordVisible.clear();
+                pfPassword.requestFocus();
             }
-        } catch (Exception ex) {
-            showAlert(Alert.AlertType.ERROR,
-                "Lỗi",
-                "Không thể đặt lại mật khẩu: " + ex.getMessage());
-        }
+        });
+
+        loginTask.setOnFailed(evt -> {
+            setLoading(false);
+            Throwable ex = loginTask.getException();
+            System.err.println("[LoginController] Login task lỗi: " + ex.getMessage());
+            showError("Lỗi kết nối cơ sở dữ liệu.\nVui lòng kiểm tra kết nối và thử lại.");
+        });
+
+        Thread t = new Thread(loginTask, "login-task");
+        t.setDaemon(true);
+        t.start();
     }
 
-    // ── UI helpers ────────────────────────────────────────────────────────────
-
-    /** Hiện / ẩn loading overlay và disable login button + fields. */
-    private void showLoading(boolean show) {
-        loadingOverlay.setVisible(show);
-        loadingOverlay.setManaged(show);
-        btnLogin.setDisable(show);
-        tfEmail.setDisable(show);
-        tfPassword.setDisable(show);
-        chkRememberMe.setDisable(show);
-        lnkForgot.setDisable(show);
-        if (show) {
-            btnLogin.getStyleClass().add("loading");
-        } else {
-            btnLogin.getStyleClass().remove("loading");
-        }
+    /** Open forgot-password flow (show informational alert for now). */
+    @FXML
+    private void onForgotPassword() {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.INFORMATION);
+        alert.setTitle("Quên mật khẩu");
+        alert.setHeaderText("Đặt lại mật khẩu");
+        alert.setContentText(
+                "Vui lòng liên hệ quản trị viên hệ thống để đặt lại mật khẩu.\n\n"
+                + "Email hỗ trợ: admin@smartrestaurant.vn");
+        alert.showAndWait();
     }
 
-    /** Đổi text label trong loading overlay. */
-    private void setLoadingOverlayText(String text) {
-        loadingOverlay.getChildren().stream()
-            .filter(n -> n instanceof VBox)
-            .map(n -> (VBox) n)
-            .findFirst()
-            .ifPresent(vbox -> vbox.getChildren().stream()
-                .filter(n -> n instanceof Label)
-                .map(n -> (Label) n)
-                .findFirst()
-                .ifPresent(lbl -> lbl.setText(text)));
+    /** Open register flow (informational for now). */
+    @FXML
+    private void onRegister() {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.INFORMATION);
+        alert.setTitle("Đăng ký tài khoản");
+        alert.setHeaderText("Đăng ký");
+        alert.setContentText(
+                "Tài khoản được tạo bởi quản trị viên nhà hàng.\n\n"
+                + "Vui lòng liên hệ quản trị viên để được cấp quyền truy cập.");
+        alert.showAndWait();
     }
 
-    /** Hiện thông báo lỗi nhỏ dưới password field. */
+    // ── UI helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Show / hide the error label with a fade-in animation.
+     *
+     * @param message non-null, non-empty message to display
+     */
     private void showError(String message) {
         lblError.setText(message);
+        lblError.setVisible(true);
+        lblError.setManaged(true);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(200), lblError);
+        ft.setFromValue(0);
+        ft.setToValue(1);
+        ft.play();
     }
 
-    /** Xoá thông báo lỗi. */
     private void clearError() {
-        lblError.setText(" ");
+        lblError.setVisible(false);
+        lblError.setManaged(false);
+        lblError.setText("");
+    }
+
+    /** Highlight a field box in red (error state). */
+    private void setFieldError(HBox fieldBox) {
+        fieldBox.getStyleClass().remove("login-field-box-error");
+        fieldBox.getStyleClass().add("login-field-box-error");
+    }
+
+    private void clearFieldErrors() {
+        boxEmail.getStyleClass().remove("login-field-box-error");
+        boxPassword.getStyleClass().remove("login-field-box-error");
     }
 
     /**
-     * Hiệu ứng lắc nhẹ error label.
-     * Dùng Timeline dịch chuyển X để bắt mắt người dùng.
+     * Brief horizontal shake animation on a field to draw attention.
+     * Uses a lightweight translate-X sequence.
      */
-    private void shakeError() {
-        Timeline shake = new Timeline(
-            new KeyFrame(Duration.ZERO,       new KeyValue(lblError.translateXProperty(), 0)),
-            new KeyFrame(Duration.millis(60),  new KeyValue(lblError.translateXProperty(), -8)),
-            new KeyFrame(Duration.millis(120), new KeyValue(lblError.translateXProperty(),  8)),
-            new KeyFrame(Duration.millis(180), new KeyValue(lblError.translateXProperty(), -6)),
-            new KeyFrame(Duration.millis(240), new KeyValue(lblError.translateXProperty(),  6)),
-            new KeyFrame(Duration.millis(300), new KeyValue(lblError.translateXProperty(),  0))
-        );
+    private void shakeField(HBox fieldBox) {
+        javafx.animation.TranslateTransition shake =
+                new javafx.animation.TranslateTransition(Duration.millis(60), fieldBox);
+        shake.setByX(8);
+        shake.setCycleCount(4);
+        shake.setAutoReverse(true);
+        shake.setOnFinished(e -> fieldBox.setTranslateX(0));
         shake.play();
     }
 
     /**
-     * Áp stylesheet {@code login.css} lên DialogPane để các dialog
-     * forgot-password có cùng style với màn hình chính.
+     * Disable inputs and change the button text during the network call.
+     *
+     * @param loading {@code true} = disable; {@code false} = re-enable
      */
-    private void applyDialogStylesheet(DialogPane pane) {
-        URL css = getClass().getResource("login.css");
-        if (css != null) pane.getStylesheets().add(css.toExternalForm());
+    private void setLoading(boolean loading) {
+        btnLogin.setDisable(loading);
+        tfEmail.setDisable(loading);
+        pfPassword.setDisable(loading);
+        tfPasswordVisible.setDisable(loading);
+        chkRemember.setDisable(loading);
+        btnTogglePass.setDisable(loading);
+
+        btnLogin.setText(loading ? "Đang đăng nhập..." : "ĐĂNG NHẬP");
     }
 
-    /** Hiện Alert tiện ích, blocking trên JAT. */
-    private void showAlert(Alert.AlertType type, String title, String content) {
-        Alert alert = new Alert(type);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(content);
-        applyDialogStylesheet(alert.getDialogPane());
-        alert.showAndWait();
+    /**
+     * Retrieve the userId of the currently logged-in session.
+     * Delegates to {@link com.restaurant.session.AppSession}.
+     */
+    private long getUserIdFromSession() {
+        return com.restaurant.session.AppSession.getInstance().getUserId();
     }
-
-    /** Shutdown executor khi login thành công hoặc Stage đóng. */
-    private void shutdownExecutor() {
-        executor.shutdownNow();
-    }
-
-    // ── Inner records ─────────────────────────────────────────────────────────
-
-    /** Kết quả từ Task login — tránh throw exception cho lỗi nghiệp vụ. */
-    private record LoginResult(boolean success, String errorMessage) {
-        static LoginResult ok()                { return new LoginResult(true,  null); }
-        static LoginResult failure(String msg) { return new LoginResult(false, msg);  }
-    }
-
-    /** DTO cho bước 2 reset password dialog. */
-    private record ResetResult(String token, String newPassword) {}
 }

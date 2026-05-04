@@ -1,318 +1,254 @@
 /*
- * login.css — Smart Restaurant · LoginView
- * JavaFX CSS (not W3C CSS — no box-shadow shorthand, no calc(), no :root)
- * Compatible with JavaFX 17+
+ * login.css — SmartRestaurant Login Screen
  *
- * Design token palette:
- *   --primary        #2E7D32  (forest green — restaurant brand)
- *   --primary-dark   #1B5E20
- *   --surface-card   #FFFFFF
- *   --surface-bg     #F4F6F4
- *   --text-primary   #1A2E1A
- *   --text-secondary #5C7A5C
- *   --text-tertiary  #94A394
- *   --danger         #C62828
- *   --border         #D4E0D4
- *   --border-focus   #2E7D32
+ * Palette:
+ *   Navy (brand)    : #1A2B6B
+ *   Navy dark       : #111E5C
+ *   Orange (accent) : #4F6CF7
+ *   Orange hover    : #3D5CE6
+ *   White           : #FFFFFF
+ *   Off-white       : #F8FAFC
+ *   Border          : #E2E8F0
+ *   Text primary    : #1E293B
+ *   Text secondary  : #64748B
+ *   Error           : #EF4444
+ *
+ * All values are concrete hex; no CSS variables (JavaFX doesn't support --var()).
  */
 
-/* ═══════════════════════════════════════════════════════════════
-   ROOT — gradient background
-   ═══════════════════════════════════════════════════════════════ */
-.root-pane {
-    /* Vertical linear gradient: light sage top → slightly deeper bottom */
-    -fx-background-color:
-        linear-gradient(
-            to bottom,
-            #EFF5EF 0%,
-            #DCE9DC 55%,
-            #C8DCC8 100%
-        );
-    -fx-min-width:  520;
-    -fx-min-height: 620;
-    -fx-padding: 24;
+/* ── Root ─────────────────────────────────────────────────────────────── */
+
+.login-root {
+    -fx-background-color: #1A2B6B;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CARD
-   ═══════════════════════════════════════════════════════════════ */
-.login-card {
-    -fx-background-color: white;
-    -fx-background-radius: 18;
-    /* JavaFX simulates shadow with a layered drop-shadow effect */
-    -fx-effect:
-        dropshadow(gaussian, rgba(30,60,30,0.14), 28, 0.12, 0, 6);
-    -fx-padding: 0;
-    /* Clip children to rounded corners */
-    -fx-background-insets: 0;
+/* ── Two-tone background bands ──────────────────────────────────────────── */
+
+.login-brand-band {
+    -fx-background-color: linear-gradient(to bottom, #111E5C 0%, #1A2B6B 100%);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CARD HEADER
-   ═══════════════════════════════════════════════════════════════ */
-.card-header {
-    -fx-padding: 40 40 28 40;
+.login-form-band {
+    -fx-background-color: #FFFFFF;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.login-header {
     -fx-background-color: transparent;
+    -fx-padding: 36 32 28 32;
 }
 
-/* Logo mark outer pane */
-.logo-mark {
-    -fx-alignment: CENTER;
+/* Logo ring */
+.login-logo-ring {
+    -fx-background-color: rgba(79,108,247,0.18);
+    -fx-background-radius: 50;
+    -fx-border-color: rgba(79,108,247,0.55);
+    -fx-border-radius: 50;
+    -fx-border-width: 2;
+    -fx-min-width: 72;
+    -fx-min-height: 72;
+    -fx-max-width: 72;
+    -fx-max-height: 72;
 }
 
-/* The coloured rectangle */
-.logo-rect {
-    -fx-fill: #2E7D32;
-    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.40), 10, 0.18, 0, 3);
-}
-
-/* "SR" initials inside logo */
-.logo-initials {
+.login-logo-icon {
     -fx-text-fill: white;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 22;
+    -fx-font-size: 32px;
+}
+
+.login-app-name {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-family: "System";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 0.5;
+}
+
+.login-app-subtitle {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 12.5px;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────── */
+
+.login-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 20 20 0 0;
+    -fx-padding: 32 28 0 28;
+    /* card stretches to fill remaining height */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 20, 0, 0, -4);
+}
+
+.login-card-title {
+    -fx-text-fill: #1E293B;
+    -fx-font-family: "System";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 2 0;
+}
+
+.login-card-hint {
+    -fx-text-fill: #64748B;
+    -fx-font-size: 12px;
+    -fx-padding: 4 0 0 0;
+}
+
+/* ── Field labels ─────────────────────────────────────────────────────── */
+
+.login-field-label {
+    -fx-text-fill: #374151;
+    -fx-font-size: 12.5px;
     -fx-font-weight: bold;
 }
 
-.app-title {
-    -fx-text-fill: #1A2E1A;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 22;
-    -fx-font-weight: bold;
+/* ── Field box (icon + input) ────────────────────────────────────────── */
+
+.login-field-box {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 1.5;
+    -fx-padding: 0 12 0 14;
+    -fx-alignment: CENTER_LEFT;
+    -fx-spacing: 0;
 }
 
-.app-subtitle {
-    -fx-text-fill: #5C7A5C;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
+.login-field-box:focused-within {
+    -fx-border-color: #4F6CF7;
+    -fx-background-color: #F5F7FF;
+    -fx-effect: dropshadow(gaussian, rgba(79,108,247,0.20), 8, 0, 0, 0);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   FORM BODY
-   ═══════════════════════════════════════════════════════════════ */
-.form-body {
-    -fx-padding: 4 40 20 40;
+/* Override for error state — set via controller */
+.login-field-box-error {
+    -fx-border-color: #EF4444;
+    -fx-background-color: #FFF5F5;
+    -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.15), 8, 0, 0, 0);
+}
+
+.login-field-icon {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 14px;
+    -fx-padding: 0 6 0 8;
+    -fx-min-width: 32;
+}
+
+.login-text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 11 4 11 0;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #1E293B;
+    -fx-prompt-text-fill: #CBD5E1;
+    -fx-background-radius: 0;
+}
+
+.login-text-field:focused {
     -fx-background-color: transparent;
 }
 
-/* Field labels */
-.field-label {
-    -fx-text-fill: #1A2E1A;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
-    -fx-font-weight: bold;
-    -fx-padding: 0 0 5 0;
+/* ── Eye toggle button ────────────────────────────────────────────────── */
+
+.login-eye-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 15px;
+    -fx-cursor: hand;
+    -fx-padding: 4 2 4 6;
 }
 
-/* Extra top gap on second label */
-.field-label-gap {
-    -fx-padding: 16 0 5 0;
+.login-eye-btn:hover {
+    -fx-text-fill: #4F6CF7;
 }
 
-/* ── Input fields ───────────────────────────────────────────── */
-.input-field {
-    -fx-pref-height: 42;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 14;
-    -fx-text-fill: #1A2E1A;
-    -fx-prompt-text-fill: #94A394;
-    -fx-background-color: #F8FBF8, white;
-    -fx-background-insets: 0, 1.5;
-    -fx-background-radius: 9, 8;
-    -fx-padding: 0 12 0 12;
-    -fx-border-color: #D4E0D4;
-    -fx-border-radius: 8;
+/* ── Remember checkbox ────────────────────────────────────────────────── */
+
+.login-remember-check {
+    -fx-text-fill: #475569;
+    -fx-font-size: 12.5px;
+}
+
+.login-remember-check .box {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
     -fx-border-width: 1.5;
 }
 
-.input-field:focused {
-    -fx-border-color: #2E7D32;
-    -fx-border-width: 2;
-    -fx-background-color: white, white;
-    -fx-background-insets: 0, 2;
-    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.20), 8, 0.10, 0, 0);
+.login-remember-check:selected .box {
+    -fx-background-color: #4F6CF7;
+    -fx-border-color: #4F6CF7;
 }
 
-.input-field:hover:!focused {
-    -fx-border-color: #88BB88;
-}
-
-/* ── Error label ────────────────────────────────────────────── */
-.error-label {
-    -fx-text-fill: #C62828;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 12;
-    -fx-padding: 6 0 0 2;
-    -fx-min-height: 22;
-}
-
-/* ── Remember-me checkbox ───────────────────────────────────── */
-.remember-check {
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
-    -fx-text-fill: #5C7A5C;
-    -fx-padding: 10 0 16 0;
-    -fx-cursor: hand;
-}
-
-.remember-check:selected > .box {
-    -fx-background-color: #2E7D32;
-    -fx-border-color: #2E7D32;
-}
-
-.remember-check .mark {
+.login-remember-check:selected .mark {
     -fx-background-color: white;
+    -fx-shape: "M 0 0 L 3 3 L 8 -3";
 }
 
-/* ── Primary button ─────────────────────────────────────────── */
-.btn-primary {
-    -fx-pref-height: 46;
-    -fx-background-color: #2E7D32;
-    -fx-background-radius: 9;
-    -fx-text-fill: white;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 15;
+/* ── Error label ──────────────────────────────────────────────────────── */
+
+.login-error-label {
+    -fx-text-fill: #DC2626;
+    -fx-font-size: 12px;
+    -fx-background-color: #FEF2F2;
+    -fx-border-color: #FECACA;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+    -fx-max-width: Infinity;
+}
+
+/* ── Primary login button ─────────────────────────────────────────────── */
+
+.login-btn-primary {
+    -fx-background-color: #4F6CF7;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-family: "System";
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
+    -fx-letter-spacing: 1.2;
+    -fx-padding: 13 0 13 0;
+    -fx-background-radius: 10;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.35), 8, 0.12, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(79,108,247,0.35), 10, 0, 0, 3);
 }
 
-.btn-primary:hover {
-    -fx-background-color: #256427;
-    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.50), 12, 0.18, 0, 4);
+.login-btn-primary:hover {
+    -fx-background-color: #3D5CE6;
+    -fx-effect: dropshadow(gaussian, rgba(79,108,247,0.45), 14, 0, 0, 4);
 }
 
-.btn-primary:pressed {
-    -fx-background-color: #1B5E20;
-    -fx-effect: dropshadow(gaussian, rgba(46,125,50,0.25), 4, 0.08, 0, 1);
+.login-btn-primary:pressed {
+    -fx-background-color: #2F4ED4;
+    -fx-effect: dropshadow(gaussian, rgba(79,108,247,0.25), 6, 0, 0, 1);
     -fx-translate-y: 1;
 }
 
-.btn-primary:disabled {
-    -fx-background-color: #A5C9A5;
-    -fx-text-fill: #E8F5E8;
+.login-btn-primary:disabled {
+    -fx-background-color: #BFD0FC;
     -fx-effect: none;
     -fx-cursor: default;
 }
 
-/* Loading state modifier (toggled via styleClass in controller) */
-.btn-primary.loading {
-    -fx-background-color: #1B5E20;
-    -fx-cursor: wait;
-    -fx-opacity: 0.85;
-}
+/* ── Link buttons (Quên mật khẩu / Đăng ký) ─────────────────────────── */
 
-/* ── Forgot-password link ───────────────────────────────────── */
-.link-row {
-    -fx-padding: 14 0 0 0;
-}
-
-.forgot-link {
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
-    -fx-text-fill: #2E7D32;
+.login-link-btn {
+    -fx-background-color: transparent;
     -fx-border-color: transparent;
+    -fx-text-fill: #1A2B6B;
+    -fx-font-size: 12.5px;
     -fx-cursor: hand;
+    -fx-padding: 4 0 4 0;
     -fx-underline: false;
 }
 
-.forgot-link:hover {
-    -fx-text-fill: #1B5E20;
+.login-link-btn:hover {
+    -fx-text-fill: #4F6CF7;
     -fx-underline: true;
-}
-
-.forgot-link:visited {
-    -fx-text-fill: #2E7D32;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   CARD FOOTER
-   ═══════════════════════════════════════════════════════════════ */
-.card-footer {
-    -fx-padding: 18 40 26 40;
-    -fx-background-color: #F8FBF8;
-    -fx-background-radius: 0 0 18 18;
-    -fx-border-color: #EEF4EE transparent transparent transparent;
-    -fx-border-width: 1 0 0 0;
-}
-
-.footer-text {
-    -fx-text-fill: #94A394;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 11;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   LOADING OVERLAY
-   ═══════════════════════════════════════════════════════════════ */
-.loading-overlay {
-    -fx-background-color: rgba(255,255,255,0.82);
-    -fx-background-radius: 18;
-}
-
-.spinner {
-    -fx-progress-color: #2E7D32;
-    -fx-accent: #2E7D32;
-}
-
-.loading-label {
-    -fx-text-fill: #2E7D32;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
-    -fx-font-weight: bold;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   FORGOT-PASSWORD DIALOG (applied via DialogPane)
-   ═══════════════════════════════════════════════════════════════ */
-.dialog-pane {
-    -fx-background-color: white;
-    -fx-background-radius: 12;
-}
-
-.dialog-pane .header-panel {
-    -fx-background-color: #F8FBF8;
-}
-
-.dialog-pane .button-bar .button {
-    -fx-font-family: "Segoe UI";
-    -fx-cursor: hand;
-}
-
-.dialog-pane .button-bar .button:default {
-    -fx-background-color: #2E7D32;
-    -fx-text-fill: white;
-    -fx-font-weight: bold;
-    -fx-background-radius: 7;
-}
-
-.dialog-pane .button-bar .button:default:hover {
-    -fx-background-color: #256427;
-}
-
-/* Step-panel labels inside dialogs */
-.step-hint {
-    -fx-text-fill: #5C7A5C;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 12;
-    -fx-wrap-text: true;
-}
-
-.step-field-label {
-    -fx-text-fill: #1A2E1A;
-    -fx-font-family: "Segoe UI";
-    -fx-font-size: 13;
-    -fx-font-weight: bold;
-    -fx-padding: 10 0 4 0;
-}
-
-.token-display-field {
-    -fx-font-family: "Courier New", monospace;
-    -fx-font-size: 11;
-    -fx-background-color: #F4F6F4;
-    -fx-border-color: #D4E0D4;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
-    -fx-padding: 6 10 6 10;
-    -fx-text-fill: #1A2E1A;
 }
