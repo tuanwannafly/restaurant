@@ -484,3 +484,86 @@
 }
 
 .tab-content { -fx-background-color: white; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AdminHomePanel.css — styles cho màn hình Tổng quan (SUPER_ADMIN)
+   Append vào file app.css hiện có của project.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Navbar ────────────────────────────────────────────────────────────────── */
+
+.navbar {
+    -fx-background-color: #FFFFFF;
+}
+
+/* ── Nav pill buttons ──────────────────────────────────────────────────────── */
+
+.nav-pill {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-padding: 6 16 6 16;
+    -fx-background-radius: 9999;
+    -fx-border-radius: 9999;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+}
+
+.nav-pill:hover {
+    -fx-background-color: #1D4ED8;
+}
+
+.nav-pill:pressed {
+    -fx-background-color: #1E40AF;
+}
+
+/* Active state — same look; Home is always "current page" */
+.nav-pill-active {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: white;
+}
+
+/* ── Stat labels (left column) ─────────────────────────────────────────────── */
+
+.stat-label {
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #374151;
+    -fx-min-width: 220px;
+    -fx-alignment: CENTER_LEFT;
+}
+
+/* ── Stat fields (read-only TextFields) ────────────────────────────────────── */
+
+.stat-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D1D5DB;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #111827;
+}
+
+/* Remove focus ring highlight for read-only stat fields */
+.stat-field:focused {
+    -fx-border-color: #D1D5DB;
+    -fx-effect: null;
+}
+
+/* ── Logout button ─────────────────────────────────────────────────────────── */
+
+.logout-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 20px;
+    -fx-cursor: hand;
+    -fx-padding: 4 4 4 4;
+}
+
+.logout-btn:hover {
+    -fx-text-fill: #DC2626;
+}

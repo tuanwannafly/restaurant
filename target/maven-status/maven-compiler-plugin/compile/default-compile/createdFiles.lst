@@ -117,6 +117,7 @@ com\restaurant\ui\fx\controller\MainController.class
 com\restaurant\ui\fx\controller\WaiterController$3.class
 com\restaurant\ui\TableController$4.class
 com\restaurant\ui\fx\controller\RestaurantController$7.class
+com\restaurant\ui\fx\controller\AdminHomePanelController$NavigateHandler.class
 com\restaurant\ui\OrderController.class
 com\restaurant\ui\fx\controller\DeliveryCardController$3.class
 com\restaurant\ui\fx\controller\AdminStatsController$1.class
@@ -126,6 +127,7 @@ com\restaurant\dao\TableDAO.class
 com\restaurant\ui\SidebarController.class
 com\restaurant\ui\UIConstants.class
 com\restaurant\ui\fx\controller\StatsController$2.class
+com\restaurant\ui\fx\controller\AdminHomePanelController$1.class
 com\restaurant\session\RbacGuard.class
 com\restaurant\model\MenuItem.class
 com\restaurant\ui\EmployeeController$2.class
@@ -155,6 +157,7 @@ com\restaurant\ui\fx\controller\WaiterController$4.class
 com\restaurant\ui\KitchenController$KitchenData.class
 com\restaurant\dao\KitchenDAO$KitchenTicket.class
 com\restaurant\ui\TableCardController.class
+com\restaurant\ui\fx\controller\AdminHomePanelController.class
 com\restaurant\session\OperationTokenService.class
 com\restaurant\ui\fx\controller\CashierPaymentDialogController$1.class
 com\restaurant\dao\OrderDAO.class

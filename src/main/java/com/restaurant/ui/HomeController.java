@@ -216,15 +216,15 @@ public class HomeController {
     private void setRefreshState(RefreshState state) {
         switch (state) {
             case LOADING -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #F59E0B; -fx-font-size: 11;");
+                lblRefreshDot .setStyle("-fx-text-fill: #F59E0B; -fx-font-size: 10;");
                 lblRefreshText.setText("Đang tải...");
             }
             case OK -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #10B981; -fx-font-size: 11;");
+                lblRefreshDot .setStyle("-fx-text-fill: #10B981; -fx-font-size: 10;");
                 lblRefreshText.setText("Cập nhật sau: " + REFRESH_SECONDS + "s");
             }
             case ERROR -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #EF4444; -fx-font-size: 11;");
+                lblRefreshDot .setStyle("-fx-text-fill: #EF4444; -fx-font-size: 10;");
                 lblRefreshText.setText("Lỗi tải dữ liệu");
             }
         }

@@ -10,46 +10,30 @@ import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.RadialGradient;
+import javafx.scene.paint.Stop;
 import javafx.scene.shape.ArcType;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.shape.StrokeLineJoin;
 
 /**
- * Reusable stat card for the dashboard.
- *
- * <p>Usage (HomeController):
- * <pre>
- *   cardActive.configure(StatCard.CardIcon.STORE, "Nhà hàng hoạt động", Color.web("#3B82F6"));
- *   cardActive.setValue("12");
- * </pre>
- *
- * <p>Loads {@code StatCardComponent.fxml} via the fx:root pattern.
- * Icons are rendered with JavaFX {@link GraphicsContext} — no emoji, all shapes.
- * Hover raises the drop-shadow (lift effect).
+ * Reusable stat card for the dashboard (REDESIGNED).
+ * Modern card: white background, top accent bar, large icon, clean typography.
  */
 public class StatCard extends HBox {
 
-    // ── Icon types ─────────────────────────────────────────────────────────
-
     public enum CardIcon { STORE, PLUS, COIN, BOX }
-
-    // ── FXML bindings ──────────────────────────────────────────────────────
 
     @FXML private Canvas iconCanvas;
     @FXML private Label  lblValue;
     @FXML private Label  lblTitle;
 
-    // ── Internal state ─────────────────────────────────────────────────────
+    private CardIcon cardIcon;
+    private Color    accentColor;
 
-    private CardIcon    cardIcon;
-    private Color       accentColor;
-
-    private final DropShadow shadowIdle  = new DropShadow(8,  0, 3, Color.rgb(0, 0, 0, 0.12));
-    private final DropShadow shadowHover = new DropShadow(18, 0, 7, Color.rgb(0, 0, 0, 0.20));
-
-    // =========================================================================
-    // Constructor — fx:root loader
-    // =========================================================================
+    private final DropShadow shadowIdle  = new DropShadow(12, 0, 4, Color.rgb(0, 0, 0, 0.09));
+    private final DropShadow shadowHover = new DropShadow(24, 0, 8, Color.rgb(0, 0, 0, 0.16));
 
     public StatCard() {
         FXMLLoader loader = new FXMLLoader(
@@ -65,44 +49,30 @@ public class StatCard extends HBox {
 
     @FXML
     private void initialize() {
-        // Drop-shadow on idle
         setEffect(shadowIdle);
-
-        // Hover lift
-        setOnMouseEntered(e -> setEffect(shadowHover));
-        setOnMouseExited(e  -> setEffect(shadowIdle));
+        setOnMouseEntered(e -> {
+            setEffect(shadowHover);
+            setScaleX(1.012);
+            setScaleY(1.012);
+        });
+        setOnMouseExited(e -> {
+            setEffect(shadowIdle);
+            setScaleX(1.0);
+            setScaleY(1.0);
+        });
     }
 
-    // =========================================================================
-    // Public API
-    // =========================================================================
-
-    /**
-     * Must be called once after the card is injected by the FXML loader.
-     *
-     * @param icon   icon shape to draw inside the circle
-     * @param title  descriptor label below the value
-     * @param accent brand colour — used for the left border bar and icon tint
-     */
     public void configure(CardIcon icon, String title, Color accent) {
         this.cardIcon    = icon;
         this.accentColor = accent;
-
         lblTitle.setText(title);
         applyCardStyle(accent);
         drawIcon();
     }
 
-    /**
-     * Updates the large value label (call on the JavaFX Application Thread).
-     */
     public void setValue(String value) {
         if (lblValue != null) lblValue.setText(value);
     }
-
-    // =========================================================================
-    // Style
-    // =========================================================================
 
     private void applyCardStyle(Color accent) {
         String hex = toCssHex(accent);
@@ -110,15 +80,10 @@ public class StatCard extends HBox {
             "-fx-background-color: white;"      +
             "-fx-background-radius: 14;"         +
             "-fx-border-radius: 14;"             +
-            // 4 px left accent bar (top right bottom LEFT)
-            "-fx-border-color: transparent transparent transparent " + hex + ";" +
-            "-fx-border-width: 0 0 0 4;"
+            "-fx-border-color: " + hex + " transparent transparent transparent;" +
+            "-fx-border-width: 4 0 0 0;"
         );
     }
-
-    // =========================================================================
-    // Icon rendering
-    // =========================================================================
 
     private void drawIcon() {
         if (iconCanvas == null || cardIcon == null || accentColor == null) return;
@@ -131,16 +96,18 @@ public class StatCard extends HBox {
 
         gc.clearRect(0, 0, w, h);
 
-        // ── Background circle — very light accent tint ───────────────────────
-        Color bg = accentColor.deriveColor(0, 1.0, 1.0, 0.12);
-        gc.setFill(bg);
+        RadialGradient grad = new RadialGradient(
+            0, 0, cx, cy, w / 2.0, false, CycleMethod.NO_CYCLE,
+            new Stop(0.0, accentColor.deriveColor(0, 1.0, 1.0, 0.18)),
+            new Stop(1.0, accentColor.deriveColor(0, 1.0, 1.0, 0.07))
+        );
+        gc.setFill(grad);
         gc.fillOval(0, 0, w, h);
 
-        // ── Icon strokes ─────────────────────────────────────────────────────
         gc.setStroke(accentColor);
         gc.setLineCap(StrokeLineCap.ROUND);
         gc.setLineJoin(StrokeLineJoin.ROUND);
-        gc.setLineWidth(1.8);
+        gc.setLineWidth(2.0);
 
         switch (cardIcon) {
             case STORE -> drawStore(gc, cx, cy);
@@ -150,64 +117,36 @@ public class StatCard extends HBox {
         }
     }
 
-    // ── Shape painters (mirrored from HomePanel Java2D helpers) ──────────────
-
-    /**
-     * Building / store silhouette: roof triangle + rectangle body + door.
-     */
     private void drawStore(GraphicsContext gc, double cx, double cy) {
-        // Roof triangle (open polyline)
         gc.strokePolyline(
-            new double[]{ cx - 9, cx,      cx + 9 },
-            new double[]{ cy - 1, cy - 9,  cy - 1 },
+            new double[]{ cx - 11, cx,       cx + 11 },
+            new double[]{ cy - 1,  cy - 11,  cy - 1  },
             3);
-        // Body
-        gc.strokeRect(cx - 7, cy - 1, 14, 10);
-        // Door
-        gc.strokeRect(cx - 3, cy + 3,  6,  6);
+        gc.strokeRect(cx - 9, cy - 1, 18, 12);
+        gc.strokeRect(cx - 3.5, cy + 4, 7, 7);
     }
 
-    /**
-     * Plus / cross (new item indicator).
-     */
     private void drawPlus(GraphicsContext gc, double cx, double cy) {
-        gc.setLineWidth(2.0);
-        gc.strokeLine(cx,      cy - 8, cx,      cy + 8);
-        gc.strokeLine(cx - 8,  cy,     cx + 8,  cy);
+        gc.setLineWidth(2.4);
+        gc.strokeLine(cx,      cy - 10, cx,      cy + 10);
+        gc.strokeLine(cx - 10, cy,      cx + 10, cy);
     }
 
-    /**
-     * Coin (currency): outer circle + vertical bar + top/bottom arcs.
-     */
     private void drawCoin(GraphicsContext gc, double cx, double cy) {
-        gc.strokeOval(cx - 9, cy - 9, 18, 18);
-        gc.strokeLine(cx, cy - 5, cx, cy + 5);
-        // Top arc (₫ style)
-        gc.strokeArc(cx - 4, cy - 5, 8, 5,   0, 180, ArcType.OPEN);
-        // Bottom arc
-        gc.strokeArc(cx - 4, cy,     8, 5, 180, 180, ArcType.OPEN);
+        gc.strokeOval(cx - 11, cy - 11, 22, 22);
+        gc.strokeLine(cx, cy - 6, cx, cy + 6);
+        gc.strokeArc(cx - 5, cy - 6, 10, 6,   0, 180, ArcType.OPEN);
+        gc.strokeArc(cx - 5, cy,     10, 6, 180, 180, ArcType.OPEN);
     }
 
-    /**
-     * Package / box: body + lid + ribbon cross.
-     */
     private void drawBox(GraphicsContext gc, double cx, double cy) {
-        // Box body
-        gc.strokeRect(cx - 8, cy - 3, 16, 12);
-        // Lid top bar
-        gc.strokeLine(cx - 10, cy - 5, cx + 10, cy - 5);
-        // Lid corner slopes
-        gc.strokeLine(cx - 10, cy - 5, cx - 8,  cy - 3);
-        gc.strokeLine(cx + 10, cy - 5, cx + 8,  cy - 3);
-        // Ribbon horizontal seam
-        gc.strokeLine(cx - 8,  cy - 3, cx + 8,  cy - 3);
-        // Ribbon vertical
-        gc.strokeLine(cx,      cy - 5, cx,       cy + 9);
+        gc.strokeRect(cx - 9, cy - 3, 18, 13);
+        gc.strokeLine(cx - 12, cy - 6, cx + 12, cy - 6);
+        gc.strokeLine(cx - 12, cy - 6, cx - 9,  cy - 3);
+        gc.strokeLine(cx + 12, cy - 6, cx + 9,  cy - 3);
+        gc.strokeLine(cx - 9,  cy - 3, cx + 9,  cy - 3);
+        gc.strokeLine(cx,      cy - 6, cx,       cy + 10);
     }
-
-    // =========================================================================
-    // Utility
-    // =========================================================================
 
     private static String toCssHex(Color c) {
         return String.format("#%02X%02X%02X",
