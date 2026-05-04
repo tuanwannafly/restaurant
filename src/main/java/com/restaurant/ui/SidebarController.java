@@ -17,7 +17,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.HBox;
@@ -332,14 +331,7 @@ public class SidebarController {
         nameBlock.getChildren().addAll(lblName, lblRole);
         avatarRow.getChildren().addAll(avatar, nameBlock);
 
-        // Logout button
-        Button btnLogout = new Button("Đăng xuất");
-        btnLogout.getStyleClass().add("logout-btn");
-        btnLogout.setMaxWidth(Double.MAX_VALUE);
-        btnLogout.setCursor(Cursor.HAND);
-        btnLogout.setOnAction(e -> AppSession.getInstance().logout());
-
-        panel.getChildren().addAll(avatarRow, btnLogout);
+        panel.getChildren().add(avatarRow);
         return panel;
     }
 

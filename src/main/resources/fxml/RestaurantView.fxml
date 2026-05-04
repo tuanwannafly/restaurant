@@ -9,88 +9,105 @@
             fx:controller="com.restaurant.ui.fx.controller.RestaurantController"
             styleClass="bg-page">
 
-    <!-- ── NORTH: Title row + Search/Filter bar ───────────────────────────── -->
+    <!-- ── NORTH: Tiêu đề + thanh tìm kiếm / lọc ──────────────────────── -->
     <top>
-        <VBox spacing="10">
-            <padding><Insets top="24" right="48" bottom="16" left="48"/></padding>
+        <VBox spacing="12">
+            <padding><Insets top="24" right="40" bottom="16" left="40"/></padding>
 
-            <!-- Row 1: Page title + Add button -->
-            <HBox alignment="CENTER_LEFT">
-                <Label text="Quản lý nhà hàng" styleClass="page-title" HBox.hgrow="ALWAYS"/>
+            <!-- Row 1: Tiêu đề + nút Thêm -->
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label text="Nhà hàng" styleClass="page-title"/>
+                    <Label text="Quản lý toàn bộ nhà hàng trong hệ thống"
+                           style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"/>
+                </VBox>
                 <Button fx:id="btnAdd" text="+ Thêm nhà hàng"
                         styleClass="btn-primary" onAction="#handleAdd"
-                        prefHeight="34"/>
+                        prefHeight="36"/>
             </HBox>
 
-            <!-- Row 2: Filter bar -->
-            <HBox spacing="8" alignment="CENTER_LEFT"
-                  style="-fx-background-color: white;
-                         -fx-border-color: #D1D5DB;
-                         -fx-border-radius: 6;
-                         -fx-background-radius: 6;"
-                  padding="0">
-                <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+            <!-- Row 2: Search + Filter bar -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
 
                 <TextField fx:id="txtSearch"
-                           promptText="Tên hoặc email nhà hàng..."
-                           prefWidth="280" prefHeight="34"
-                           onAction="#handleSearch"/>
+                           promptText="🔍  Tìm theo tên hoặc email..."
+                           prefWidth="280" prefHeight="36"
+                           onAction="#handleSearch"
+                           style="-fx-background-radius: 6; -fx-border-radius: 6;
+                                  -fx-border-color: #D1D5DB;"/>
 
                 <Button fx:id="btnSearch" text="Tìm"
                         styleClass="btn-outline" onAction="#handleSearch"
-                        prefWidth="55" prefHeight="34"/>
+                        prefWidth="60" prefHeight="36"/>
 
-                <Separator orientation="VERTICAL" prefHeight="34"/>
+                <Region HBox.hgrow="ALWAYS"/>
 
-                <ComboBox fx:id="cboStatus" prefWidth="150" prefHeight="34"/>
-                <ComboBox fx:id="cboSort"   prefWidth="140" prefHeight="34"/>
+                <Label text="Trạng thái:" style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"/>
+                <ComboBox fx:id="cboStatus" prefWidth="145" prefHeight="36"/>
 
-                <Button fx:id="btnFilter" text="Lọc"
+                <Label text="Sắp xếp:" style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"/>
+                <ComboBox fx:id="cboSort" prefWidth="130" prefHeight="36"/>
+
+                <Button fx:id="btnFilter" text="Áp dụng"
                         styleClass="btn-outline" onAction="#handleFilter"
-                        prefWidth="60" prefHeight="34"/>
+                        prefWidth="80" prefHeight="36"/>
             </HBox>
+
+            <!-- Divider -->
+            <Separator/>
         </VBox>
     </top>
 
-    <!-- ── CENTER: Table card or empty-state ────────────────────────────────── -->
+    <!-- ── CENTER: Bảng dữ liệu hoặc empty state ─────────────────────────── -->
     <center>
         <StackPane fx:id="tableArea">
-            <padding><Insets right="48" left="48"/></padding>
+            <padding><Insets top="0" right="40" bottom="0" left="40"/></padding>
 
             <!-- TableView -->
             <TableView fx:id="tableView"
                        tableMenuButtonVisible="false"
-                       columnResizePolicy="UNCONSTRAINED_RESIZE_POLICY">
+                       columnResizePolicy="UNCONSTRAINED_RESIZE_POLICY"
+                       style="-fx-background-color: white;
+                              -fx-border-color: #E5E7EB;
+                              -fx-border-radius: 10;
+                              -fx-background-radius: 10;">
                 <columns>
-                    <TableColumn fx:id="colId"     text="ID"            prefWidth="55"  minWidth="55"  maxWidth="55"/>
-                    <TableColumn fx:id="colName"   text="Tên nhà hàng"  prefWidth="210"/>
-                    <TableColumn fx:id="colEmail"  text="Email"         prefWidth="200"/>
-                    <TableColumn fx:id="colDate"   text="Ngày tạo"      prefWidth="105" minWidth="90"/>
-                    <TableColumn fx:id="colStatus" text="Trạng thái"    prefWidth="110" minWidth="90"/>
-                    <TableColumn fx:id="colAction" text="Hành động"     prefWidth="300" minWidth="300"/>
+                    <TableColumn fx:id="colId"     text="ID"            prefWidth="58"  minWidth="50" maxWidth="70"/>
+                    <TableColumn fx:id="colName"   text="Tên nhà hàng"  prefWidth="220" minWidth="160"/>
+                    <TableColumn fx:id="colPhone"  text="SĐT"           prefWidth="130" minWidth="110"/>
+                    <TableColumn fx:id="colEmail"  text="Email"         prefWidth="210" minWidth="150"/>
+                    <TableColumn fx:id="colDate"   text="Ngày tạo"      prefWidth="110" minWidth="90"/>
+                    <TableColumn fx:id="colStatus" text="Trạng thái"    prefWidth="120" minWidth="100"/>
+                    <TableColumn fx:id="colAction" text="Hành động"     prefWidth="290" minWidth="290"/>
                 </columns>
                 <placeholder>
                     <Label text="" />
                 </placeholder>
             </TableView>
 
-            <!-- Empty-state (visible when no data matches filter) -->
-            <VBox fx:id="emptyState" alignment="CENTER" spacing="16"
+            <!-- Empty state -->
+            <VBox fx:id="emptyState" alignment="CENTER" spacing="14"
                   visible="false" managed="false">
-                <Label text="🏪" style="-fx-font-size: 48px;"/>
+                <Label text="🏪" style="-fx-font-size: 52px;"/>
                 <Label text="Chưa có nhà hàng nào"
                        style="-fx-font-size: 20px; -fx-font-weight: bold;
                               -fx-text-fill: #6B7280;"/>
                 <Label text="Nhấn &quot;+ Thêm nhà hàng&quot; để bắt đầu"
-                       style="-fx-font-size: 14px; -fx-text-fill: #6B7280;"/>
+                       style="-fx-font-size: 14px; -fx-text-fill: #9CA3AF;"/>
+                <Button text="+ Thêm nhà hàng ngay"
+                        styleClass="btn-primary"
+                        onAction="#handleAdd"
+                        prefHeight="36"/>
             </VBox>
         </StackPane>
     </center>
 
-    <!-- ── SOUTH: Pagination ────────────────────────────────────────────────── -->
+    <!-- ── SOUTH: Phân trang + Tổng số ──────────────────────────────────────── -->
     <bottom>
-        <HBox fx:id="paginationBox" alignment="CENTER" spacing="8">
-            <padding><Insets top="10" right="48" bottom="24" left="48"/></padding>
+        <HBox fx:id="paginationBox" alignment="CENTER_LEFT" spacing="8">
+            <padding><Insets top="12" right="40" bottom="20" left="40"/></padding>
+            <Label fx:id="lblTotal" text="" style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"/>
+            <Region HBox.hgrow="ALWAYS"/>
         </HBox>
     </bottom>
 </BorderPane>

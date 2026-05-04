@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  HomeView.fxml  (REDESIGNED)
-  Dashboard chính — SUPER_ADMIN / RESTAURANT_ADMIN
+  HomeView.fxml  (REDESIGNED v3)
+  Dashboard — SUPER_ADMIN / RESTAURANT_ADMIN
 -->
 
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.BarChart?>
+<?import javafx.scene.chart.CategoryAxis?>
+<?import javafx.scene.chart.NumberAxis?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.ScrollPane?>
@@ -26,67 +29,97 @@
 
     <VBox spacing="0" styleClass="home-root" maxWidth="Infinity">
 
-        <!-- ── Header Banner ───────────────────────────────────── -->
+        <!-- ── Header Banner ────────────────────────────────────────── -->
         <HBox styleClass="home-header-banner" alignment="CENTER_LEFT" spacing="0">
-            <padding><Insets top="26" right="48" bottom="26" left="48"/></padding>
-
-            <VBox spacing="5" HBox.hgrow="ALWAYS">
+            <padding><Insets top="22" right="48" bottom="22" left="48"/></padding>
+            <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <Label fx:id="lblGreeting" styleClass="home-greeting"/>
                 <Label fx:id="lblSubtitle" styleClass="home-subtitle"/>
             </VBox>
-
             <HBox alignment="CENTER_RIGHT" spacing="6">
                 <Label fx:id="lblRefreshDot" text="●" styleClass="home-dot"/>
-                <Label fx:id="lblRefreshText" text="Cập nhật sau: 30s"
+                <Label fx:id="lblRefreshText" text="Cap nhat sau: 30s"
                        styleClass="home-refresh-text"/>
             </HBox>
         </HBox>
 
-        <!-- ── Body ────────────────────────────────────────────── -->
+        <!-- ── Body ─────────────────────────────────────────────────── -->
         <VBox spacing="0" styleClass="home-body">
-            <padding><Insets top="28" right="48" bottom="36" left="48"/></padding>
+            <padding><Insets top="24" right="40" bottom="32" left="40"/></padding>
 
-            <!-- Section label: Stats -->
-            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="12">
+            <!-- Section header: stats -->
+            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="10">
                 <Region styleClass="home-section-accent"/>
-                <Label text="TỔNG QUAN HỆ THỐNG" styleClass="home-section-label"/>
-                <VBox.margin><Insets bottom="16"/></VBox.margin>
+                <Label text="TONG QUAN HE THONG" styleClass="home-section-label"/>
+                <VBox.margin><Insets bottom="14"/></VBox.margin>
             </HBox>
 
-            <!-- 2x2 Stat-card grid -->
-            <GridPane fx:id="cardsGrid" hgap="16" vgap="16">
-                <columnConstraints>
-                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-                </columnConstraints>
-                <rowConstraints>
-                    <RowConstraints minHeight="136" prefHeight="144"/>
-                    <RowConstraints minHeight="136" prefHeight="144"/>
-                </rowConstraints>
+            <!-- Two-column: stat cards (left) + chart (right) -->
+            <HBox spacing="18" VBox.vgrow="NEVER">
+                <VBox.margin><Insets bottom="28"/></VBox.margin>
 
-                <StatCard fx:id="cardActive"  maxWidth="Infinity"
-                          GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
-                <StatCard fx:id="cardNew"     maxWidth="Infinity"
-                          GridPane.columnIndex="1" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
-                <StatCard fx:id="cardRevenue" maxWidth="Infinity"
-                          GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
-                <StatCard fx:id="cardOrders"  maxWidth="Infinity"
-                          GridPane.columnIndex="1" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+                <!-- Left: 2x2 compact stat cards -->
+                <GridPane fx:id="cardsGrid" hgap="14" vgap="14" HBox.hgrow="ALWAYS">
+                    <columnConstraints>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                        <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                    </columnConstraints>
+                    <rowConstraints>
+                        <RowConstraints minHeight="118" prefHeight="126"/>
+                        <RowConstraints minHeight="118" prefHeight="126"/>
+                    </rowConstraints>
 
-                <VBox.margin><Insets bottom="32"/></VBox.margin>
-            </GridPane>
+                    <StatCard fx:id="cardActive"  maxWidth="Infinity"
+                              GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
+                    <StatCard fx:id="cardNew"     maxWidth="Infinity"
+                              GridPane.columnIndex="1" GridPane.rowIndex="0" GridPane.hgrow="ALWAYS"/>
+                    <StatCard fx:id="cardRevenue" maxWidth="Infinity"
+                              GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+                    <StatCard fx:id="cardOrders"  maxWidth="Infinity"
+                              GridPane.columnIndex="1" GridPane.rowIndex="1" GridPane.hgrow="ALWAYS"/>
+                </GridPane>
 
-            <!-- Section label: Activity -->
-            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="12">
+                <!-- Right: Bar chart card -->
+                <VBox styleClass="home-chart-card" prefWidth="340" minWidth="280" spacing="0">
+                    <padding><Insets top="18" right="18" bottom="8" left="18"/></padding>
+
+                    <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="10">
+                        <Region styleClass="home-section-accent"/>
+                        <Label text="PHAN BO SO LIEU" styleClass="home-section-label"/>
+                        <VBox.margin><Insets bottom="8"/></VBox.margin>
+                    </HBox>
+
+                    <BarChart fx:id="barChart"
+                              animated="false"
+                              legendVisible="false"
+                              styleClass="home-bar-chart"
+                              VBox.vgrow="ALWAYS"
+                              prefHeight="226">
+                        <xAxis>
+                            <CategoryAxis fx:id="chartXAxis"
+                                          styleClass="home-chart-axis"/>
+                        </xAxis>
+                        <yAxis>
+                            <NumberAxis fx:id="chartYAxis"
+                                        minorTickVisible="false"
+                                        styleClass="home-chart-axis"/>
+                        </yAxis>
+                    </BarChart>
+                </VBox>
+
+            </HBox>
+
+            <!-- Section header: activity -->
+            <HBox styleClass="home-section-row" alignment="CENTER_LEFT" spacing="10">
                 <Region styleClass="home-section-accent"/>
                 <Label text="HOAT DONG GAN DAY" styleClass="home-section-label"/>
                 <VBox.margin><Insets bottom="14"/></VBox.margin>
             </HBox>
 
-            <!-- Activity card container -->
+            <!-- Activity card -->
             <VBox styleClass="home-activity-card">
                 <ListView fx:id="activityList"
-                          prefHeight="222"
+                          prefHeight="210"
                           maxWidth="Infinity"
                           styleClass="home-activity-list"/>
             </VBox>

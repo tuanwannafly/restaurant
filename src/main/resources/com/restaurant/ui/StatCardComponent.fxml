@@ -1,40 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  StatCardComponent.fxml  (REDESIGNED v2)
-  Reusable stat card — loaded by StatCard.java (fx:root pattern).
+  StatCardComponent.fxml  (REDESIGNED v3)
+  Modern stat card: full-width accent top bar, large icon badge, bold value.
 -->
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.canvas.Canvas?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<fx:root type="javafx.scene.layout.HBox"
-         alignment="CENTER_LEFT"
-         spacing="20"
+<fx:root type="javafx.scene.layout.VBox"
+         spacing="0"
          maxWidth="Infinity"
          xmlns:fx="http://javafx.com/fxml/1">
 
-    <padding><Insets top="24" right="26" bottom="24" left="24"/></padding>
+    <!-- Top accent strip (colour set programmatically) -->
+    <Region fx:id="accentBar" prefHeight="4" maxWidth="Infinity"/>
 
-    <!-- Icon circle — drawn programmatically in StatCard.drawIcon() -->
-    <Canvas fx:id="iconCanvas" width="56" height="56"/>
+    <!-- Card body -->
+    <HBox alignment="CENTER_LEFT" spacing="18" VBox.vgrow="ALWAYS">
+        <padding><Insets top="20" right="22" bottom="22" left="22"/></padding>
 
-    <!-- Value + title -->
-    <VBox spacing="5" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
-        <Label fx:id="lblValue"
-               text="—"
-               style="-fx-font-family: 'Segoe UI Semibold', 'Segoe UI';
-                      -fx-font-size: 34;
-                      -fx-font-weight: bold;
-                      -fx-text-fill: #0F172A;"/>
-        <Label fx:id="lblTitle"
-               text=""
-               style="-fx-font-family: 'Segoe UI';
-                      -fx-font-size: 12.5;
-                      -fx-text-fill: #94A3B8;"/>
-    </VBox>
+        <!-- Icon badge drawn on canvas -->
+        <StackPane prefWidth="64" prefHeight="64" minWidth="64" minHeight="64">
+            <Canvas fx:id="iconCanvas" width="64" height="64"/>
+        </StackPane>
+
+        <!-- Value + subtitle -->
+        <VBox spacing="4" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
+            <Label fx:id="lblValue"
+                   text="—"
+                   style="-fx-font-family: 'Segoe UI Semibold', 'Segoe UI';
+                          -fx-font-size: 30;
+                          -fx-font-weight: bold;
+                          -fx-text-fill: #0F172A;"/>
+            <Label fx:id="lblTitle"
+                   text=""
+                   style="-fx-font-family: 'Segoe UI';
+                          -fx-font-size: 12;
+                          -fx-text-fill: #64748B;"/>
+        </VBox>
+    </HBox>
 
 </fx:root>

@@ -65,6 +65,7 @@ public class RestaurantController {
     @FXML private TableView<Restaurant>              tableView;
     @FXML private TableColumn<Restaurant, Long>      colId;
     @FXML private TableColumn<Restaurant, String>    colName;
+    @FXML private TableColumn<Restaurant, String>    colPhone;
     @FXML private TableColumn<Restaurant, String>    colEmail;
     @FXML private TableColumn<Restaurant, String>    colDate;
     @FXML private TableColumn<Restaurant, String>    colStatus;
@@ -73,6 +74,7 @@ public class RestaurantController {
     @FXML private StackPane tableArea;
     @FXML private VBox      emptyState;
     @FXML private HBox      paginationBox;
+    @FXML private Label     lblTotal;
 
     // ── DAO & data ────────────────────────────────────────────────────────────
 
@@ -124,6 +126,11 @@ public class RestaurantController {
         // Name
         colName.setCellValueFactory(cd ->
             new SimpleStringProperty(safe(cd.getValue().getName())));
+
+        // Phone
+        colPhone.setCellValueFactory(cd ->
+            new SimpleStringProperty(safe(cd.getValue().getPhone())));
+        colPhone.setStyle("-fx-alignment: CENTER;");
 
         // Email
         colEmail.setCellValueFactory(cd ->
@@ -254,6 +261,13 @@ public class RestaurantController {
         tableView.setManaged(!empty);
         emptyState.setVisible(empty);
         emptyState.setManaged(empty);
+
+        // Cập nhật label tổng số
+        if (lblTotal != null) {
+            int total = displayedItems.size();
+            String range = total == 0 ? "0" : (from + 1) + "–" + to;
+            lblTotal.setText("Hiển thị " + range + " / " + total + " nhà hàng");
+        }
     }
 
     // ── Filter / Sort ─────────────────────────────────────────────────────────
@@ -298,43 +312,43 @@ public class RestaurantController {
     private void buildPagination() {
         int total = displayedItems.size();
         totalPages = total == 0 ? 1 : (int) Math.ceil((double) total / PAGE_SIZE);
-        paginationBox.getChildren().clear();
+        paginationBox.getChildren().removeIf(n -> n instanceof Button || n instanceof Label);
 
-        int maxVisible = Math.min(totalPages, 3);
-        for (int p = 1; p <= maxVisible; p++) {
+        String baseBtn   = "-fx-background-color: white; -fx-text-fill: #374151;"
+                         + "-fx-border-color: #D1D5DB; -fx-border-radius: 6;"
+                         + "-fx-background-radius: 6; -fx-cursor: hand;";
+        String activeBtn = "-fx-background-color: #2563EB; -fx-text-fill: white;"
+                         + "-fx-border-radius: 6; -fx-background-radius: 6; -fx-cursor: hand;";
+
+        // Prev button
+        Button btnPrev = new Button("‹");
+        btnPrev.setPrefWidth(34); btnPrev.setPrefHeight(32);
+        btnPrev.setStyle(baseBtn);
+        btnPrev.setDisable(currentPage <= 1);
+        btnPrev.setOnAction(e -> { currentPage--; buildPagination(); refreshTable(); });
+        paginationBox.getChildren().add(btnPrev);
+
+        // Page buttons (show up to 5)
+        int startPage = Math.max(1, currentPage - 2);
+        int endPage   = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+        for (int p = startPage; p <= endPage; p++) {
             final int page = p;
             Button btn = new Button(String.valueOf(p));
-            btn.setPrefWidth(36);
-            btn.setPrefHeight(32);
-            if (p == currentPage) {
-                btn.setStyle("-fx-background-color: #2563eb; -fx-text-fill: white;"
-                           + "-fx-border-radius: 4; -fx-background-radius: 4;");
-            } else {
-                btn.setStyle("-fx-background-color: white; -fx-text-fill: #374151;"
-                           + "-fx-border-color: #D1D5DB; -fx-border-radius: 4;"
-                           + "-fx-background-radius: 4;");
-            }
+            btn.setPrefWidth(36); btn.setPrefHeight(32);
+            btn.setStyle(p == currentPage ? activeBtn : baseBtn);
             btn.setOnAction(e -> { currentPage = page; buildPagination(); refreshTable(); });
             paginationBox.getChildren().add(btn);
         }
 
-        if (totalPages > 3) {
-            Label ellipsis = new Label("...");
-            ellipsis.setStyle("-fx-text-fill: #6B7280; -fx-font-size: 14px;");
-            Button btnMore = new Button("Xem thêm");
-            btnMore.setStyle("-fx-background-color: white; -fx-text-fill: #374151;"
-                           + "-fx-border-color: #D1D5DB; -fx-border-radius: 4;"
-                           + "-fx-background-radius: 4;");
-            btnMore.setPrefHeight(32);
-            btnMore.setOnAction(e -> {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    buildPagination();
-                    refreshTable();
-                }
-            });
-            paginationBox.getChildren().addAll(ellipsis, btnMore);
-        }
+        // Next button
+        Button btnNext = new Button("›");
+        btnNext.setPrefWidth(34); btnNext.setPrefHeight(32);
+        btnNext.setStyle(baseBtn);
+        btnNext.setDisable(currentPage >= totalPages);
+        btnNext.setOnAction(e -> { currentPage++; buildPagination(); refreshTable(); });
+        paginationBox.getChildren().add(btnNext);
     }
 
     // ── CRUD operations ───────────────────────────────────────────────────────

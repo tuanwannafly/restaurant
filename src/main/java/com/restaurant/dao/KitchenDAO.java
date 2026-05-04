@@ -138,7 +138,7 @@ public class KitchenDAO {
             "WHERE  o.restaurant_id = ? " +
             "  AND  oi.item_status  = 'READY' " +
             "  AND  (o.table_id, oi.round_number) IN ( " +
-            "           SELECT oi2.order_id, oi2.round_number " +
+            "           SELECT o2.table_id, oi2.round_number " +
             "           FROM   order_items oi2 " +
             "           JOIN   orders o2 ON oi2.order_id = o2.order_id " +
             "           WHERE  o2.restaurant_id = ? " +

@@ -702,3 +702,129 @@
     -fx-min-height: 0;
     -fx-max-height: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGO MARK  (improved v2)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.logo-mark {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #5B6AF0, #7C3AED);
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(91,106,240,0.35), 10, 0, 0, 2);
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
+}
+
+.logo-mark-text {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Segoe UI";
+}
+
+.app-name-label {
+    -fx-text-fill: #1A1D2E;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROFILE CONTEXT MENU  (TopBar dropdown)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.profile-context-menu {
+    -fx-background-color: white;
+    -fx-background-radius: 10px;
+    -fx-border-color: #E8EAF0;
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 16, 0, 0, 4);
+}
+
+.profile-context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 8 16 8 16;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #1A1D2E;
+}
+
+.profile-context-menu .menu-item:focused,
+.profile-context-menu .menu-item:hover {
+    -fx-background-color: #F3F4F6;
+    -fx-background-radius: 6px;
+}
+
+.profile-context-menu .menu-item-danger {
+    -fx-text-fill: #EF4444;
+}
+
+.profile-context-menu .menu-item-danger:focused,
+.profile-context-menu .menu-item-danger:hover {
+    -fx-background-color: #FEF2F2;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOME DASHBOARD — BAR CHART
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.home-chart-card {
+    -fx-background-color: white;
+    -fx-background-radius: 14px;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 14px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 12, 0, 0, 3);
+}
+
+.home-bar-chart {
+    -fx-background-color: transparent;
+    -fx-plot-background-color: transparent;
+    -fx-horizontal-grid-lines-visible: true;
+    -fx-vertical-grid-lines-visible: false;
+    -fx-horizontal-zero-line-visible: false;
+    -fx-padding: 0 0 0 0;
+}
+
+.home-bar-chart .chart-plot-background {
+    -fx-background-color: transparent;
+}
+
+.home-bar-chart .chart-vertical-grid-lines {
+    -fx-stroke: transparent;
+}
+
+.home-bar-chart .chart-horizontal-grid-lines {
+    -fx-stroke: #F1F3F8;
+    -fx-stroke-width: 1;
+}
+
+.home-bar-chart .axis {
+    -fx-tick-label-fill: #94A3B8;
+    -fx-tick-label-font-size: 11px;
+    -fx-font-family: "Segoe UI";
+}
+
+.home-bar-chart .axis-label {
+    -fx-text-fill: transparent;
+}
+
+.home-bar-chart .chart-content {
+    -fx-padding: 4 8 0 0;
+}
+
+.home-bar-chart .bar-legend-symbol {
+    -fx-background-radius: 4px;
+}
+
+/* Bar colours are set programmatically in HomeController#applyBarColors() */
+/* Fallback defaults for the 3 data series positions */
+.home-bar-chart .default-color0.chart-bar { -fx-bar-fill: #3B82F6; }
+.home-bar-chart .default-color1.chart-bar { -fx-bar-fill: #10B981; }
+.home-bar-chart .default-color2.chart-bar { -fx-bar-fill: #EF4444; }
+
+.home-bar-chart .chart-bar {
+    -fx-background-radius: 5 5 0 0;
+}

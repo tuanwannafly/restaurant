@@ -130,6 +130,11 @@ public class RestaurantDialogController {
         txtCreatedDate.setText(LocalDate.now().toString());
         txtCreatedDate.setStyle("-fx-background-color: #F3F4F6;");
 
+        // Owner is assigned via admin section below — disable this field
+        txtOwner.setEditable(false);
+        txtOwner.setStyle("-fx-background-color: #F3F4F6;");
+        txtOwner.setPromptText("(Chọn admin ở mục bên dưới)");
+
         showAdminSection(true);
         loadAdminListAsync();
     }
@@ -140,6 +145,11 @@ public class RestaurantDialogController {
         lblTitle.setText("Cập nhật nhà hàng");
         showAdminSection(false);
         fillData(r);
+        // txtOwner is display-only in edit mode — load admin name async
+        txtOwner.setEditable(false);
+        txtOwner.setStyle("-fx-background-color: #F3F4F6;");
+        txtOwner.setText("Đang tải...");
+        loadOwnerAsync(r.getRestaurantId());
     }
 
     // ── Result getters ────────────────────────────────────────────────────────
@@ -231,6 +241,29 @@ public class RestaurantDialogController {
     }
 
     // ── Admin list async load ─────────────────────────────────────────────────
+
+    /**
+     * Tải tên admin (owner) của nhà hàng theo restaurantId — hiển thị vào txtOwner.
+     * Gọi trên background thread để không block JavaFX thread.
+     */
+    private void loadOwnerAsync(long restaurantId) {
+        Task<String> task = new Task<>() {
+            @Override protected String call() {
+                try {
+                    return new UserDAO().findRestaurantAdmins().stream()
+                        .filter(a -> a.getRestaurantId() == restaurantId)
+                        .map(UserDAO.AdminUser::getName)
+                        .findFirst()
+                        .orElse("Chưa gán admin");
+                } catch (Exception e) {
+                    return "(Lỗi tải)";
+                }
+            }
+        };
+        task.setOnSucceeded(e -> txtOwner.setText(task.getValue()));
+        task.setOnFailed(e -> txtOwner.setText("—"));
+        new Thread(task, "RestaurantDialog-ownerLoad").start();
+    }
 
     /**
      * Tải danh sách RESTAURANT_ADMIN trên background thread.

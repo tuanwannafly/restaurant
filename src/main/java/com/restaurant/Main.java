@@ -2,12 +2,6 @@ package com.restaurant;
 
 import java.util.Optional;
 
-import javafx.application.Application;
-import javafx.application.Platform;
-import javafx.scene.Scene;
-import javafx.scene.image.Image;
-import javafx.stage.Stage;
-
 import com.restaurant.dao.UserDAO;
 import com.restaurant.data.DataManager;
 import com.restaurant.session.AppSession;
@@ -17,6 +11,12 @@ import com.restaurant.ui.fx.controller.LoginController;
 import com.restaurant.ui.fx.controller.MainController;
 import com.restaurant.ui.fx.util.FxUtils;
 import com.restaurant.ui.fx.util.PollManagerFx;
+
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.scene.Scene;
+import javafx.scene.image.Image;
+import javafx.stage.Stage;
 
 /**
  * Main — JavaFX edition entry point for SmartRestaurant.
@@ -202,9 +202,9 @@ public class Main extends Application {
 
         // Wire badge updater into PollManagerFx
         PollManagerFx.getInstance().setBadgeUpdater((k, w, p) -> {
-            controller.getKitchenBadge().setCount(k);
-            controller.getWaiterBadge() .setCount(w);
-            controller.getCashierBadge().setCount(p);
+            if (controller.getKitchenBadge() != null) controller.getKitchenBadge().setCount(k);
+            if (controller.getWaiterBadge()  != null) controller.getWaiterBadge() .setCount(w);
+            if (controller.getCashierBadge() != null) controller.getCashierBadge().setCount(p);
         });
         PollManagerFx.getInstance().registerBadgeRefresh(10_000);
     }

@@ -1,14 +1,24 @@
 package com.restaurant.ui.fx.controller;
 
+import java.io.IOException;
 import java.util.List;
 
+import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
 
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 /**
  * Controller cho RestaurantDetailView.fxml.
@@ -27,18 +37,20 @@ public class RestaurantDetailController {
 
     // ── FXML fields ───────────────────────────────────────────────────────────
 
-    @FXML private Label valName;
-    @FXML private Label valOwner;
-    @FXML private Label valEmail;
-    @FXML private Label valPhone;
-    @FXML private Label valAddress;
-    @FXML private Label valCreatedAt;
-    @FXML private Label valStatus;
+    @FXML private Label  valName;
+    @FXML private Label  valOwner;
+    @FXML private Label  valEmail;
+    @FXML private Label  valPhone;
+    @FXML private Label  valAddress;
+    @FXML private Label  valCreatedAt;
+    @FXML private Label  valStatus;
+    @FXML private Button btnEdit;
 
-    // ── Callbacks ─────────────────────────────────────────────────────────────
+    // ── Callbacks / state ─────────────────────────────────────────────────────
 
-    /** Callback gọi khi user nhấn "← Quay lại". Set từ MainController / caller. */
-    private Runnable onBack;
+    private Runnable   onBack;
+    private Restaurant currentRestaurant;
+    private final RestaurantDAO dao = new RestaurantDAO();
 
     public void setOnBack(Runnable callback) {
         this.onBack = callback;
@@ -54,6 +66,7 @@ public class RestaurantDetailController {
      */
     public void populate(Restaurant r) {
         if (r == null) return;
+        this.currentRestaurant = r;
 
         valName     .setText(safe(r.getName()));
         valOwner    .setText("Đang tải...");
@@ -77,11 +90,60 @@ public class RestaurantDetailController {
         loadOwnerAsync(r.getRestaurantId());
     }
 
-    // ── FXML handler ──────────────────────────────────────────────────────────
+    // ── FXML handlers ─────────────────────────────────────────────────────────
 
     @FXML
     private void handleBack() {
         if (onBack != null) onBack.run();
+    }
+
+    /**
+     * Mở RestaurantDialog ở chế độ chỉnh sửa.
+     * Sau khi lưu, cập nhật lại panel chi tiết với dữ liệu mới.
+     */
+    @FXML
+    private void handleEdit() {
+        if (currentRestaurant == null) return;
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                getClass().getResource("/fxml/dialog/RestaurantDialog.fxml"));
+            Parent root = loader.load();
+            RestaurantDialogController ctrl = loader.getController();
+            ctrl.initEdit(currentRestaurant);
+
+            Stage stage = new Stage();
+            stage.setTitle("Cập nhật nhà hàng");
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.initOwner(valName.getScene().getWindow());
+            stage.setScene(new Scene(root));
+            stage.setResizable(false);
+            stage.showAndWait();
+
+            if (!ctrl.isSaved()) return;
+
+            // Lưu thay đổi
+            Task<Restaurant> saveTask = new Task<>() {
+                @Override protected Restaurant call() {
+                    dao.update(ctrl.getRestaurant());
+                    return dao.findById(currentRestaurant.getRestaurantId());
+                }
+            };
+            saveTask.setOnSucceeded(e -> {
+                Restaurant updated = saveTask.getValue();
+                if (updated != null) populate(updated);
+            });
+            saveTask.setOnFailed(e -> {
+                Alert a = new Alert(Alert.AlertType.ERROR,
+                    "Lỗi cập nhật: " + saveTask.getException().getMessage(), ButtonType.OK);
+                a.setTitle("Lỗi"); a.showAndWait();
+            });
+            new Thread(saveTask, "RestaurantDetail-save").start();
+
+        } catch (IOException ex) {
+            Alert a = new Alert(Alert.AlertType.ERROR,
+                "Lỗi mở dialog: " + ex.getMessage(), ButtonType.OK);
+            a.setTitle("Lỗi"); a.showAndWait();
+        }
     }
 
     // ── Async owner load ──────────────────────────────────────────────────────

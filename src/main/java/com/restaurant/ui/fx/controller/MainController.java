@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ResourceBundle;
 
+import com.restaurant.model.Restaurant;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
 import com.restaurant.session.TokenService;
@@ -208,13 +209,44 @@ public class MainController implements Initializable, SessionListener {
 
         // ── Super-admin-only ─────────────────────────────────────────────
         if (sup) {
-            addPanel("nhahangs",   createPanel("RestaurantView"),  () -> callMethod("nhahangs",  "loadData"));
+            // ── Nhà hàng: load với explicit FXMLLoader để lấy controller và wire callbacks ──
+            try {
+                java.net.URL restaurantFxml = getClass().getResource("/fxml/RestaurantView.fxml");
+                java.net.URL detailFxml     = getClass().getResource("/fxml/RestaurantDetailView.fxml");
+
+                FXMLLoader restaurantLoader = new FXMLLoader(restaurantFxml);
+                Node restaurantNode = restaurantLoader.load();
+                RestaurantController restaurantCtrl = restaurantLoader.getController();
+
+                FXMLLoader detailLoader = new FXMLLoader(detailFxml);
+                Node detailNode = detailLoader.load();
+                RestaurantDetailController detailCtrl = detailLoader.getController();
+
+                // Wire "Xem chi tiết" → điền data + chuyển sang panel detail
+                restaurantCtrl.setOnOpenDetail((Restaurant r) -> {
+                    detailCtrl.populate(r);
+                    navigateTo("restaurant_detail");
+                });
+
+                // Wire "Quay lại" → về danh sách
+                detailCtrl.setOnBack(() -> navigateTo("nhahangs"));
+
+                addPanel("nhahangs",         restaurantNode, restaurantCtrl::loadData);
+                addPanel("restaurant_detail", detailNode,    null);
+
+            } catch (IOException ex) {
+                System.err.println("[MainController] Lỗi load RestaurantView: " + ex.getMessage());
+                addPanel("nhahangs",         createPlaceholder("Nhà hàng"), null);
+                addPanel("restaurant_detail", createPlaceholder("Chi tiết nhà hàng"), null);
+            }
+
             addPanel("baomat",     createPanel("AuditLogView"),    () -> callMethod("baomat",    "loadData"));
             addPanel("adminstats", createPanel("AdminStatsView"),  () -> callMethod("adminstats","loadStats"));
         } else {
-            addPanel("nhahangs",   createPlaceholder("Nhà hàng"),     null);
-            addPanel("baomat",     createPlaceholder("Bảo mật"),      null);
-            addPanel("adminstats", createPlaceholder("Thống kê Admin"),null);
+            addPanel("nhahangs",          createPlaceholder("Nhà hàng"),          null);
+            addPanel("restaurant_detail", createPlaceholder("Chi tiết nhà hàng"), null);
+            addPanel("baomat",            createPlaceholder("Bảo mật"),           null);
+            addPanel("adminstats",        createPlaceholder("Thống kê Admin"),    null);
         }
 
         // ── Restaurant-admin-only ────────────────────────────────────────

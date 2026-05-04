@@ -3,16 +3,23 @@ package com.restaurant.ui;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 
 import com.restaurant.dao.StatsDAO;
 import com.restaurant.session.AppSession;
+
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.paint.Color;
@@ -20,24 +27,10 @@ import javafx.util.Duration;
 
 /**
  * Controller for {@code HomeView.fxml}.
- *
- * <p>Responsibilities:
- * <ul>
- *   <li>Populate header (greeting, date)</li>
- *   <li>Configure {@link StatCard} instances with icon / colour / title</li>
- *   <li>Fetch stats via {@link StatsDAO#getAdminDashboardStats()} on a daemon thread
- *       using a JavaFX {@link Task}</li>
- *   <li>Auto-refresh every 30 s with a {@link Timeline}</li>
- *   <li>Maintain a countdown label ("Cập nhật sau: Xs")</li>
- *   <li>Populate the recent-activity {@link ListView} using {@link ActivityListCell}</li>
- * </ul>
- *
- * <p>Call {@link #shutdown()} when navigating away to stop background timelines.
  */
 public class HomeController {
 
     // ── FXML injections ────────────────────────────────────────────────────
-
     @FXML private Label  lblGreeting;
     @FXML private Label  lblSubtitle;
     @FXML private Label  lblRefreshDot;
@@ -48,20 +41,21 @@ public class HomeController {
     @FXML private StatCard cardRevenue;
     @FXML private StatCard cardOrders;
 
-    @FXML private ListView<String> activityList;
+    @FXML private ListView<String>          activityList;
+    @FXML private BarChart<String, Number>  barChart;
+    @FXML private CategoryAxis              chartXAxis;
+    @FXML private NumberAxis                chartYAxis;
 
-    // ── Accent colours (matching Swing HomePanel) ─────────────────────────
-
+    // ── Accent colours ─────────────────────────────────────────────────────
     private static final Color C_BLUE  = Color.web("#3B82F6");
     private static final Color C_GREEN = Color.web("#10B981");
     private static final Color C_AMBER = Color.web("#F59E0B");
     private static final Color C_RED   = Color.web("#EF4444");
 
     // ── State ──────────────────────────────────────────────────────────────
-
-    private Timeline                    refreshTimeline;
-    private Timeline                    countdownTimeline;
-    private int                         secondsLeft = 30;
+    private Timeline                     refreshTimeline;
+    private Timeline                     countdownTimeline;
+    private int                          secondsLeft = 30;
     private final ObservableList<String> activityItems =
             FXCollections.observableArrayList();
 
@@ -73,35 +67,42 @@ public class HomeController {
 
     @FXML
     private void initialize() {
-        // ── Header ────────────────────────────────────────────────────────
+        // Header
         String user  = AppSession.getInstance().getUserName();
         String today = LocalDate.now()
                 .format(DateTimeFormatter.ofPattern("dd/MM/yyyy, EEEE"));
+        lblGreeting.setText("Xin chao, " + user);
+        lblSubtitle.setText("Tong quan he thong  —  " + today);
 
-        lblGreeting.setText("Xin chào, " + user);
-        lblSubtitle.setText("Tổng quan hệ thống  —  " + today);
+        // Stat card icons + colours
+        cardActive .configure(StatCard.CardIcon.STORE, "Nha hang hoat dong",   C_BLUE);
+        cardNew    .configure(StatCard.CardIcon.PLUS,  "Nha hang moi hom nay", C_GREEN);
+        cardRevenue.configure(StatCard.CardIcon.COIN,  "Doanh thu hom nay",    C_AMBER);
+        cardOrders .configure(StatCard.CardIcon.BOX,   "Don hang hom nay",     C_RED);
 
-        // ── Stat card configuration ───────────────────────────────────────
-        cardActive .configure(StatCard.CardIcon.STORE, "Nhà hàng hoạt động",   C_BLUE);
-        cardNew    .configure(StatCard.CardIcon.PLUS,  "Nhà hàng mới hôm nay", C_GREEN);
-        cardRevenue.configure(StatCard.CardIcon.COIN,  "Doanh thu hôm nay",    C_AMBER);
-        cardOrders .configure(StatCard.CardIcon.BOX,   "Đơn hàng hôm nay",     C_RED);
+        // Bar chart initial config
+        if (barChart != null) {
+            barChart.setTitle(null);
+            chartYAxis.setLabel(null);
+            chartYAxis.setMinorTickVisible(false);
+            chartYAxis.setAnimated(false);
+            chartXAxis.setAnimated(false);
+        }
 
-        // ── Activity list ─────────────────────────────────────────────────
+        // Activity list
         activityList.setItems(activityItems);
         activityList.setCellFactory(lv -> new ActivityListCell());
-        activityItems.add("Đang tải dữ liệu...");
+        activityItems.add("Dang tai du lieu...");
 
-        // ── First data load ───────────────────────────────────────────────
+        // Initial load
         refreshStats();
 
-        // ── Auto-refresh every 30 s ───────────────────────────────────────
+        // Auto-refresh every 30 s
         refreshTimeline = new Timeline(
                 new KeyFrame(Duration.seconds(REFRESH_SECONDS), e -> refreshStats()));
         refreshTimeline.setCycleCount(Timeline.INDEFINITE);
         refreshTimeline.play();
 
-        // ── Countdown ticker (1 s) ────────────────────────────────────────
         startCountdown();
     }
 
@@ -109,12 +110,6 @@ public class HomeController {
     // Refresh
     // =========================================================================
 
-    /**
-     * Loads dashboard statistics on a daemon thread, then updates the UI on the
-     * JavaFX Application Thread when the {@link Task} succeeds.
-     *
-     * <p>Also called by the host panel on navigation ("navigate back to home").
-     */
     public void refreshStats() {
         setRefreshState(RefreshState.LOADING);
 
@@ -128,21 +123,26 @@ public class HomeController {
         task.setOnSucceeded(event -> {
             Map<String, Long> s = task.getValue();
 
-            cardActive .setValue(String.valueOf(s.get("active_restaurants")));
-            cardNew    .setValue(String.valueOf(s.get("new_restaurants")));
-            cardRevenue.setValue(formatVnd(s.get("revenue_today")));
-            cardOrders .setValue(String.valueOf(s.get("orders_today")));
+            cardActive .setValue(String.valueOf(s.getOrDefault("active_restaurants", 0L)));
+            cardNew    .setValue(String.valueOf(s.getOrDefault("new_restaurants",    0L)));
+            cardRevenue.setValue(formatVnd(s.getOrDefault("revenue_today",       0L)));
+            cardOrders .setValue(String.valueOf(s.getOrDefault("orders_today",       0L)));
+
+            updateBarChart(
+                s.getOrDefault("active_restaurants", 0L),
+                s.getOrDefault("new_restaurants",    0L),
+                s.getOrDefault("orders_today",       0L)
+            );
 
             populateActivityList(s);
 
-            // Reset countdown after successful load
             secondsLeft = REFRESH_SECONDS;
             setRefreshState(RefreshState.OK);
         });
 
         task.setOnFailed(event -> {
             Throwable ex = task.getException();
-            System.err.println("[HomeController] refreshStats lỗi: "
+            System.err.println("[HomeController] refreshStats loi: "
                     + (ex != null ? ex.getMessage() : "unknown"));
             setRefreshState(RefreshState.ERROR);
         });
@@ -153,31 +153,55 @@ public class HomeController {
     }
 
     // =========================================================================
-    // Activity list population
+    // Bar chart
+    // =========================================================================
+
+    private void updateBarChart(long active, long newR, long orders) {
+        if (barChart == null) return;
+
+        barChart.getData().clear();
+
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.getData().add(new XYChart.Data<>("Nha hang HĐ", active));
+        series.getData().add(new XYChart.Data<>("Moi hom nay",  newR));
+        series.getData().add(new XYChart.Data<>("Don hang",     orders));
+        barChart.getData().add(series);
+
+        // Apply bar colours after nodes are attached to scene graph
+        Platform.runLater(() -> applyBarColors());
+    }
+
+    private void applyBarColors() {
+        if (barChart == null || barChart.getData().isEmpty()) return;
+        List<String> colors = List.of("#3B82F6", "#10B981", "#EF4444");
+        var dataList = barChart.getData().get(0).getData();
+        for (int i = 0; i < dataList.size() && i < colors.size(); i++) {
+            var node = dataList.get(i).getNode();
+            if (node != null) {
+                node.setStyle("-fx-bar-fill: " + colors.get(i) + ";");
+            }
+        }
+    }
+
+    // =========================================================================
+    // Activity list
     // =========================================================================
 
     private void populateActivityList(Map<String, Long> s) {
-        String ts      = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("HH:mm"));
-        long active    = s.getOrDefault("active_restaurants", 0L);
-        long newR      = s.getOrDefault("new_restaurants",    0L);
-        long orders    = s.getOrDefault("orders_today",       0L);
-        long revenue   = s.getOrDefault("revenue_today",      0L);
+        String ts    = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+        long active  = s.getOrDefault("active_restaurants", 0L);
+        long newR    = s.getOrDefault("new_restaurants",    0L);
+        long orders  = s.getOrDefault("orders_today",       0L);
+        long revenue = s.getOrDefault("revenue_today",      0L);
 
         activityItems.clear();
-
-        activityItems.add(ts + "  Hệ thống có " + active + " nhà hàng đang hoạt động");
-
-        if (newR > 0) {
-            activityItems.add(ts + "  " + newR + " nhà hàng mới được đăng ký hôm nay");
-        }
-
-        activityItems.add(ts + "  " + orders + " đơn hàng đã được tạo hôm nay");
-        activityItems.add(ts + "  Doanh thu hôm nay: " + formatVnd(revenue));
-
-        if (activityItems.isEmpty()) {
-            activityItems.add("Chưa có hoạt động nào trong ngày hôm nay.");
-        }
+        activityItems.add(ts + "  He thong co " + active + " nha hang dang hoat dong");
+        if (newR > 0)
+            activityItems.add(ts + "  " + newR + " nha hang moi duoc dang ky hom nay");
+        activityItems.add(ts + "  " + orders + " don hang da duoc tao hom nay");
+        activityItems.add(ts + "  Doanh thu hom nay: " + formatVnd(revenue));
+        if (activityItems.isEmpty())
+            activityItems.add("Chua co hoat dong nao trong ngay hom nay.");
     }
 
     // =========================================================================
@@ -187,13 +211,12 @@ public class HomeController {
     private void startCountdown() {
         stopCountdown();
         secondsLeft = REFRESH_SECONDS;
-
         countdownTimeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
             if (secondsLeft > 0) secondsLeft--;
             if (lblRefreshText != null) {
                 lblRefreshText.setText(secondsLeft > 0
-                        ? "Cập nhật sau: " + secondsLeft + "s"
-                        : "Đang tải...");
+                        ? "Cap nhat sau: " + secondsLeft + "s"
+                        : "Dang tai...");
             }
         }));
         countdownTimeline.setCycleCount(Timeline.INDEFINITE);
@@ -201,14 +224,11 @@ public class HomeController {
     }
 
     private void stopCountdown() {
-        if (countdownTimeline != null) {
-            countdownTimeline.stop();
-            countdownTimeline = null;
-        }
+        if (countdownTimeline != null) { countdownTimeline.stop(); countdownTimeline = null; }
     }
 
     // =========================================================================
-    // Refresh-state helpers
+    // Refresh state helpers
     // =========================================================================
 
     private enum RefreshState { LOADING, OK, ERROR }
@@ -216,40 +236,28 @@ public class HomeController {
     private void setRefreshState(RefreshState state) {
         switch (state) {
             case LOADING -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #F59E0B; -fx-font-size: 10;");
-                lblRefreshText.setText("Đang tải...");
+                if (lblRefreshDot  != null) lblRefreshDot .setStyle("-fx-text-fill: #F59E0B; -fx-font-size: 10;");
+                if (lblRefreshText != null) lblRefreshText.setText("Dang tai...");
             }
             case OK -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #10B981; -fx-font-size: 10;");
-                lblRefreshText.setText("Cập nhật sau: " + REFRESH_SECONDS + "s");
+                if (lblRefreshDot  != null) lblRefreshDot .setStyle("-fx-text-fill: #10B981; -fx-font-size: 10;");
+                if (lblRefreshText != null) lblRefreshText.setText("Cap nhat sau: " + REFRESH_SECONDS + "s");
             }
             case ERROR -> {
-                lblRefreshDot .setStyle("-fx-text-fill: #EF4444; -fx-font-size: 10;");
-                lblRefreshText.setText("Lỗi tải dữ liệu");
+                if (lblRefreshDot  != null) lblRefreshDot .setStyle("-fx-text-fill: #EF4444; -fx-font-size: 10;");
+                if (lblRefreshText != null) lblRefreshText.setText("Loi tai du lieu");
             }
         }
     }
 
     // =========================================================================
-    // Navigation hook (call from MainController when switching to home view)
+    // Public API
     // =========================================================================
 
-    /** Forces an immediate data refresh when the panel becomes visible. */
-    public void refresh() {
-        refreshStats();
-        startCountdown();
-    }
+    public void refresh() { refreshStats(); startCountdown(); }
 
-    // =========================================================================
-    // Lifecycle (call when navigating away)
-    // =========================================================================
-
-    /**
-     * Stops all background timelines.  Should be called from the host controller's
-     * cleanup path (e.g., on scene change or window close).
-     */
     public void shutdown() {
-        if (refreshTimeline   != null) { refreshTimeline.stop();   refreshTimeline   = null; }
+        if (refreshTimeline != null) { refreshTimeline.stop(); refreshTimeline = null; }
         stopCountdown();
     }
 
@@ -257,8 +265,7 @@ public class HomeController {
     // Utility
     // =========================================================================
 
-    /** Formats a VND amount as "1,234,567 đ". */
     private static String formatVnd(long amount) {
-        return String.format("%,d đ", amount);
+        return String.format("%,d d", amount);
     }
 }
