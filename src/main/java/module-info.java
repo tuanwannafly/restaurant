@@ -28,7 +28,7 @@ module com.restaurant {
 
     // ── Security ─────────────────────────────────────────────────────────────
 
-    requires bcrypt;
+    requires jbcrypt;
 
     // ── Serialisation ────────────────────────────────────────────────────────
 
@@ -59,7 +59,6 @@ module com.restaurant {
     exports com.restaurant.ui.fx.util;
 
     // JavaFX UI packages
-    exports com.restaurant.ui.fx;
     exports com.restaurant.ui.fx.controller;
 
     // =========================================================================
@@ -69,7 +68,12 @@ module com.restaurant {
     // FXMLLoader needs reflective access to every @FXML-annotated controller.
     // Pattern: "opens <pkg> to javafx.fxml"
     opens com.restaurant.ui.fx.controller  to javafx.fxml;
-    opens com.restaurant.ui.fx.component   to javafx.fxml;
+
+    // ui.* controllers used directly as fx:controller in FXML files
+    opens com.restaurant.ui                to javafx.fxml;
+    opens com.restaurant.ui.dialog         to javafx.fxml;
+    opens com.restaurant.ui.cell           to javafx.fxml;
+    opens com.restaurant.ui.control        to javafx.fxml;
 
     // JavaFX property binding needs reflective access to model fields.
     // Pattern: "opens <pkg> to javafx.base"

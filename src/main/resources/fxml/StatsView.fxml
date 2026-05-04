@@ -11,7 +11,7 @@
 -->
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.restaurant.ui.StatsController"
+            fx:controller="com.restaurant.ui.fx.controller.StatsController"
             style="-fx-background-color: #F8F9FA;">
 
     <!-- ═══════════════════════════════════════════════════

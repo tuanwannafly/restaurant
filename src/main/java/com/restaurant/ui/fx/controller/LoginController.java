@@ -1,10 +1,17 @@
 package com.restaurant.ui.fx.controller;
 
+import java.net.URL;
+import java.util.Optional;
+import java.util.ResourceBundle;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import com.restaurant.dao.UserDAO;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.RefreshTokenService;
 import com.restaurant.session.SessionExpiredException;
 import com.restaurant.session.TokenStorage;
+
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -14,17 +21,20 @@ import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.stage.Stage;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.DialogPane;
+import javafx.scene.control.Hyperlink;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.util.Duration;
-
-import java.net.URL;
-import java.util.Optional;
-import java.util.ResourceBundle;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Controller cho {@code LoginView.fxml}.
@@ -64,6 +74,10 @@ public class LoginController implements Initializable {
 
     /** Callback được set bởi caller sau khi FXML load (thường là Main). */
     private Runnable onLoginSuccess;
+
+    // FIX 1: thêm field + setter cho onLoginCancelled (dùng bởi Main.java line 239)
+    /** Callback được gọi khi người dùng đóng cửa sổ login mà chưa đăng nhập. */
+    private Runnable onLoginCancelled;
 
     /**
      * Shared daemon executor — giới hạn 1 thread để tránh race giữa các lần
@@ -110,6 +124,25 @@ public class LoginController implements Initializable {
      */
     public void setOnLoginSuccess(Runnable callback) {
         this.onLoginSuccess = callback;
+    }
+
+    // FIX 1: setter cho onLoginCancelled
+    /**
+     * Đặt callback được gọi khi người dùng đóng cửa sổ login mà không đăng nhập.
+     * Thường dùng để thoát ứng dụng: {@code loginController.setOnLoginCancelled(Platform::exit)}.
+     *
+     * @param callback Runnable xử lý hủy đăng nhập (vd: Platform::exit)
+     */
+    public void setOnLoginCancelled(Runnable callback) {
+        this.onLoginCancelled = callback;
+    }
+
+    /**
+     * Gọi callback onLoginCancelled nếu đã được set.
+     * Nên được gọi từ Stage.setOnCloseRequest() trong Main.java.
+     */
+    public void notifyLoginCancelled() {
+        if (onLoginCancelled != null) onLoginCancelled.run();
     }
 
     // ── Silent re-auth ────────────────────────────────────────────────────────
@@ -197,10 +230,21 @@ public class LoginController implements Initializable {
         loginTask.setOnSucceeded(e -> {
             showLoading(false);
             LoginResult result = loginTask.getValue();
+
+            // FIX 2: null-guard trước khi dereference result
+            if (result == null) {
+                showError("Lỗi không xác định. Vui lòng thử lại.");
+                shakeError();
+                return;
+            }
+
             if (result.success()) {
-                handleLoginSuccess(result);
+                handleLoginSuccess();
             } else {
-                showError(result.errorMessage());
+                // FIX 3: null-safe errorMessage (LoginResult.ok() để errorMessage = null)
+                showError(result.errorMessage() != null
+                        ? result.errorMessage()
+                        : "Đăng nhập thất bại.");
                 shakeError();
                 tfPassword.clear();
                 tfPassword.requestFocus();
@@ -232,9 +276,8 @@ public class LoginController implements Initializable {
                 try {
                     boolean ok = userDAO.login(email, password);
                     if (ok) {
-                        return LoginResult.success();
+                        return LoginResult.ok();
                     } else {
-                        // Kiểm tra xem có phải bị khoá không (log từ AuditLogger)
                         return LoginResult.failure("Email hoặc mật khẩu không đúng.");
                     }
                 } catch (SecurityException se) {
@@ -247,11 +290,12 @@ public class LoginController implements Initializable {
         };
     }
 
+    // FIX 4: bỏ parameter LoginResult result vì không bao giờ được dùng trong method body
     /**
      * Xử lý sau khi Task login trả về success = true.
      * Nếu "ghi nhớ" được chọn → sinh + lưu refresh token (fire-and-forget).
      */
-    private void handleLoginSuccess(LoginResult result) {
+    private void handleLoginSuccess() {
         if (chkRememberMe.isSelected()) {
             saveRefreshTokenAsync();
         }
@@ -377,8 +421,7 @@ public class LoginController implements Initializable {
         executor.submit(task);
 
         try {
-            String token = task.get(); // block — ổn vì đây không phải JAT call trực tiếp
-                                        // (ta đang trong Platform.runLater scope từ button click)
+            String token = task.get();
             if (token == null) {
                 Platform.runLater(() ->
                     showAlert(Alert.AlertType.WARNING,
@@ -508,10 +551,10 @@ public class LoginController implements Initializable {
         applyDialogStylesheet(dialog.getDialogPane());
         Platform.runLater(pfNew::requestFocus);
 
-        Optional<ResetResult> result = dialog.showAndWait();
-        if (result.isEmpty()) return; // Cancel
+        Optional<ResetResult> optResult = dialog.showAndWait();
+        if (optResult.isEmpty()) return; // Cancel
 
-        runResetTask(result.get().token(), result.get().newPassword());
+        runResetTask(optResult.get().token(), optResult.get().newPassword());
     }
 
     /**
@@ -565,7 +608,6 @@ public class LoginController implements Initializable {
 
     /** Đổi text label trong loading overlay. */
     private void setLoadingOverlayText(String text) {
-        // Label là con thứ 2 trong VBox bên trong overlay
         loadingOverlay.getChildren().stream()
             .filter(n -> n instanceof VBox)
             .map(n -> (VBox) n)
@@ -588,7 +630,7 @@ public class LoginController implements Initializable {
     }
 
     /**
-     * Hiệu ứng lắc nhẹ error label (tương đương animateError() trong Swing).
+     * Hiệu ứng lắc nhẹ error label.
      * Dùng Timeline dịch chuyển X để bắt mắt người dùng.
      */
     private void shakeError() {
@@ -598,7 +640,7 @@ public class LoginController implements Initializable {
             new KeyFrame(Duration.millis(120), new KeyValue(lblError.translateXProperty(),  8)),
             new KeyFrame(Duration.millis(180), new KeyValue(lblError.translateXProperty(), -6)),
             new KeyFrame(Duration.millis(240), new KeyValue(lblError.translateXProperty(),  6)),
-            new KeyFrame(Duration.millis(300), new KeyValue(lblError.translateXProperty(), 0))
+            new KeyFrame(Duration.millis(300), new KeyValue(lblError.translateXProperty(),  0))
         );
         shake.play();
     }
@@ -631,8 +673,8 @@ public class LoginController implements Initializable {
 
     /** Kết quả từ Task login — tránh throw exception cho lỗi nghiệp vụ. */
     private record LoginResult(boolean success, String errorMessage) {
-        static LoginResult success()              { return new LoginResult(true,  null); }
-        static LoginResult failure(String msg)    { return new LoginResult(false, msg);  }
+        static LoginResult ok()                { return new LoginResult(true,  null); }
+        static LoginResult failure(String msg) { return new LoginResult(false, msg);  }
     }
 
     /** DTO cho bước 2 reset password dialog. */

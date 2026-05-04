@@ -1,11 +1,17 @@
 package com.restaurant.ui.fx.controller;
 
+import java.io.IOException;
+import java.net.URL;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.ResourceBundle;
+
 import com.restaurant.dao.ReportDAO;
 import com.restaurant.model.Report;
-import com.restaurant.model.Report.Status;
 import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.dialog.ReportAddController;
 import com.restaurant.ui.dialog.ReportDetailController;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -18,19 +24,22 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
-import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.net.URL;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.ResourceBundle;
 
 /**
  * Controller cho ReportView.fxml.
@@ -101,8 +110,7 @@ public class ReportController implements Initializable {
             // STAFF: ẩn filter bar và cột extra
             filterBar.setVisible(false);
             filterBar.setManaged(false);
-            colExtra.setVisible(false);
-            colExtra.setManaged(false);
+            tableView.getColumns().remove(colExtra);
         }
     }
 
@@ -265,7 +273,7 @@ public class ReportController implements Initializable {
             dialog.setScene(new Scene(root));
             dialog.setResizable(false);
             dialog.showAndWait();
-        } catch (Exception ex) {
+        } catch (IOException | RuntimeException ex) {
             showError("Không thể mở dialog: " + ex.getMessage());
         }
     }
@@ -273,7 +281,7 @@ public class ReportController implements Initializable {
     private void openDetailDialog(Report report) {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/fxml/ReportDetailDialog.fxml"));
+                    getClass().getResource("/fxml/dialog/ReportDetailDialog.fxml"));
             Parent root = loader.load();
 
             ReportDetailController ctrl = loader.getController();
@@ -287,7 +295,7 @@ public class ReportController implements Initializable {
             dialog.setScene(new Scene(root));
             dialog.setResizable(false);
             dialog.showAndWait();
-        } catch (Exception ex) {
+        } catch (IOException | RuntimeException ex) {
             showError("Không thể mở dialog: " + ex.getMessage());
         }
     }

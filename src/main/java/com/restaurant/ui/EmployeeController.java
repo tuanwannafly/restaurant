@@ -1,5 +1,9 @@
 package com.restaurant.ui;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
@@ -9,6 +13,7 @@ import com.restaurant.session.Permission;
 import com.restaurant.ui.dialog.ConfirmOperationDialogController;
 import com.restaurant.ui.dialog.EmployeeDialogController;
 import com.restaurant.ui.dialog.RegisterStaffDialogController;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -17,15 +22,18 @@ import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Region;
 import javafx.stage.Window;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * JavaFX controller for EmployeeView.fxml.
@@ -87,7 +95,6 @@ public class EmployeeController {
 
     private void applyPermissionVisibility() {
         colAccount.setVisible(showAccountCol);
-        colAccount.setManaged(showAccountCol);
         btnRegister.setVisible(showAccountCol);
         btnRegister.setManaged(showAccountCol);
     }

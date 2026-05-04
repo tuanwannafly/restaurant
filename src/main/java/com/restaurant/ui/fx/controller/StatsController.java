@@ -1,9 +1,16 @@
 package com.restaurant.ui.fx.controller;
 
+import java.net.URL;
+import java.text.DecimalFormat;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.ResourceBundle;
+
 import com.restaurant.dao.StatsDAO;
 import com.restaurant.dao.StatsDAO.RevenueStats;
 import com.restaurant.dao.StatsDAO.TableStats;
 import com.restaurant.dao.StatsDAO.TopItem;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -16,15 +23,14 @@ import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
-import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-
-import java.net.URL;
-import java.text.DecimalFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.ResourceBundle;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 
 /**
  * Controller cho StatsView.fxml.
@@ -122,13 +128,13 @@ public class StatsController implements Initializable {
             return cell;
         });
         // Dummy value factory — rank uses cell index above
-        colRank.setCellValueFactory(c -> new SimpleIntegerProperty(0).asObject());
+        colRank.setCellValueFactory(c -> new SimpleIntegerProperty(0));
 
         colItem.setCellValueFactory(c ->
             new SimpleStringProperty(c.getValue().itemName != null ? c.getValue().itemName : "—"));
 
         colQty.setCellValueFactory(c ->
-            new SimpleIntegerProperty(c.getValue().totalQty).asObject());
+            new SimpleIntegerProperty(c.getValue().totalQty));
         colQty.setStyle("-fx-alignment: CENTER;");
 
         colItemRev.setCellValueFactory(c ->

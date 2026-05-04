@@ -4,8 +4,6 @@ import com.restaurant.dao.ReportDAO;
 import com.restaurant.model.Report;
 import com.restaurant.model.Report.ReportType;
 import com.restaurant.model.Report.Severity;
-import com.restaurant.ui.ReportController;
-
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;

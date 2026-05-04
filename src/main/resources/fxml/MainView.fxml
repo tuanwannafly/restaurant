@@ -6,7 +6,6 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.restaurant.ui.MainController"
             fx:id="rootPane"
             styleClass="root-pane">
 

@@ -1,5 +1,14 @@
 package com.restaurant.ui.fx.controller;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Restaurant;
@@ -16,17 +25,21 @@ import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Controller cho RestaurantView.fxml.
@@ -165,7 +178,7 @@ public class RestaurantController {
             }
         });
 
-        tableView.setRowHeight(42);
+        tableView.setFixedCellSize(42);
     }
 
     /** Nút hành động nhỏ trong cột — outline style theo màu. */
@@ -459,10 +472,11 @@ public class RestaurantController {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Xác nhận xóa nhà hàng");
         alert.setHeaderText("Xóa: " + item.getName());
-        alert.setContentText(
-            "Thao tác này không thể hoàn tác.\n"
-            + "Nhà hàng phải không còn nhân viên nào.\n\n"
-            + "Bạn có chắc chắn muốn xóa?");
+        alert.setContentText("""
+                Thao tác này không thể hoàn tác.
+                Nhà hàng phải không còn nhân viên nào.
+
+                Bạn có chắc chắn muốn xóa?""");
         alert.initOwner(tableView.getScene().getWindow());
         Optional<ButtonType> result = alert.showAndWait();
         return result.isPresent() && result.get() == ButtonType.OK;

@@ -81,7 +81,7 @@ public class MenuDialogController implements Initializable {
     public static Stage create(Stage owner, MenuItem item, Consumer<MenuItem> onSave) {
         try {
             FXMLLoader loader = new FXMLLoader(
-                MenuDialogController.class.getResource("/fxml/MenuDialog.fxml"));
+                MenuDialogController.class.getResource("/fxml/dialog/MenuDialog.fxml"));
             javafx.scene.Parent root = loader.load();
 
             MenuDialogController ctrl = loader.getController();

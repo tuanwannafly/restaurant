@@ -4,7 +4,6 @@ import com.restaurant.dao.ReportDAO;
 import com.restaurant.model.Report;
 import com.restaurant.model.Report.Status;
 import com.restaurant.session.RbacGuard;
-import com.restaurant.ui.ReportController;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;

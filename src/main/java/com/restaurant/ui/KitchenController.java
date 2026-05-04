@@ -3,7 +3,6 @@ package com.restaurant.ui;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +10,13 @@ import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.KitchenDAO.KitchenTicket;
+import com.restaurant.data.DataManager;
+import com.restaurant.model.MenuItem;
+import com.restaurant.session.AppSession;
+import com.restaurant.session.Permission;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -34,14 +40,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.dao.KitchenDAO.KitchenTicket;
-import com.restaurant.data.DataManager;
-import com.restaurant.model.MenuItem;
-import com.restaurant.model.Order;
-import com.restaurant.session.AppSession;
-import com.restaurant.session.Permission;
 
 /**
  * KitchenController  ─  Phase 8
@@ -494,23 +492,52 @@ public class KitchenController implements Initializable {
     private void openDetailDialog(String itemName,
                                    List<KitchenTicket> tickets,
                                    boolean isPending) {
-        // Phase 8 – placeholder, implement chi tiết ở Phase 9
-        LOGGER.info("[KitchenController] openDetailDialog: " + itemName
-                + " isPending=" + isPending);
+        // Phase 8 – placeholder; tickets will be used in Phase 9 detail dialog
+        LOGGER.log(Level.INFO, "[KitchenController] openDetailDialog: {0} isPending={1}",
+                new Object[]{itemName, isPending});
     }
 
     // ─── Toast ────────────────────────────────────────────────────────────────
 
     private void showToast(String message) {
-        // Dùng ToastNotification nếu có; fallback log
-        try {
-            ToastNotification.show(
-                    (javafx.scene.layout.Pane) pendingFlowPane.getScene().getRoot(),
-                    message,
-                    ToastNotification.Type.INFO);
-        } catch (Exception ex) {
-            LOGGER.info("[KitchenController] Toast: " + message);
-        }
+        Platform.runLater(() -> {
+            if (pendingFlowPane.getScene() == null) {
+                LOGGER.log(Level.INFO, "[KitchenController] Toast: {0}", message);
+                return;
+            }
+            try {
+                javafx.scene.layout.Pane root =
+                    (javafx.scene.layout.Pane) pendingFlowPane.getScene().getRoot();
+
+                Label toast = new Label(message);
+                toast.setStyle(
+                    "-fx-background-color: #1E293B;" +
+                    "-fx-text-fill: #FFFFFF;" +
+                    "-fx-font-family: 'Segoe UI';" +
+                    "-fx-font-size: 13px;" +
+                    "-fx-padding: 10 16;" +
+                    "-fx-background-radius: 8;"
+                );
+
+                StackPane overlay = new StackPane(toast);
+                StackPane.setAlignment(toast, Pos.BOTTOM_CENTER);
+                overlay.setPadding(new Insets(0, 0, 32, 0));
+                overlay.setPickOnBounds(false);
+                overlay.setMouseTransparent(true);
+                root.getChildren().add(overlay);
+
+                javafx.animation.FadeTransition ft =
+                    new javafx.animation.FadeTransition(Duration.seconds(1.0), overlay);
+                ft.setFromValue(1.0);
+                ft.setToValue(0.0);
+                ft.setDelay(Duration.seconds(2.0));
+                ft.setOnFinished(ev -> root.getChildren().remove(overlay));
+                ft.play();
+
+            } catch (Exception ex) {
+                LOGGER.log(Level.INFO, "[KitchenController] Toast: {0}", message);
+            }
+        });
     }
 
     // ─── Back button ──────────────────────────────────────────────────────────

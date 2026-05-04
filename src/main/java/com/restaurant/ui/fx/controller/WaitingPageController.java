@@ -1,9 +1,12 @@
 package com.restaurant.ui.fx.controller;
 
-import com.restaurant.ui.PollManagerFx;
 import com.restaurant.ui.TableOrderStage;
+import com.restaurant.ui.fx.util.PollManagerFx;
 
-import javafx.animation.*;
+import javafx.animation.Animation;
+import javafx.animation.Interpolator;
+import javafx.animation.PauseTransition;
+import javafx.animation.RotateTransition;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.util.Duration;

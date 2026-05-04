@@ -10,7 +10,7 @@
 -->
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.restaurant.ui.ReportController"
+            fx:controller="com.restaurant.ui.fx.controller.ReportController"
             style="-fx-background-color: #F8F9FA;">
 
     <!-- ═══════════════════════════════════════════════════

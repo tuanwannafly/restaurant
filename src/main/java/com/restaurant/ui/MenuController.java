@@ -5,6 +5,7 @@ import com.restaurant.model.MenuItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.ui.cell.ActionTableCell;
+import com.restaurant.ui.dialog.MenuDetailDialog;
 import com.restaurant.ui.dialog.MenuDialog;
 import com.restaurant.ui.dialog.MenuStatDialog;
 

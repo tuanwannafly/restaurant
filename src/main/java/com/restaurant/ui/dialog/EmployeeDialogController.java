@@ -1,5 +1,11 @@
 package com.restaurant.ui.dialog;
 
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.function.Consumer;
+
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.data.DataManager;
 import com.restaurant.model.Employee;
@@ -7,21 +13,22 @@ import com.restaurant.session.AppSession;
 import com.restaurant.session.OperationType;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
+
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.io.IOException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Controller for EmployeeDialog.fxml.
@@ -83,7 +90,7 @@ public class EmployeeDialogController {
     public static void show(Window owner, Employee item, Consumer<Employee> onSave) {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    EmployeeDialogController.class.getResource("EmployeeDialog.fxml"));
+                    EmployeeDialogController.class.getResource("/fxml/dialog/EmployeeDialog.fxml"));
             Parent root = loader.load();
 
             EmployeeDialogController ctrl = loader.getController();

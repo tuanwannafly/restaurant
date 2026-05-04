@@ -1,5 +1,12 @@
 package com.restaurant.ui;
 
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.stream.Collectors;
+
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.dao.TableDAO;
 import com.restaurant.model.Order;
@@ -9,6 +16,7 @@ import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.dialog.OpenTableDialogController;
 import com.restaurant.ui.dialog.PaymentDialogController;
 import com.restaurant.ui.dialog.TableDialogController;
+
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
@@ -17,18 +25,16 @@ import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.TilePane;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ResourceBundle;
-import java.util.stream.Collectors;
 
 /**
  * TableController — Phase 5
@@ -295,7 +301,7 @@ public class TableController implements Initializable {
     private void openTableForGuest(TableItem item) {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/fxml/OpenTableDialog.fxml"));
+                    getClass().getResource("/fxml/dialog/OpenTableDialog.fxml"));
             Parent root = loader.load();
             OpenTableDialogController ctrl = loader.getController();
             ctrl.init(item.getId(), item.getName());
@@ -337,7 +343,7 @@ public class TableController implements Initializable {
             }
             try {
                 FXMLLoader loader = new FXMLLoader(
-                        getClass().getResource("/fxml/PaymentDialog.fxml"));
+                        getClass().getResource("/fxml/dialog/PaymentDialog.fxml"));
                 Parent root = loader.load();
                 PaymentDialogController ctrl = loader.getController();
                 ctrl.init(item.getId(), item.getName(), activeOrder.getId());

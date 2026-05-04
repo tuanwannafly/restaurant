@@ -1,19 +1,24 @@
 package com.restaurant.ui.dialog;
 
+import java.io.IOException;
+
 import com.restaurant.data.DataManager;
 import com.restaurant.session.OperationType;
+
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.io.IOException;
 
 /**
  * Controller for RegisterStaffDialog.fxml.
@@ -62,7 +67,7 @@ public class RegisterStaffDialogController {
     public static boolean show(Window owner) {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    RegisterStaffDialogController.class.getResource("RegisterStaffDialog.fxml"));
+                    RegisterStaffDialogController.class.getResource("/fxml/dialog/RegisterStaffDialog.fxml"));
             Parent root = loader.load();
             RegisterStaffDialogController ctrl = loader.getController();
 

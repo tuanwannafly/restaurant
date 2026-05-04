@@ -11,7 +11,6 @@ import java.util.ResourceBundle;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.AppSession.SessionListener;
 import com.restaurant.session.TokenService;
-import com.restaurant.ui.PollManager;
 import com.restaurant.ui.SidebarController;
 import com.restaurant.ui.TopBarController;
 import com.restaurant.ui.control.BadgeLabel;
@@ -163,9 +162,9 @@ public class MainController implements Initializable, SessionListener {
 
             // Stop any background polling
             try {
-                PollManager.getInstance().stopAll();
+                com.restaurant.ui.fx.util.PollManagerFx.getInstance().stopAll();
             } catch (Exception ex) {
-                System.err.println("[MainController] PollManager.stopAll error: " + ex.getMessage());
+                System.err.println("[MainController] PollManagerFx.stopAll error: " + ex.getMessage());
             }
 
             // Close the main window
@@ -195,23 +194,23 @@ public class MainController implements Initializable, SessionListener {
         boolean adm = guard.isRestaurantAdmin();
 
         // ── Always-present panels ────────────────────────────────────────
-        addPanel("home",          createPanel("HomePanel"),          null);
-        addPanel("menu",          createPanel("MenuPanel"),          () -> callMethod("menu",     "loadData"));
-        addPanel("ban",           createPanel("TablePanel"),         () -> callMethod("ban",      "loadData"));
-        addPanel("nhanvien",      createPanel("EmployeePanel"),      () -> callMethod("nhanvien", "loadData"));
-        addPanel("donhang",       createPanel("OrderPanel"),         () -> callMethod("donhang",  "loadData"));
+        addPanel("home",          createPanel("HomeView"),          null);
+        addPanel("menu",          createPanel("MenuView"),          () -> callMethod("menu",     "loadData"));
+        addPanel("ban",           createPanel("TableView"),         () -> callMethod("ban",      "loadData"));
+        addPanel("nhanvien",      createPanel("EmployeeView"),      () -> callMethod("nhanvien", "loadData"));
+        addPanel("donhang",       createPanel("OrderView"),         () -> callMethod("donhang",  "loadData"));
         addPanel("chedomlamviec", createPlaceholder("Ca làm việc"),  null);
-        addPanel("baocao",        createPanel("ReportPanel"),        () -> callMethod("baocao",   "loadData"));
-        addPanel("thongke",       createPanel("StatsPanel"),         () -> callMethod("thongke",  "loadAll"));
-        addPanel("bep",           createPanel("KitchenPanel"),       () -> callMethod("bep",      "loadData"));
-        addPanel("phucvu",        createPanel("WaiterServicePanel"), () -> callMethod("phucvu",   "loadData"));
-        addPanel("thungan",       createPanel("CashierPanel"),       () -> callMethod("thungan",  "loadData"));
+        addPanel("baocao",        createPanel("ReportView"),        () -> callMethod("baocao",   "loadData"));
+        addPanel("thongke",       createPanel("StatsView"),         () -> callMethod("thongke",  "loadAll"));
+        addPanel("bep",           createPanel("KitchenView"),       () -> callMethod("bep",      "loadData"));
+        addPanel("phucvu",        createPanel("WaiterView"), () -> callMethod("phucvu",   "loadData"));
+        addPanel("thungan",       createPanel("CashierView"),       () -> callMethod("thungan",  "loadData"));
 
         // ── Super-admin-only ─────────────────────────────────────────────
         if (sup) {
-            addPanel("nhahangs",   createPanel("RestaurantPanel"),  () -> callMethod("nhahangs",  "loadData"));
-            addPanel("baomat",     createPanel("AuditLogPanel"),    () -> callMethod("baomat",    "loadData"));
-            addPanel("adminstats", createPanel("AdminStatsPanel"),  () -> callMethod("adminstats","loadStats"));
+            addPanel("nhahangs",   createPanel("RestaurantView"),  () -> callMethod("nhahangs",  "loadData"));
+            addPanel("baomat",     createPanel("AuditLogView"),    () -> callMethod("baomat",    "loadData"));
+            addPanel("adminstats", createPanel("AdminStatsView"),  () -> callMethod("adminstats","loadStats"));
         } else {
             addPanel("nhahangs",   createPlaceholder("Nhà hàng"),     null);
             addPanel("baomat",     createPlaceholder("Bảo mật"),      null);
@@ -220,7 +219,7 @@ public class MainController implements Initializable, SessionListener {
 
         // ── Restaurant-admin-only ────────────────────────────────────────
         if (adm) {
-            addPanel("myrestaurant", createPanel("MyRestaurantInfoPanel"),
+            addPanel("myrestaurant", createPanel("MyRestaurantView"),
                      () -> callMethod("myrestaurant", "loadData"));
         } else {
             addPanel("myrestaurant", createPlaceholder("Nhà hàng của tôi"), null);
@@ -256,8 +255,11 @@ public class MainController implements Initializable, SessionListener {
      * @return the loaded {@link Node}, or a placeholder on failure
      */
     private Node createPanel(String simpleName) {
-        // 1. Try FXML
+        // 1. Try FXML — check /fxml/ first, then /com/restaurant/ui/ for views stored there
         URL fxml = getClass().getResource("/fxml/" + simpleName + ".fxml");
+        if (fxml == null) {
+            fxml = getClass().getResource("/com/restaurant/ui/" + simpleName + ".fxml");
+        }
         if (fxml != null) {
             try {
                 FXMLLoader loader = new FXMLLoader(fxml);

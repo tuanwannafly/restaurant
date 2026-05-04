@@ -73,7 +73,7 @@ public class ConfirmOperationDialogController {
             String token = OperationTokenService.getInstance().issueToken(type, targetId);
 
             FXMLLoader loader = new FXMLLoader(
-                    ConfirmOperationDialogController.class.getResource("ConfirmOperationDialog.fxml"));
+                    ConfirmOperationDialogController.class.getResource("/fxml/dialog/ConfirmOperationDialog.fxml"));
             Parent root = loader.load();
 
             ConfirmOperationDialogController ctrl = loader.getController();

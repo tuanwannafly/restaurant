@@ -1,10 +1,17 @@
 package com.restaurant.ui;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
+
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.control.BadgeLabel;
-import javafx.application.Platform;
+
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -13,13 +20,11 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Rectangle;
-
-import java.util.*;
-import java.util.function.Consumer;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
 /**
  * SidebarController
@@ -76,50 +81,51 @@ public class SidebarController {
     //   Mirrors NAV_PAGES / applyRoleFilter() from MainFrame.java
 
     private static final List<NavItem> NAV_CATALOG = List.of(
-        new NavItem("home",           "Trang chủ",       null,
-                Permission.VIEW_ORDER /* placeholder — always shown */,
-                "not_super_admin_but_home"),
+        // FIX 1: removed stray Permission.VIEW_ORDER arg from 4th position;
+        //        badged=false is correct — home never shows a badge counter
+        new NavItem("home",           "Trang chủ",        null,
+                false, "not_super_admin_but_home"),
 
-        new NavItem("menu",           "Thực đơn",        null,
+        new NavItem("menu",           "Thực đơn",         null,
                 false, "not_super_admin"),
 
-        new NavItem("ban",            "Quản bàn",        null,
+        new NavItem("ban",            "Quản bàn",         null,
                 false, "not_super_admin"),
 
-        new NavItem("nhanvien",       "Nhân viên",       Permission.VIEW_EMPLOYEE,
+        new NavItem("nhanvien",       "Nhân viên",        Permission.VIEW_EMPLOYEE,
                 false, "not_super_admin"),
 
-        new NavItem("donhang",        "Đơn hàng",        null,
+        new NavItem("donhang",        "Đơn hàng",         null,
                 false, "not_super_admin"),
 
-        new NavItem("chedomlamviec",  "Ca làm việc",     null,
+        new NavItem("chedomlamviec",  "Ca làm việc",      null,
                 false, "not_super_admin"),
 
-        new NavItem("baocao",         "Báo cáo",         null,
+        new NavItem("baocao",         "Báo cáo",          null,
                 false, "not_super_admin"),
 
-        new NavItem("thongke",        "Thống kê",        Permission.VIEW_STATS,
+        new NavItem("thongke",        "Thống kê",         Permission.VIEW_STATS,
                 false, "not_super_admin"),
 
-        new NavItem("nhahangs",       "Nhà hàng",        null,
+        new NavItem("nhahangs",       "Nhà hàng",         null,
                 false, "super_admin_only"),
 
-        new NavItem("bep",            "Bếp",             Permission.VIEW_KITCHEN,
+        new NavItem("bep",            "Bếp",              Permission.VIEW_KITCHEN,
                 true,  "not_super_admin"),
 
-        new NavItem("phucvu",         "Phục vụ",         Permission.VIEW_WAITER_SERVICE,
+        new NavItem("phucvu",         "Phục vụ",          Permission.VIEW_WAITER_SERVICE,
                 true,  "not_super_admin"),
 
-        new NavItem("thungan",        "Thu ngân",        Permission.VIEW_CASHIER,
+        new NavItem("thungan",        "Thu ngân",         Permission.VIEW_CASHIER,
                 true,  "not_super_admin"),
 
         new NavItem("myrestaurant",   "Nhà hàng của tôi", null,
                 false, "restaurant_admin_only"),
 
-        new NavItem("baomat",         "Bảo mật",         null,
+        new NavItem("baomat",         "Bảo mật",          null,
                 false, "super_admin_only"),
 
-        new NavItem("adminstats",     "Thống kê Admin",  null,
+        new NavItem("adminstats",     "Thống kê Admin",   null,
                 false, "super_admin_only")
     );
 
@@ -187,9 +193,9 @@ public class SidebarController {
 
                 // Capture badge references
                 switch (ni.key()) {
-                    case "bep"    -> kitchenBadge = bl;
-                    case "phucvu" -> waiterBadge  = bl;
-                    case "thungan"-> cashierBadge = bl;
+                    case "bep"     -> kitchenBadge = bl;
+                    case "phucvu"  -> waiterBadge  = bl;
+                    case "thungan" -> cashierBadge = bl;
                 }
             } else {
                 itemNode = buildPlainNavItem(ni.label(), ni.key());
@@ -226,6 +232,11 @@ public class SidebarController {
         activePage = pageKey;
 
         itemNodes.forEach((key, node) -> {
+            // FIX 3: null-guard — itemNodes values should never be null,
+            //         but guard defensively to avoid NPE if map was populated
+            //         before the node was fully initialised
+            if (node == null) return;
+
             boolean active = key.equals(pageKey);
             if (node instanceof BadgeLabel bl) {
                 bl.setActive(active);
@@ -312,7 +323,10 @@ public class SidebarController {
         Label lblName = new Label(session.getUserName());
         lblName.getStyleClass().add("user-name-label");
 
-        Label lblRole = new Label(session.getRoleLabel());
+        // FIX 3 (continued): null-safe getRoleLabel — method may return null
+        //         when the session role hasn't been set (e.g. early build call)
+        String roleLabel = session.getRoleLabel();
+        Label lblRole = new Label(roleLabel != null ? roleLabel : "");
         lblRole.getStyleClass().add("user-role-label");
 
         nameBlock.getChildren().addAll(lblName, lblRole);
