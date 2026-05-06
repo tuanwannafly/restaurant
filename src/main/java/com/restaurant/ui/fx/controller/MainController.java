@@ -150,6 +150,7 @@ public class MainController implements Initializable, SessionListener {
     public BadgeLabel getKitchenBadge() { return sidebarCtrl.getKitchenBadge(); }
     public BadgeLabel getWaiterBadge()  { return sidebarCtrl.getWaiterBadge();  }
     public BadgeLabel getCashierBadge() { return sidebarCtrl.getCashierBadge(); }
+    public BadgeLabel getRequestBadge() { return sidebarCtrl.getRequestBadge(); }
 
     /**
      * Phase 4: Lấy controller chi tiết đơn đăng ký nhà hàng.
@@ -256,6 +257,33 @@ public class MainController implements Initializable, SessionListener {
             addPanel("baomat",     createPanel("baomat",     "AuditLogView"),   () -> callMethod("baomat",     "loadData"));
             addPanel("adminstats", createPanel("adminstats", "AdminStatsView"), () -> callMethod("adminstats", "loadStats"));
 
+            // ── Phase 3: Danh sách đơn đăng ký nhà hàng ─────────────────────
+            try {
+                java.net.URL reqListFxml = getClass().getResource(
+                        "/fxml/RestaurantRequestListView.fxml");
+                FXMLLoader reqListLoader = new FXMLLoader(reqListFxml);
+                Node reqListNode = reqListLoader.load();
+                RestaurantRequestListController reqListCtrl = reqListLoader.getController();
+
+                // Wire "Xem chi tiết" → populate detail + navigate
+                reqListCtrl.setOnOpenDetail(req -> {
+                    RestaurantRequestDetailController detailCtrl = getRequestDetailController();
+                    if (detailCtrl != null) {
+                        detailCtrl.populate(req);
+                    }
+                    navigateTo("request_detail");
+                });
+
+                addPanel("dondk", reqListNode, reqListCtrl::loadData);
+                pageControllers.put("dondk", reqListCtrl);
+
+            } catch (Exception ex) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                System.err.println("[MainController] Lỗi load RestaurantRequestListView: "
+                        + cause.getMessage());
+                addPanel("dondk", createPlaceholder("Đơn đăng ký"), null);
+            }
+
             // ── Phase 4: Đơn đăng ký nhà hàng — chi tiết + phê duyệt ────────
             try {
                 java.net.URL reqDetailFxml = getClass().getResource(
@@ -265,7 +293,7 @@ public class MainController implements Initializable, SessionListener {
                 RestaurantRequestDetailController reqDetailCtrl = reqDetailLoader.getController();
 
                 // Wire "Quay lại" → về danh sách đơn đăng ký + refresh
-                reqDetailCtrl.setOnBack(() -> navigateTo("yeucaudangky"));
+                reqDetailCtrl.setOnBack(() -> navigateTo("dondk"));
 
                 addPanel("request_detail", reqDetailNode, null);
 
@@ -285,6 +313,7 @@ public class MainController implements Initializable, SessionListener {
             addPanel("baomat",            createPlaceholder("Bảo mật"),           null);
             addPanel("adminstats",        createPlaceholder("Thống kê Admin"),    null);
             addPanel("request_detail",    createPlaceholder("Chi tiết đơn đăng ký"), null);
+            addPanel("dondk",             createPlaceholder("Đơn đăng ký"),       null);
         }
 
         // ── Restaurant-admin-only ────────────────────────────────────────

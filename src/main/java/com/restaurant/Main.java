@@ -201,10 +201,11 @@ public class Main extends Application {
         stage.show();
 
         // Wire badge updater into PollManagerFx
-        PollManagerFx.getInstance().setBadgeUpdater((k, w, p) -> {
+        PollManagerFx.getInstance().setBadgeUpdater((k, w, p, r) -> {
             if (controller.getKitchenBadge() != null) controller.getKitchenBadge().setCount(k);
             if (controller.getWaiterBadge()  != null) controller.getWaiterBadge() .setCount(w);
             if (controller.getCashierBadge() != null) controller.getCashierBadge().setCount(p);
+            if (controller.getRequestBadge() != null) controller.getRequestBadge().setCount(r);
         });
         PollManagerFx.getInstance().registerBadgeRefresh(10_000);
     }

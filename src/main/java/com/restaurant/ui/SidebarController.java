@@ -109,6 +109,9 @@ public class SidebarController {
         new NavItem("nhahangs",       "Nhà hàng",         null,
                 false, "super_admin_only"),
 
+        new NavItem("dondk",          "Đơn đăng ký",      null,
+                true,  "super_admin_only"),
+
         new NavItem("bep",            "Bếp",              Permission.VIEW_KITCHEN,
                 true,  "not_super_admin"),
 
@@ -139,6 +142,7 @@ public class SidebarController {
     private BadgeLabel kitchenBadge;
     private BadgeLabel waiterBadge;
     private BadgeLabel cashierBadge;
+    private BadgeLabel requestBadge;
 
     // ── Constructor ───────────────────────────────────────────────────────
 
@@ -160,6 +164,7 @@ public class SidebarController {
     public BadgeLabel getKitchenBadge() { return kitchenBadge; }
     public BadgeLabel getWaiterBadge()  { return waiterBadge;  }
     public BadgeLabel getCashierBadge() { return cashierBadge; }
+    public BadgeLabel getRequestBadge() { return requestBadge; }
 
     /**
      * Builds the sidebar.  Must be called on the FX Application Thread
@@ -195,6 +200,7 @@ public class SidebarController {
                     case "bep"     -> kitchenBadge = bl;
                     case "phucvu"  -> waiterBadge  = bl;
                     case "thungan" -> cashierBadge = bl;
+                    case "dondk"   -> requestBadge = bl;
                 }
             } else {
                 itemNode = buildPlainNavItem(ni.label(), ni.key());

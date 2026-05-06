@@ -3,14 +3,15 @@ package com.restaurant.ui.fx.util;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.restaurant.dao.KitchenDAO;
+import com.restaurant.dao.OrderDAO;
+import com.restaurant.dao.RestaurantRequestDAO;
+import com.restaurant.session.AppSession;
+
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.util.Duration;
-
-import com.restaurant.dao.KitchenDAO;
-import com.restaurant.dao.OrderDAO;
-import com.restaurant.session.AppSession;
 
 /**
  * PollManagerFx — JavaFX replacement for the Swing {@code PollManager}.
@@ -95,6 +96,7 @@ public final class PollManagerFx {
 
     private KitchenDAO kitchenDAO = new KitchenDAO();
     private OrderDAO   orderDAO   = new OrderDAO();
+    private RestaurantRequestDAO requestDAO = new RestaurantRequestDAO();
 
     /**
      * Reference to the root controller that owns the nav badge labels.
@@ -109,11 +111,12 @@ public final class PollManagerFx {
     @FunctionalInterface
     public interface BadgeUpdater {
         /**
-         * @param pendingKitchen  items waiting in kitchen queue
-         * @param readyWaiter     dishes ready for the waiter to serve
-         * @param paymentRequests tables requesting the bill
+         * @param pendingKitchen   items waiting in kitchen queue
+         * @param readyWaiter      dishes ready for the waiter to serve
+         * @param paymentRequests  tables requesting the bill
+         * @param pendingRequests  restaurant registration requests awaiting review (SUPER_ADMIN)
          */
-        void update(int pendingKitchen, int readyWaiter, int paymentRequests);
+        void update(int pendingKitchen, int readyWaiter, int paymentRequests, int pendingRequests);
     }
 
     // =========================================================================
@@ -255,15 +258,26 @@ public final class PollManagerFx {
         if (badgeUpdater == null) return;
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
+        boolean isSuperAdmin = com.restaurant.session.RbacGuard.getInstance().isSuperAdmin();
 
         FxUtils.runAsync(
             () -> {
                 int pending  = kitchenDAO.getPendingCount(restaurantId);
                 int ready    = kitchenDAO.getReadyCount(restaurantId);
                 int payment  = orderDAO.getPaymentRequestedCount(restaurantId);
-                return new int[]{ pending, ready, payment };
+                // Chỉ query pending requests nếu là SUPER_ADMIN (tránh lỗi SecurityException)
+                int pendingReq = 0;
+                if (isSuperAdmin) {
+                    try {
+                        pendingReq = requestDAO.countByStatus("PENDING");
+                    } catch (Exception ex) {
+                        System.err.println("[PollManagerFx] pendingRequests query error: "
+                                + ex.getMessage());
+                    }
+                }
+                return new int[]{ pending, ready, payment, pendingReq };
             },
-            counts -> badgeUpdater.update(counts[0], counts[1], counts[2]),
+            counts -> badgeUpdater.update(counts[0], counts[1], counts[2], counts[3]),
             err -> System.err.println("[PollManagerFx] Badge refresh error: "
                     + err.getMessage())
         );
@@ -291,6 +305,9 @@ public final class PollManagerFx {
 
     public OrderDAO getOrderDAO() { return orderDAO; }
     public void setOrderDAO(OrderDAO orderDAO) { this.orderDAO = orderDAO; }
+
+    public RestaurantRequestDAO getRequestDAO() { return requestDAO; }
+    public void setRequestDAO(RestaurantRequestDAO requestDAO) { this.requestDAO = requestDAO; }
 
     public BadgeUpdater getBadgeUpdater() { return badgeUpdater; }
     public void setBadgeUpdater(BadgeUpdater badgeUpdater) {
