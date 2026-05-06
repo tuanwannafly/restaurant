@@ -344,13 +344,18 @@ public class StatsDAO {
             "SELECT " +
             "  (SELECT COUNT(*) " +
             "     FROM restaurants " +
-            "    WHERE status = 'ACTIVE')             AS total_restaurants, " +
-            "  NVL(SUM(o.total_amount), 0)            AS total_revenue, " +
-            "  COUNT(o.order_id)                      AS total_orders " +
-            "FROM orders o " +
-            "WHERE o.status = 'COMPLETED' " +
-            "  AND TRUNC(o.created_at) >= ? " +
-            "  AND TRUNC(o.created_at) <= ?";
+            "    WHERE status = 'ACTIVE')                        AS total_restaurants, " +
+            "  (SELECT NVL(SUM(o.total_amount), 0) " +
+            "     FROM orders o " +
+            "    WHERE o.status = 'COMPLETED' " +
+            "      AND TRUNC(o.created_at) >= ? " +
+            "      AND TRUNC(o.created_at) <= ?)                 AS total_revenue, " +
+            "  (SELECT COUNT(o.order_id) " +
+            "     FROM orders o " +
+            "    WHERE o.status = 'COMPLETED' " +
+            "      AND TRUNC(o.created_at) >= ? " +
+            "      AND TRUNC(o.created_at) <= ?)                 AS total_orders " +
+            "FROM DUAL";
 
         Map<String, Long> result = new HashMap<>();
         result.put("total_restaurants", 0L);
@@ -362,6 +367,8 @@ public class StatsDAO {
 
             ps.setDate(1, java.sql.Date.valueOf(from));
             ps.setDate(2, java.sql.Date.valueOf(to));
+            ps.setDate(3, java.sql.Date.valueOf(from));
+            ps.setDate(4, java.sql.Date.valueOf(to));
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {

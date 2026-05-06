@@ -4,8 +4,8 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.fx.controller.RestaurantDetailController"
             styleClass="bg-page">
 
@@ -22,7 +22,9 @@
                 <Label text="Chi tiết" style="-fx-font-size: 13px; -fx-text-fill: #374151;"/>
             </HBox>
             <Label text="Chi tiết nhà hàng" styleClass="page-title"/>
-            <Separator><VBox.margin><Insets top="10"/></Separator>
+            <Separator>
+                <VBox.margin><Insets top="10"/></VBox.margin>
+            </Separator>
         </VBox>
     </top>
 

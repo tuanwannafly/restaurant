@@ -29,8 +29,8 @@
     src/main/resources/fxml/CashierView.fxml
 -->
 
-<BorderPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.fx.controller.CashierController"
             styleClass="cashier-root">
 

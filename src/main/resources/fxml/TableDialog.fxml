@@ -2,7 +2,8 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns:fx="http://javafx.com/fxml"
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.restaurant.ui.dialog.TableDialogController"
       spacing="16" style="-fx-padding: 24; -fx-background-color: white;"
       minWidth="340">

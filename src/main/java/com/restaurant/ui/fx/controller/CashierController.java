@@ -393,8 +393,10 @@ public class CashierController implements Initializable {
 
                 pendingContainer.getChildren().add(card);
             } catch (Exception ex) {
+                // ex.getMessage() for LoadException is just the FXML path — log the cause for real info
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                 System.err.println("[CashierController] rebuildPendingColumn card lỗi: "
-                    + ex.getMessage());
+                    + cause.getClass().getSimpleName() + ": " + cause.getMessage());
             }
         }
     }

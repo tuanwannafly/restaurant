@@ -162,8 +162,11 @@ public class AuditLogController {
     /**
      * Tải danh sách audit log theo bộ lọc hiện tại, chạy trên daemon thread.
      * Cập nhật TableView + count label trên FX thread.
+     *
+     * <p><b>Visibility:</b> {@code public} để {@code MainController.callMethod()}
+     * có thể gọi qua reflection khi điều hướng trở lại trang này.
      */
-    private void loadData() {
+    public void loadData() {
         String        actionFilter = buildActionFilter();
         LocalDateTime from         = toStartOfDay(dpFrom.getValue());
         LocalDateTime to           = toEndOfDay(dpTo.getValue());

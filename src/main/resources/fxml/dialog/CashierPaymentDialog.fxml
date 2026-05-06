@@ -38,8 +38,8 @@
     src/main/resources/fxml/dialog/CashierPaymentDialog.fxml
 -->
 
-<BorderPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.fx.controller.CashierPaymentDialogController"
             styleClass="dialog-root"
             prefWidth="500" prefHeight="420">

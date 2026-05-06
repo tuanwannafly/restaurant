@@ -31,12 +31,12 @@
     src/main/resources/fxml/PaymentRequestCard.fxml
 -->
 
-<VBox xmlns="http://javafx.com/javafx"
-      xmlns:fx="http://javafx.com/fxml"
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
       fx:id="cardRoot"
       spacing="8"
       styleClass="payment-card payment-card-pending"
-      cursor="HAND">
+      style="-fx-cursor: hand;">
     <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
 
     <!-- Tên bàn -->

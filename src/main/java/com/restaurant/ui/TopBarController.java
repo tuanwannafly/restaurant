@@ -58,13 +58,14 @@ public class TopBarController implements Initializable {
         // Role badge
         lblRoleBadge.setText(session.getRoleLabel());
 
-        // Profile button
+        // Profile button — chỉ hiển thị khi có quyền EDIT_OWN_PROFILE
         boolean canEditProfile = session.hasPermission(Permission.EDIT_OWN_PROFILE);
         String displayName = session.getUserName();
-        if (displayName != null && !displayName.isBlank()) {
+        boolean showBtn = canEditProfile && displayName != null && !displayName.isBlank();
+        btnProfile.setVisible(showBtn);
+        btnProfile.setManaged(showBtn);
+        if (showBtn) {
             btnProfile.setText(displayName + "  \u25BE");
-            btnProfile.setVisible(true);
-            btnProfile.setManaged(true);
         }
     }
 

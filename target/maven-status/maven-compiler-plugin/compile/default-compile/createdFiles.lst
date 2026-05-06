@@ -17,6 +17,7 @@ com\restaurant\ui\TableOrderStage$4.class
 com\restaurant\ui\fx\controller\RestaurantController$4.class
 com\restaurant\dao\TableDAO$1.class
 com\restaurant\ui\fx\controller\CashierController$PaymentRequest.class
+com\restaurant\ui\fx\controller\RestaurantDialogController$4.class
 com\restaurant\ui\dialog\EmployeeDialogController$1.class
 com\restaurant\ui\dialog\MenuDialogController.class
 com\restaurant\ui\HomeController$1.class
@@ -63,7 +64,6 @@ com\restaurant\ui\fx\controller\RestaurantController$3.class
 com\restaurant\ui\fx\controller\BasePageController.class
 com\restaurant\ui\fx\controller\StatsController.class
 com\restaurant\ui\dialog\ReportAddController.class
-com\restaurant\ui\fx\controller\LoginController$3.class
 com\restaurant\model\Report$ReportType.class
 com\restaurant\ui\dialog\PaymentDialogController$2.class
 com\restaurant\ui\TableController$3.class
@@ -95,10 +95,8 @@ com\restaurant\ui\fx\controller\StatusPageController$StatusRow.class
 com\restaurant\ui\fx\controller\ReportController$StatusBadgeCell.class
 com\restaurant\ui\TopBarController.class
 com\restaurant\model\Order.class
-com\restaurant\ui\fx\controller\LoginController$ResetResult.class
 com\restaurant\ui\fx\controller\MyRestaurantController$1.class
 com\restaurant\ui\fx\controller\CartPageController$CartRow.class
-com\restaurant\ui\fx\controller\LoginController$2.class
 com\restaurant\model\Report$Severity.class
 com\restaurant\ui\fx\controller\CashierController$PaymentRequest$PaymentMethod.class
 com\restaurant\ui\fx\controller\ResultBadgeTableCell.class
@@ -120,6 +118,7 @@ com\restaurant\ui\fx\controller\RestaurantController$7.class
 com\restaurant\ui\fx\controller\AdminHomePanelController$NavigateHandler.class
 com\restaurant\ui\OrderController.class
 com\restaurant\ui\fx\controller\DeliveryCardController$3.class
+com\restaurant\ui\fx\controller\RestaurantDetailController$2.class
 com\restaurant\ui\fx\controller\AdminStatsController$1.class
 com\restaurant\ui\fx\controller\RestaurantDialogController$1.class
 com\restaurant\dao\EmployeeDAO$1.class
@@ -145,7 +144,6 @@ com\restaurant\ui\KitchenController.class
 com\restaurant\ui\fx\controller\ReportController$SeverityBadgeCell.class
 com\restaurant\ui\fx\util\FxUtils$ToastType.class
 com\restaurant\ui\fx\controller\CashierPaymentDialogController.class
-com\restaurant\ui\fx\controller\LoginController$4.class
 com\restaurant\dao\RestaurantDAO.class
 com\restaurant\ui\EmployeeController$3.class
 com\restaurant\ui\fx\controller\MyRestaurantController.class
@@ -220,6 +218,5 @@ com\restaurant\ui\dialog\TableDialogController.class
 com\restaurant\ui\TableCardController$1.class
 com\restaurant\ui\SimpleSpinnerFx.class
 com\restaurant\model\TableItem.class
-com\restaurant\ui\fx\controller\LoginController$LoginResult.class
 com\restaurant\ui\fx\controller\ProfileController$5.class
 com\restaurant\session\Permission.class

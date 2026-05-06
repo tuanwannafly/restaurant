@@ -85,9 +85,11 @@ public class MainController implements Initializable, SessionListener {
 
     // ── Page registry ─────────────────────────────────────────────────────
     //   pageKey → Node (page panel); only one is visible at a time.
-    private final Map<String, Node>     pages         = new LinkedHashMap<>();
+    private final Map<String, Node>     pages           = new LinkedHashMap<>();
+    //   pageKey → controller object; used by callMethod() to invoke loadData() etc.
+    private final Map<String, Object>   pageControllers = new HashMap<>();
     //   pageKey → Runnable called on navigateTo() to refresh the panel's data
-    private final Map<String, Runnable> refreshHooks  = new HashMap<>();
+    private final Map<String, Runnable> refreshHooks    = new HashMap<>();
 
     // ── Session timer ─────────────────────────────────────────────────────
     private Timeline sessionCheckTimeline;
@@ -195,17 +197,17 @@ public class MainController implements Initializable, SessionListener {
         boolean adm = guard.isRestaurantAdmin();
 
         // ── Always-present panels ────────────────────────────────────────
-        addPanel("home",          createPanel("HomeView"),          null);
-        addPanel("menu",          createPanel("MenuView"),          () -> callMethod("menu",     "loadData"));
-        addPanel("ban",           createPanel("TableView"),         () -> callMethod("ban",      "loadData"));
-        addPanel("nhanvien",      createPanel("EmployeeView"),      () -> callMethod("nhanvien", "loadData"));
-        addPanel("donhang",       createPanel("OrderView"),         () -> callMethod("donhang",  "loadData"));
-        addPanel("chedomlamviec", createPlaceholder("Ca làm việc"),  null);
-        addPanel("baocao",        createPanel("ReportView"),        () -> callMethod("baocao",   "loadData"));
-        addPanel("thongke",       createPanel("StatsView"),         () -> callMethod("thongke",  "loadAll"));
-        addPanel("bep",           createPanel("KitchenView"),       () -> callMethod("bep",      "loadData"));
-        addPanel("phucvu",        createPanel("WaiterView"), () -> callMethod("phucvu",   "loadData"));
-        addPanel("thungan",       createPanel("CashierView"),       () -> callMethod("thungan",  "loadData"));
+        addPanel("home",          createPanel("home",     "HomeView"),     null);
+        addPanel("menu",          createPanel("menu",     "MenuView"),     () -> callMethod("menu",          "loadData"));
+        addPanel("ban",           createPanel("ban",      "TableView"),    () -> callMethod("ban",           "loadData"));
+        addPanel("nhanvien",      createPanel("nhanvien", "EmployeeView"), () -> callMethod("nhanvien",      "loadData"));
+        addPanel("donhang",       createPanel("donhang",  "OrderView"),    () -> callMethod("donhang",       "loadData"));
+        addPanel("chedomlamviec", createPlaceholder("Ca làm việc"),        null);
+        addPanel("baocao",        createPanel("baocao",   "ReportView"),   () -> callMethod("baocao",        "loadData"));
+        addPanel("thongke",       createPanel("thongke",  "StatsView"),    () -> callMethod("thongke",       "loadAll"));
+        addPanel("bep",           createPanel("bep",      "KitchenView"),  () -> callMethod("bep",           "loadData"));
+        addPanel("phucvu",        createPanel("phucvu",   "WaiterView"),   () -> callMethod("phucvu",        "loadData"));
+        addPanel("thungan",       createPanel("thungan",  "CashierView"),  () -> callMethod("thungan",       "loadData"));
 
         // ── Super-admin-only ─────────────────────────────────────────────
         if (sup) {
@@ -234,14 +236,15 @@ public class MainController implements Initializable, SessionListener {
                 addPanel("nhahangs",         restaurantNode, restaurantCtrl::loadData);
                 addPanel("restaurant_detail", detailNode,    null);
 
-            } catch (IOException ex) {
-                System.err.println("[MainController] Lỗi load RestaurantView: " + ex.getMessage());
+            } catch (Exception ex) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                System.err.println("[MainController] Lỗi load RestaurantView: " + cause.getMessage());
                 addPanel("nhahangs",         createPlaceholder("Nhà hàng"), null);
                 addPanel("restaurant_detail", createPlaceholder("Chi tiết nhà hàng"), null);
             }
 
-            addPanel("baomat",     createPanel("AuditLogView"),    () -> callMethod("baomat",    "loadData"));
-            addPanel("adminstats", createPanel("AdminStatsView"),  () -> callMethod("adminstats","loadStats"));
+            addPanel("baomat",     createPanel("baomat",     "AuditLogView"),   () -> callMethod("baomat",     "loadData"));
+            addPanel("adminstats", createPanel("adminstats", "AdminStatsView"), () -> callMethod("adminstats", "loadStats"));
         } else {
             addPanel("nhahangs",          createPlaceholder("Nhà hàng"),          null);
             addPanel("restaurant_detail", createPlaceholder("Chi tiết nhà hàng"), null);
@@ -251,7 +254,7 @@ public class MainController implements Initializable, SessionListener {
 
         // ── Restaurant-admin-only ────────────────────────────────────────
         if (adm) {
-            addPanel("myrestaurant", createPanel("MyRestaurantView"),
+            addPanel("myrestaurant", createPanel("myrestaurant", "MyRestaurantView"),
                      () -> callMethod("myrestaurant", "loadData"));
         } else {
             addPanel("myrestaurant", createPlaceholder("Nhà hàng của tôi"), null);
@@ -283,10 +286,11 @@ public class MainController implements Initializable, SessionListener {
      * {@code /fxml/<SimpleName>.fxml} first, then falls back to
      * {@code com.restaurant.ui.<SimpleName>} constructor.
      *
-     * @param simpleName simple class / FXML name (e.g. "HomePanel")
-     * @return the loaded {@link Node}, or a placeholder on failure
+     * @param pageKey    navigation key used to store the controller (e.g. {@code "menu"})
+     * @param simpleName FXML file base name (e.g. {@code "MenuView"})
+     * @return the loaded root {@link Node}, or a placeholder on failure
      */
-    private Node createPanel(String simpleName) {
+    private Node createPanel(String pageKey, String simpleName) {
         // 1. Try FXML — check /fxml/ first, then /com/restaurant/ui/ for views stored there
         URL fxml = getClass().getResource("/fxml/" + simpleName + ".fxml");
         if (fxml == null) {
@@ -295,18 +299,30 @@ public class MainController implements Initializable, SessionListener {
         if (fxml != null) {
             try {
                 FXMLLoader loader = new FXMLLoader(fxml);
-                return loader.load();
-            } catch (IOException ex) {
+                Node node = loader.load();
+                // ── BUG FIX: store controller so callMethod() can invoke loadData() etc. ──
+                Object ctrl = loader.getController();
+                if (ctrl != null) pageControllers.put(pageKey, ctrl);
+                return node;
+            } catch (Exception ex) {
+                // Catch Exception (not just IOException) so RuntimeException thrown by
+                // custom components (e.g. StatCard failing to load its sub-FXML) does
+                // not propagate out of initPanels() and prevent subsequent panels
+                // (including the Restaurant panel) from being registered.
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                 System.err.println("[MainController] FXML load failed for " + simpleName
-                        + ": " + ex.getMessage());
+                        + ": " + cause.getMessage());
             }
         }
 
-        // 2. Try direct instantiation
+        // 2. Try direct instantiation (legacy panels that extend a Node subclass)
         try {
             Class<?> cls = Class.forName("com.restaurant.ui." + simpleName);
             Object inst = cls.getDeclaredConstructor().newInstance();
-            if (inst instanceof Node n) return n;
+            if (inst instanceof Node n) {
+                pageControllers.put(pageKey, inst);
+                return n;
+            }
         } catch (Exception ex) {
             // Panel not yet ported to JavaFX
         }
@@ -326,18 +342,25 @@ public class MainController implements Initializable, SessionListener {
     }
 
     /**
-     * Reflectively invokes a no-arg method on the panel registered under
-     * {@code pageKey} (e.g. {@code loadData()}, {@code loadAll()}).
-     * Silently swallows {@link NoSuchMethodException} so that stub panels
-     * don't crash navigation.
+     * Reflectively invokes a no-arg method on the <em>controller</em> registered
+     * under {@code pageKey} (e.g. {@code loadData()}, {@code loadAll()}).
+     *
+     * <p>Previously this method called the method on the root {@link Node}, which
+     * always failed with {@link NoSuchMethodException} because standard JavaFX
+     * containers (BorderPane, VBox …) have no application-level methods.
+     * The fix uses {@link #pageControllers} which stores the actual FXMLLoader
+     * controller objects.
+     *
+     * <p>Silently swallows {@link NoSuchMethodException} so that placeholder
+     * panels don't crash navigation.
      */
     private void callMethod(String pageKey, String methodName) {
-        Node node = pages.get(pageKey);
-        if (node == null) return;
+        Object ctrl = pageControllers.get(pageKey);
+        if (ctrl == null) return;
         try {
-            node.getClass().getMethod(methodName).invoke(node);
+            ctrl.getClass().getMethod(methodName).invoke(ctrl);
         } catch (NoSuchMethodException ignored) {
-            // Panel not yet implemented or uses a different API
+            // Controller does not expose this method — safe to skip
         } catch (Exception ex) {
             System.err.println("[MainController] " + methodName + " on " + pageKey
                     + " failed: " + ex.getMessage());

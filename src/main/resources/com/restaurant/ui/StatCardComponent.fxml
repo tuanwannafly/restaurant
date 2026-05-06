@@ -16,6 +16,7 @@
 <fx:root type="javafx.scene.layout.VBox"
          spacing="0"
          maxWidth="Infinity"
+         xmlns="http://javafx.com/javafx/17"
          xmlns:fx="http://javafx.com/fxml/1">
 
     <!-- Top accent strip (colour set programmatically) -->

@@ -23,8 +23,8 @@
 
 <BorderPane
     styleClass="page-bg"
-    xmlns="http://javafx.com/javafx"
-    xmlns:fx="http://javafx.com/fxml"
+    xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1"
     fx:controller="com.restaurant.ui.fx.controller.AdminStatsController">
 
     <!-- ══════════════════════════════════════════════════════════

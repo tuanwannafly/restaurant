@@ -168,10 +168,7 @@ public class TableController implements Initializable {
 
         for (TableItem item : displayedItems) {
             try {
-                FXMLLoader loader = new FXMLLoader(
-                        getClass().getResource("/fxml/TableCardComponent.fxml"));
-                Parent card = loader.load();
-                TableCardController ctrl = loader.getController();
+                TableCardController ctrl = new TableCardController();
 
                 ctrl.setData(item);
                 ctrl.setOnDelete(this::handleDelete);
@@ -179,9 +176,9 @@ public class TableController implements Initializable {
                 ctrl.setOnDetail(this::handleDetail);
                 ctrl.setOnDoubleClick(this::handleDoubleClick);
 
-                tilePaneCards.getChildren().add(card);
+                tilePaneCards.getChildren().add(ctrl);
 
-            } catch (IOException ex) {
+            } catch (RuntimeException ex) {
                 System.err.println("[TableController] rebuildCards lỗi: " + ex.getMessage());
             }
         }

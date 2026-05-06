@@ -24,6 +24,7 @@
     fitToWidth="true"
     hbarPolicy="NEVER"
     styleClass="home-scroll"
+    xmlns="http://javafx.com/javafx/17"
     xmlns:fx="http://javafx.com/fxml/1"
     fx:controller="com.restaurant.ui.HomeController">
 
