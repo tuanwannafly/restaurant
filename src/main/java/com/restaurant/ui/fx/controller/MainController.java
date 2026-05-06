@@ -1,6 +1,5 @@
 package com.restaurant.ui.fx.controller;
 
-import java.io.IOException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -152,6 +151,17 @@ public class MainController implements Initializable, SessionListener {
     public BadgeLabel getWaiterBadge()  { return sidebarCtrl.getWaiterBadge();  }
     public BadgeLabel getCashierBadge() { return sidebarCtrl.getCashierBadge(); }
 
+    /**
+     * Phase 4: Lấy controller chi tiết đơn đăng ký nhà hàng.
+     * Dùng bởi RestaurantRequestListController để wire navigation "Xem chi tiết".
+     *
+     * @return controller hoặc {@code null} nếu chưa load (non-SUPER_ADMIN)
+     */
+    public RestaurantRequestDetailController getRequestDetailController() {
+        Object ctrl = pageControllers.get("request_detail");
+        return (ctrl instanceof RestaurantRequestDetailController rdc) ? rdc : null;
+    }
+
     // ── SessionListener ────────────────────────────────────────────────────
 
     /**
@@ -245,11 +255,36 @@ public class MainController implements Initializable, SessionListener {
 
             addPanel("baomat",     createPanel("baomat",     "AuditLogView"),   () -> callMethod("baomat",     "loadData"));
             addPanel("adminstats", createPanel("adminstats", "AdminStatsView"), () -> callMethod("adminstats", "loadStats"));
+
+            // ── Phase 4: Đơn đăng ký nhà hàng — chi tiết + phê duyệt ────────
+            try {
+                java.net.URL reqDetailFxml = getClass().getResource(
+                        "/fxml/RestaurantRequestDetailView.fxml");
+                FXMLLoader reqDetailLoader = new FXMLLoader(reqDetailFxml);
+                Node reqDetailNode = reqDetailLoader.load();
+                RestaurantRequestDetailController reqDetailCtrl = reqDetailLoader.getController();
+
+                // Wire "Quay lại" → về danh sách đơn đăng ký + refresh
+                reqDetailCtrl.setOnBack(() -> navigateTo("yeucaudangky"));
+
+                addPanel("request_detail", reqDetailNode, null);
+
+                // Expose detail controller để RestaurantRequestListController có thể wire
+                pageControllers.put("request_detail", reqDetailCtrl);
+
+            } catch (Exception ex) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                System.err.println("[MainController] Lỗi load RestaurantRequestDetailView: "
+                        + cause.getMessage());
+                addPanel("request_detail", createPlaceholder("Chi tiết đơn đăng ký"), null);
+            }
+
         } else {
             addPanel("nhahangs",          createPlaceholder("Nhà hàng"),          null);
             addPanel("restaurant_detail", createPlaceholder("Chi tiết nhà hàng"), null);
             addPanel("baomat",            createPlaceholder("Bảo mật"),           null);
             addPanel("adminstats",        createPlaceholder("Thống kê Admin"),    null);
+            addPanel("request_detail",    createPlaceholder("Chi tiết đơn đăng ký"), null);
         }
 
         // ── Restaurant-admin-only ────────────────────────────────────────

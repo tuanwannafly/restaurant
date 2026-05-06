@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  RejectRequestDialog.fxml — Phase 4
+  ─────────────────────────────────────────────────────────────────────────────
+  Dialog nhập lý do từ chối đơn đăng ký nhà hàng.
+  TextArea lý do là bắt buộc — không được để trống.
+
+  Controller: RejectRequestDialogController (in com.restaurant.ui.dialog)
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.RejectRequestDialogController"
+      style="-fx-background-color: white;"
+      prefWidth="480" spacing="0">
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" prefHeight="56"
+          style="-fx-background-color: #DC2626; -fx-padding: 0 24 0 24;">
+        <Label text="❌  Từ chối đơn đăng ký"
+               style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+    </HBox>
+
+    <!-- ── Body ─────────────────────────────────────────────────────────────── -->
+    <VBox spacing="14" style="-fx-padding: 24 24 16 24; -fx-background-color: white;">
+
+        <!-- Request summary -->
+        <VBox spacing="4"
+              style="-fx-background-color: #FFF1F2; -fx-border-color: #FECDD3;
+                     -fx-border-radius: 8; -fx-background-radius: 8;
+                     -fx-padding: 10 16 10 16;">
+            <Label fx:id="lblRestaurantName" text="Tên nhà hàng"
+                   style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #9F1239;"/>
+            <Label fx:id="lblOwnerName" text="Chủ: ..."
+                   style="-fx-font-size: 12px; -fx-text-fill: #BE123C;"/>
+        </VBox>
+
+        <!-- Reason input -->
+        <VBox spacing="6">
+            <HBox spacing="4" alignment="CENTER_LEFT">
+                <Label text="Lý do từ chối"
+                       style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1E293B;"/>
+                <Label text="*" style="-fx-font-size: 13px; -fx-text-fill: #DC2626;"/>
+            </HBox>
+            <TextArea fx:id="taReason"
+                      promptText="Nhập lý do từ chối (bắt buộc, tối thiểu 10 ký tự)..."
+                      wrapText="true" prefRowCount="4"
+                      style="-fx-font-size: 13px; -fx-border-color: #CBD5E1;
+                             -fx-border-radius: 6; -fx-background-radius: 6;
+                             -fx-padding: 8 10 8 10;"/>
+            <!-- Error label -->
+            <Label fx:id="lblError" text=""
+                   style="-fx-font-size: 12px; -fx-text-fill: #DC2626;"
+                   visible="false" managed="false"/>
+        </VBox>
+
+        <Label text="Lý do sẽ được lưu lại và có thể thông báo đến chủ nhà hàng."
+               wrapText="true"
+               style="-fx-font-size: 12px; -fx-text-fill: #6B7280;"/>
+    </VBox>
+
+    <!-- ── Footer ───────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_RIGHT" spacing="10" prefHeight="56"
+          style="-fx-border-color: #E2E8F0 transparent transparent transparent;
+                 -fx-padding: 0 24 0 24; -fx-background-color: white;">
+        <Button text="Hủy" onAction="#onCancel"
+                prefWidth="90" prefHeight="34"
+                style="-fx-background-color: white; -fx-border-color: #CBD5E1;
+                       -fx-border-radius: 6; -fx-background-radius: 6;
+                       -fx-font-size: 13px; -fx-cursor: hand;"/>
+        <Button text="❌  Xác nhận từ chối" onAction="#onConfirm"
+                prefWidth="150" prefHeight="34"
+                style="-fx-background-color: #DC2626; -fx-text-fill: white;
+                       -fx-background-radius: 6; -fx-border-radius: 6;
+                       -fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+    </HBox>
+</VBox>
