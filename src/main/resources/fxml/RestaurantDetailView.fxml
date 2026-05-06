@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 
 <BorderPane xmlns="http://javafx.com/javafx/17"
@@ -54,7 +55,20 @@
                                          -fx-border-color: transparent transparent #E5E7EB transparent;
                                          -fx-border-width: 0 0 1 0;">
                                 <padding><Insets top="18" right="24" bottom="18" left="24"/></padding>
-                                <Label text="🏪" style="-fx-font-size: 22px;"/>
+                                <!-- Logo container: shows ImageView if logo exists, else emoji -->
+                                <StackPane prefWidth="52" prefHeight="52"
+                                           style="-fx-background-color: #F3F4F6;
+                                                  -fx-background-radius: 8;
+                                                  -fx-border-color: #E5E7EB;
+                                                  -fx-border-radius: 8;
+                                                  -fx-border-width: 1;">
+                                    <Label fx:id="lblLogoEmoji" text="🏪"
+                                           style="-fx-font-size: 22px;"/>
+                                    <ImageView fx:id="imgLogo"
+                                               fitWidth="52" fitHeight="52"
+                                               preserveRatio="false" smooth="true"
+                                               visible="false" managed="false"/>
+                                </StackPane>
                                 <VBox spacing="2" HBox.hgrow="ALWAYS">
                                     <Label fx:id="valName" text="—"
                                            style="-fx-font-size: 18px; -fx-font-weight: bold;

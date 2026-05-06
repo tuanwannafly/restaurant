@@ -7,6 +7,7 @@ import com.restaurant.dao.RestaurantDAO;
 import com.restaurant.dao.UserDAO;
 import com.restaurant.model.Restaurant;
 import com.restaurant.model.Restaurant.Status;
+import com.restaurant.ui.ImageLoader;
 
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -17,6 +18,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -46,6 +49,10 @@ public class RestaurantDetailController {
     @FXML private Label  valStatus;
     @FXML private Button btnEdit;
 
+    // Logo fields
+    @FXML private Label     lblLogoEmoji;
+    @FXML private ImageView imgLogo;
+
     // ── Callbacks / state ─────────────────────────────────────────────────────
 
     private Runnable   onBack;
@@ -54,6 +61,17 @@ public class RestaurantDetailController {
 
     public void setOnBack(Runnable callback) {
         this.onBack = callback;
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    @FXML
+    public void initialize() {
+        // Clip bo góc 8px cho logo ImageView trong detail view
+        Rectangle clip = new Rectangle(52, 52);
+        clip.setArcWidth(16);
+        clip.setArcHeight(16);
+        imgLogo.setClip(clip);
     }
 
     // ── Data ──────────────────────────────────────────────────────────────────
@@ -88,6 +106,9 @@ public class RestaurantDetailController {
 
         // Load tên chủ nhà hàng bất đồng bộ
         loadOwnerAsync(r.getRestaurantId());
+
+        // Load logo bất đồng bộ nếu có
+        loadLogoAsync(r.getLogoUrl());
     }
 
     // ── FXML handlers ─────────────────────────────────────────────────────────
@@ -144,6 +165,32 @@ public class RestaurantDetailController {
                 "Lỗi mở dialog: " + ex.getMessage(), ButtonType.OK);
             a.setTitle("Lỗi"); a.showAndWait();
         }
+    }
+
+    // ── Async logo load ───────────────────────────────────────────────────────
+
+    /**
+     * Tải logo nhà hàng bất đồng bộ qua {@link ImageLoader}.
+     * Nếu {@code logoUrl} rỗng → giữ nguyên emoji placeholder.
+     * Nếu có URL/path → ẩn emoji, hiện ImageView với ảnh đã tải.
+     */
+    private void loadLogoAsync(String logoUrl) {
+        if (logoUrl == null || logoUrl.isBlank()) {
+            // Không có logo — giữ emoji
+            imgLogo.setVisible(false);
+            imgLogo.setManaged(false);
+            lblLogoEmoji.setVisible(true);
+            lblLogoEmoji.setManaged(true);
+            return;
+        }
+
+        ImageLoader.loadAsync(logoUrl, img -> {
+            imgLogo.setImage(img);
+            imgLogo.setVisible(true);
+            imgLogo.setManaged(true);
+            lblLogoEmoji.setVisible(false);
+            lblLogoEmoji.setManaged(false);
+        });
     }
 
     // ── Async owner load ──────────────────────────────────────────────────────

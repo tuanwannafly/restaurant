@@ -2,7 +2,9 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Rectangle?>
 
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -28,6 +30,44 @@
                            -fx-border-color: transparent;">
             <content>
                 <VBox spacing="0" style="-fx-background-color: white;">
+
+                    <!-- ── Logo section ──────────────────────────────────────── -->
+                    <HBox alignment="CENTER_LEFT" spacing="16">
+                        <padding><Insets top="16" right="48" bottom="4" left="48"/></padding>
+
+                        <!-- Preview container (80×80, rounded 8px) -->
+                        <StackPane fx:id="logoContainer"
+                                   prefWidth="80" prefHeight="80"
+                                   style="-fx-background-color: #F3F4F6;
+                                          -fx-background-radius: 8;
+                                          -fx-border-color: #D1D5DB;
+                                          -fx-border-radius: 8;
+                                          -fx-border-width: 1;">
+                            <Label fx:id="lblLogoPlaceholder" text="🏪"
+                                   style="-fx-font-size: 28px;"/>
+                            <ImageView fx:id="imgLogoPreview"
+                                       fitWidth="80" fitHeight="80"
+                                       preserveRatio="false"
+                                       smooth="true"
+                                       visible="false" managed="false"/>
+                        </StackPane>
+
+                        <!-- Right side: label + hint + button -->
+                        <VBox spacing="6" alignment="CENTER_LEFT">
+                            <Label text="Logo nhà hàng"
+                                   style="-fx-font-size: 14px; -fx-font-weight: bold;
+                                          -fx-text-fill: #111827;"/>
+                            <Label text="PNG, JPG hoặc WEBP — tối đa 5 MB"
+                                   style="-fx-font-size: 12px; -fx-text-fill: #6B7280;"/>
+                            <Button fx:id="btnPickLogo" text="Chọn logo"
+                                    onAction="#handlePickLogo"
+                                    styleClass="btn-outline"
+                                    prefHeight="30"/>
+                        </VBox>
+                    </HBox>
+
+                    <!-- Separator under logo section -->
+                    <Region prefHeight="4"/>
 
                     <!-- Restaurant form -->
                     <GridPane fx:id="restaurantForm" hgap="8" vgap="12">

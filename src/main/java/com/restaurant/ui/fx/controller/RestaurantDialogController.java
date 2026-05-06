@@ -1,5 +1,11 @@
 package com.restaurant.ui.fx.controller;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,9 +27,14 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Rectangle;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 /**
@@ -70,6 +81,11 @@ public class RestaurantDialogController {
 
     @FXML private Label             lblTitle;
 
+    // Logo fields
+    @FXML private StackPane         logoContainer;
+    @FXML private Label             lblLogoPlaceholder;
+    @FXML private ImageView         imgLogoPreview;
+
     // Restaurant fields
     @FXML private TextField         txtName;
     @FXML private TextField         txtOwner;
@@ -97,6 +113,7 @@ public class RestaurantDialogController {
     private Restaurant  editTarget; // null = create mode
     private boolean     saved = false;
     private AdminChoice adminChoice = AdminChoice.skip();
+    private String      pendingLogoPath = null; // path được chọn qua FileChooser
 
     // ── Init methods ──────────────────────────────────────────────────────────
 
@@ -104,6 +121,12 @@ public class RestaurantDialogController {
     public void initialize() {
         cboStatus.setItems(FXCollections.observableArrayList("Hoạt động", "Vô hiệu hóa"));
         cboStatus.getSelectionModel().selectFirst();
+
+        // Clip tròn bo góc 8px cho logo preview
+        Rectangle clip = new Rectangle(80, 80);
+        clip.setArcWidth(16);
+        clip.setArcHeight(16);
+        imgLogoPreview.setClip(clip);
 
         // ComboBox render AdminUser.toString()
         cbAdmins.setCellFactory(lv -> new ListCell<>() {
@@ -169,6 +192,12 @@ public class RestaurantDialogController {
         r.setAddress(txtAddress.getText().trim());
         r.setStatus ("Hoạt động".equals(cboStatus.getSelectionModel().getSelectedItem())
                 ? Status.ACTIVE : Status.INACTIVE);
+        // Logo: ưu tiên file mới chọn, fallback về logo cũ nếu đang edit
+        if (pendingLogoPath != null) {
+            r.setLogoUrl(pendingLogoPath);
+        } else if (editTarget != null) {
+            r.setLogoUrl(editTarget.getLogoUrl());
+        }
         return r;
     }
 
@@ -307,11 +336,101 @@ public class RestaurantDialogController {
                 ? r.getCreatedAt().toLocalDate().toString() : "");
         cboStatus.getSelectionModel().select(
                 r.getStatus() == Status.ACTIVE ? "Hoạt động" : "Vô hiệu hóa");
+
+        // Hiển thị logo hiện tại nếu có
+        if (r.getLogoUrl() != null && !r.getLogoUrl().isBlank()) {
+            showLogoPreview(r.getLogoUrl());
+        }
     }
 
     private void showAdminSection(boolean show) {
         adminSection.setVisible(show);
         adminSection.setManaged(show);
+    }
+
+    // ── Logo helpers ──────────────────────────────────────────────────────────
+
+    /**
+     * Mở FileChooser để chọn logo (PNG/JPG/WEBP).
+     * Copy file vào uploads/logos/ và lưu path vào {@code pendingLogoPath}.
+     * Hiển thị preview ngay sau khi chọn xong.
+     */
+    @FXML
+    private void handlePickLogo() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Chọn logo nhà hàng");
+        fc.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("Ảnh (PNG, JPG, WEBP)", "*.png", "*.jpg", "*.jpeg", "*.webp"),
+            new FileChooser.ExtensionFilter("Tất cả file", "*.*")
+        );
+
+        File chosen = fc.showOpenDialog(currentStage());
+        if (chosen == null) return; // user cancelled
+
+        // Kiểm tra kích thước (≤ 5 MB)
+        if (chosen.length() > 5L * 1024 * 1024) {
+            showError("File quá lớn! Vui lòng chọn ảnh ≤ 5 MB.");
+            return;
+        }
+
+        // Tạo thư mục uploads/logos/ nếu chưa có
+        Path logosDir = Paths.get(System.getProperty("user.dir"), "uploads", "logos");
+        try {
+            Files.createDirectories(logosDir);
+        } catch (IOException e) {
+            showError("Không thể tạo thư mục uploads/logos: " + e.getMessage());
+            return;
+        }
+
+        // Tạo tên file duy nhất bằng timestamp
+        String ext = chosen.getName().lastIndexOf('.') > 0
+            ? chosen.getName().substring(chosen.getName().lastIndexOf('.'))
+            : ".png";
+        String uniqueName = "logo_" + System.currentTimeMillis() + ext;
+        Path dest = logosDir.resolve(uniqueName);
+
+        try {
+            Files.copy(chosen.toPath(), dest, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            showError("Lỗi copy file: " + e.getMessage());
+            return;
+        }
+
+        // Lưu absolute path và hiển thị preview
+        pendingLogoPath = dest.toAbsolutePath().toString();
+        showLogoPreview(pendingLogoPath);
+    }
+
+    /**
+     * Load ảnh từ {@code filePath} (local path hoặc URL) vào imgLogoPreview
+     * và ẩn placeholder emoji.
+     */
+    private void showLogoPreview(String filePath) {
+        try {
+            String uri = filePath.startsWith("http://") || filePath.startsWith("https://")
+                ? filePath
+                : new File(filePath).toURI().toString();
+            Image img = new Image(uri, 80, 80, false, true, true);
+            img.progressProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal.doubleValue() >= 1.0 && !img.isError()) {
+                    imgLogoPreview.setImage(img);
+                    imgLogoPreview.setVisible(true);
+                    imgLogoPreview.setManaged(true);
+                    lblLogoPlaceholder.setVisible(false);
+                    lblLogoPlaceholder.setManaged(false);
+                }
+            });
+            // Nếu đã load ngay (cached / file local)
+            if (img.getProgress() >= 1.0 && !img.isError()) {
+                imgLogoPreview.setImage(img);
+                imgLogoPreview.setVisible(true);
+                imgLogoPreview.setManaged(true);
+                lblLogoPlaceholder.setVisible(false);
+                lblLogoPlaceholder.setManaged(false);
+            }
+        } catch (Exception e) {
+            System.err.println("[RestaurantDialog] Không load được logo preview: " + e.getMessage());
+        }
     }
 
     private Stage currentStage() {
