@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  RestaurantRegistrationView.fxml — SmartRestaurant  (Phase 2)
+  Window size: 500 × 680 (set in RestaurantRegistrationController / LoginController)
+
+  Layout:
+    ┌────────────────────────────────────────┐
+    │  HEADER  (dark navy + orange accent)   │  ≈ 160 px
+    │   🏪  Đăng ký nhà hàng                 │
+    ├────────────────────────────────────────┤
+    │  SCROLLABLE CARD                       │
+    │   ── Thông tin chủ sở hữu ──           │
+    │   Tên / Email / SĐT / MK / Xác nhận   │
+    │   ── Thông tin nhà hàng ──             │
+    │   Tên NR / Địa chỉ / SĐT / Email NR   │
+    │   [📷 Tải lên logo]   [logo.png]       │
+    │   [📄 Tải lên tài liệu] [file.pdf]     │
+    │   [ GỬI ĐƠN ĐĂNG KÝ ]                  │
+    │   [ Quay lại đăng nhập ]               │
+    └────────────────────────────────────────┘
+-->
+<StackPane
+    xmlns="http://javafx.com/javafx/21"
+    xmlns:fx="http://javafx.com/fxml/1"
+    fx:controller="com.restaurant.ui.fx.controller.RestaurantRegistrationController"
+    styleClass="login-root"
+    stylesheets="@login.css">
+
+    <!-- ── Background: two-tone vertical split ── -->
+    <VBox>
+        <Region styleClass="login-brand-band" VBox.vgrow="NEVER" prefHeight="160"/>
+        <Region styleClass="login-form-band"  VBox.vgrow="ALWAYS"/>
+    </VBox>
+
+    <!-- ── Foreground content ── -->
+    <VBox alignment="TOP_CENTER" spacing="0" StackPane.alignment="TOP_CENTER">
+
+        <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+        <VBox alignment="CENTER" spacing="6" prefHeight="160" styleClass="login-header">
+            <StackPane styleClass="login-logo-ring">
+                <Label text="🏪" styleClass="login-logo-icon"/>
+            </StackPane>
+            <Label text="SmartRestaurant"        styleClass="login-app-name"/>
+            <Label text="Đăng ký mở nhà hàng mới" styleClass="login-app-subtitle"/>
+        </VBox>
+
+        <!-- ══ SCROLLABLE CARD ════════════════════════════════════════════════ -->
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                    VBox.vgrow="ALWAYS"
+                    styleClass="reg-scroll">
+            <VBox styleClass="login-card" spacing="0">
+
+                <!-- Card title -->
+                <Region prefHeight="4"/>
+                <Label text="Đăng ký nhà hàng" styleClass="login-card-title"/>
+                <Label text="Vui lòng điền đầy đủ thông tin để nộp đơn đăng ký"
+                       styleClass="login-card-hint"/>
+
+                <Region prefHeight="18"/>
+
+                <!-- ════ PHẦN 1 — THÔNG TIN CHỦ SỞ HỮU ════════════════════════ -->
+                <Label text="THÔNG TIN CHỦ SỞ HỮU" styleClass="reg-section-header"/>
+                <Region prefHeight="12"/>
+
+                <!-- Tên chủ sở hữu -->
+                <Label text="Họ và tên *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxOwnerName">
+                    <TextField fx:id="tfOwnerName"
+                               promptText="Nhập họ và tên đầy đủ"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- Email chủ -->
+                <Label text="Email *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxOwnerEmail">
+                    <TextField fx:id="tfOwnerEmail"
+                               promptText="email@example.com"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- SĐT chủ -->
+                <Label text="Số điện thoại *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxOwnerPhone">
+                    <TextField fx:id="tfOwnerPhone"
+                               promptText="0xxxxxxxxx"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- Mật khẩu -->
+                <Label text="Mật khẩu *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxPassword">
+                    <PasswordField fx:id="pfPassword"
+                                   promptText="Tối thiểu 6 ký tự"
+                                   styleClass="login-text-field"
+                                   HBox.hgrow="ALWAYS"/>
+                    <TextField fx:id="tfPasswordVisible"
+                               promptText="Tối thiểu 6 ký tự"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"
+                               visible="false" managed="false"/>
+                    <Button fx:id="btnTogglePass" text="👁"
+                            styleClass="login-toggle-pass-btn"
+                            onAction="#onTogglePassword"
+                            focusTraversable="false"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- Xác nhận mật khẩu -->
+                <Label text="Xác nhận mật khẩu *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxConfirmPassword">
+                    <PasswordField fx:id="pfConfirmPassword"
+                                   promptText="Nhập lại mật khẩu"
+                                   styleClass="login-text-field"
+                                   HBox.hgrow="ALWAYS"/>
+                    <TextField fx:id="tfConfirmPasswordVisible"
+                               promptText="Nhập lại mật khẩu"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"
+                               visible="false" managed="false"/>
+                    <Button fx:id="btnToggleConfirm" text="👁"
+                            styleClass="login-toggle-pass-btn"
+                            onAction="#onToggleConfirmPassword"
+                            focusTraversable="false"/>
+                </HBox>
+
+                <Region prefHeight="20"/>
+
+                <!-- ════ PHẦN 2 — THÔNG TIN NHÀ HÀNG ═══════════════════════════ -->
+                <!-- Divider -->
+                <HBox alignment="CENTER" spacing="8">
+                    <Region HBox.hgrow="ALWAYS" styleClass="reg-divider-line"/>
+                    <Label text="THÔNG TIN NHÀ HÀNG" styleClass="reg-section-header"
+                           style="-fx-padding: 0 4 0 4;"/>
+                    <Region HBox.hgrow="ALWAYS" styleClass="reg-divider-line"/>
+                </HBox>
+                <Region prefHeight="12"/>
+
+                <!-- Tên nhà hàng -->
+                <Label text="Tên nhà hàng *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxRestName">
+                    <TextField fx:id="tfRestName"
+                               promptText="Tên nhà hàng của bạn"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- Địa chỉ -->
+                <Label text="Địa chỉ *" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxRestAddress">
+                    <TextField fx:id="tfRestAddress"
+                               promptText="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- SĐT nhà hàng -->
+                <Label text="Số điện thoại nhà hàng" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxRestPhone">
+                    <TextField fx:id="tfRestPhone"
+                               promptText="SĐT đường dây nhà hàng (tuỳ chọn)"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="12"/>
+
+                <!-- Email nhà hàng -->
+                <Label text="Email nhà hàng" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox styleClass="login-field-box" fx:id="boxRestEmail">
+                    <TextField fx:id="tfRestEmail"
+                               promptText="Email liên hệ nhà hàng (tuỳ chọn)"
+                               styleClass="login-text-field"
+                               HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <Region prefHeight="20"/>
+
+                <!-- ════ FILE UPLOADS ════════════════════════════════════════════ -->
+                <!-- Logo upload -->
+                <Label text="Logo nhà hàng" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button fx:id="btnUploadLogo"
+                            text="📷  Tải lên logo"
+                            styleClass="reg-upload-btn"
+                            onAction="#onUploadLogo"/>
+                    <Label fx:id="lblLogoFile"
+                           text="Chưa chọn file"
+                           styleClass="reg-file-label"
+                           HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Label text="Chỉ chấp nhận PNG, JPG, WEBP"
+                       styleClass="reg-upload-hint"/>
+
+                <Region prefHeight="12"/>
+
+                <!-- Document upload -->
+                <Label text="Tài liệu chứng minh" styleClass="login-field-label"/>
+                <Region prefHeight="5"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button fx:id="btnUploadDocument"
+                            text="📄  Tải lên tài liệu"
+                            styleClass="reg-upload-btn"
+                            onAction="#onUploadDocument"/>
+                    <Label fx:id="lblDocumentFile"
+                           text="Chưa chọn file"
+                           styleClass="reg-file-label"
+                           HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Label text="Giấy phép kinh doanh, CMND/CCCD hoặc bất kỳ tài liệu liên quan"
+                       styleClass="reg-upload-hint"/>
+
+                <Region prefHeight="20"/>
+
+                <!-- ── Error label ── -->
+                <Label fx:id="lblError"
+                       styleClass="login-error-label"
+                       wrapText="true"
+                       visible="false"
+                       managed="false"/>
+                <Region fx:id="spacerError" prefHeight="0" visible="false" managed="false"/>
+
+                <!-- ── Submit button ── -->
+                <Button fx:id="btnSubmit"
+                        text="GỬI ĐƠN ĐĂNG KÝ"
+                        styleClass="login-btn-primary"
+                        maxWidth="Infinity"
+                        onAction="#onSubmit"/>
+
+                <Region prefHeight="10"/>
+
+                <!-- ── Back link ── -->
+                <HBox alignment="CENTER">
+                    <Button fx:id="btnBack"
+                            text="← Quay lại đăng nhập"
+                            styleClass="login-link-btn"
+                            onAction="#onBackToLogin"/>
+                </HBox>
+
+                <Region prefHeight="28"/>
+            </VBox>
+        </ScrollPane>
+
+    </VBox>
+
+</StackPane>

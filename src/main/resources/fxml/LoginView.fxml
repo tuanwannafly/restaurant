@@ -134,7 +134,7 @@
                         onAction="#onForgotPassword"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="btnRegister"
-                        text="Đăng ký"
+                        text="Đăng ký nhà hàng"
                         styleClass="login-link-btn"
                         onAction="#onRegister"/>
             </HBox>

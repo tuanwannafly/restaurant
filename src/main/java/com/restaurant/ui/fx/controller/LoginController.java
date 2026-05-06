@@ -230,17 +230,48 @@ public class LoginController {
         alert.showAndWait();
     }
 
-    /** Open register flow (informational for now). */
+    /**
+     * Mở màn hình đăng ký nhà hàng công khai ({@code RestaurantRegistrationView.fxml}).
+     * Thay thế scene hiện tại; khi người dùng nhấn "Quay lại" sẽ restore scene đăng nhập.
+     */
     @FXML
     private void onRegister() {
-        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
-                javafx.scene.control.Alert.AlertType.INFORMATION);
-        alert.setTitle("Đăng ký tài khoản");
-        alert.setHeaderText("Đăng ký");
-        alert.setContentText(
-                "Tài khoản được tạo bởi quản trị viên nhà hàng.\n\n"
-                + "Vui lòng liên hệ quản trị viên để được cấp quyền truy cập.");
-        alert.showAndWait();
+        try {
+            javafx.stage.Stage stage = (javafx.stage.Stage) btnLogin.getScene().getWindow();
+            javafx.scene.Scene loginScene = btnLogin.getScene();
+
+            RestaurantRegistrationController regCtrl = new RestaurantRegistrationController();
+
+            // Callback: quay về màn hình đăng nhập
+            regCtrl.setOnBack(() -> {
+                stage.setScene(loginScene);
+                stage.setTitle("SmartRestaurant — Đăng nhập");
+                stage.setResizable(false);
+                stage.setWidth(440);
+                stage.setHeight(560);
+                stage.centerOnScreen();
+                Platform.runLater(() -> tfEmail.requestFocus());
+            });
+
+            javafx.scene.Parent regRoot =
+                    com.restaurant.ui.fx.util.FxUtils.loadFxml(
+                            "RestaurantRegistrationView.fxml", regCtrl);
+
+            javafx.scene.Scene regScene = new javafx.scene.Scene(regRoot, 500, 680);
+            com.restaurant.ui.fx.util.FxUtils.loadCss(regScene);
+
+            stage.setScene(regScene);
+            stage.setTitle("SmartRestaurant — Đăng ký nhà hàng");
+            stage.setResizable(true);
+            stage.setMinWidth(480);
+            stage.setMinHeight(580);
+            stage.centerOnScreen();
+
+        } catch (Exception ex) {
+            System.err.println("[LoginController] Không thể mở màn hình đăng ký: "
+                    + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     // ── UI helpers ─────────────────────────────────────────────────────────────

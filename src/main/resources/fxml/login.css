@@ -252,3 +252,92 @@
     -fx-text-fill: #4F6CF7;
     -fx-underline: true;
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   Registration screen additions  (Phase 2)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Scroll pane wrapper — transparent so login-card shadow shows through ── */
+
+.reg-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.reg-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.reg-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+}
+
+.reg-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #CBD5E1;
+    -fx-background-radius: 4;
+}
+
+/* ── Section header labels ─────────────────────────────────────────────── */
+
+.reg-section-header {
+    -fx-text-fill: #4F6CF7;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 1.0;
+    -fx-padding: 0 0 0 0;
+}
+
+/* ── Horizontal divider line flanking section header ──────────────────── */
+
+.reg-divider-line {
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 0 0 1 0;
+    -fx-min-height: 1;
+    -fx-max-height: 1;
+    -fx-pref-height: 1;
+    -fx-translate-y: -1;
+}
+
+/* ── Upload buttons ───────────────────────────────────────────────────── */
+
+.reg-upload-btn {
+    -fx-background-color: #F1F5F9;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1.5;
+    -fx-text-fill: #374151;
+    -fx-font-size: 12.5px;
+    -fx-padding: 7 14 7 14;
+    -fx-cursor: hand;
+}
+
+.reg-upload-btn:hover {
+    -fx-background-color: #E8EEF9;
+    -fx-border-color: #4F6CF7;
+    -fx-text-fill: #1A2B6B;
+}
+
+.reg-upload-btn:disabled {
+    -fx-opacity: 0.55;
+    -fx-cursor: default;
+}
+
+/* ── Filename label shown after selecting a file ──────────────────────── */
+
+.reg-file-label {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 12px;
+    -fx-font-style: italic;
+    -fx-text-overrun: ELLIPSIS;
+}
+
+/* ── Small hint text under upload rows ────────────────────────────────── */
+
+.reg-upload-hint {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 11px;
+    -fx-padding: 3 0 0 0;
+}
