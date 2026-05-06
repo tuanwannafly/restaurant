@@ -8,6 +8,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.control.TableCell;
+import javafx.geometry.Pos;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.*;
 import javafx.util.converter.IntegerStringConverter;
@@ -49,15 +51,42 @@ public class CartPageController extends BasePageController {
 
     private void setupColumns() {
         colSTT.setCellValueFactory(c -> c.getValue().sttProperty().asObject());
-        colSTT.setStyle("-fx-alignment: CENTER;");
+        colSTT.setCellFactory(col -> {
+            TableCell<CartRow, Integer> cell = new TableCell<>() {
+                @Override protected void updateItem(Integer item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item));
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         colName.setCellValueFactory(c -> c.getValue().nameProperty());
 
         colUnit.setCellValueFactory(c -> c.getValue().unitPriceProperty());
-        colUnit.setStyle("-fx-alignment: CENTER-RIGHT;");
+        colUnit.setCellFactory(col -> {
+            TableCell<CartRow, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER_RIGHT);
+            return cell;
+        });
 
         colTotal.setCellValueFactory(c -> c.getValue().subtotalProperty());
-        colTotal.setStyle("-fx-alignment: CENTER-RIGHT;");
+        colTotal.setCellFactory(col -> {
+            TableCell<CartRow, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER_RIGHT);
+            return cell;
+        });
 
         // ── Ghi chú: inline edit ────────────────────────────────────────────
         colNote.setCellValueFactory(c -> c.getValue().noteProperty());
@@ -256,7 +285,7 @@ public class CartPageController extends BasePageController {
             } else {
                 setText(String.valueOf(qty));
                 setGraphic(null);
-                setStyle("-fx-alignment: CENTER;");
+                setAlignment(Pos.CENTER);
             }
         }
     }

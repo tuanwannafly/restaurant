@@ -14,8 +14,10 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.stage.Stage;
@@ -56,13 +58,16 @@ public class OrderStatController implements Initializable {
     private void setupColumns() {
         colId.setCellValueFactory(d ->
             new SimpleStringProperty(d.getValue().getId()));
+        colId.setCellFactory(col -> centeredStatCell());
 
         colTable.setCellValueFactory(d ->
             new SimpleStringProperty(d.getValue().getTableName()));
+        colTable.setCellFactory(col -> centeredStatCell());
 
         colTotal.setCellValueFactory(d ->
             new SimpleStringProperty(
                 NF.format((long) d.getValue().getTotalAmount()) + " đ"));
+        colTotal.setCellFactory(col -> rightStatCell());
 
         colStatus.setCellValueFactory(d ->
             new SimpleStringProperty(d.getValue().getStatusDisplay()));
@@ -70,6 +75,7 @@ public class OrderStatController implements Initializable {
 
         colTime.setCellValueFactory(d ->
             new SimpleStringProperty(d.getValue().getCreatedTime()));
+        colTime.setCellFactory(col -> centeredStatCell());
     }
 
     // ─── Load ─────────────────────────────────────────────────────────────────
@@ -118,5 +124,26 @@ public class OrderStatController implements Initializable {
     @FXML
     private void onClose() {
         ((Stage) statTable.getScene().getWindow()).close();
+    }
+    private static TableCell<Order, String> centeredStatCell() {
+        TableCell<Order, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
+    }
+
+    private static TableCell<Order, String> rightStatCell() {
+        TableCell<Order, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER_RIGHT);
+        return cell;
     }
 }

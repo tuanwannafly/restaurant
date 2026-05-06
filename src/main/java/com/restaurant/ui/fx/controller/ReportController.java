@@ -119,7 +119,16 @@ public class ReportController implements Initializable {
     private void setupColumns() {
         // ID
         colId.setCellValueFactory(new PropertyValueFactory<>("reportId"));
-        colId.setStyle("-fx-alignment: CENTER;");
+        colId.setCellFactory(col -> {
+            TableCell<Report, Long> cell = new TableCell<>() {
+                @Override protected void updateItem(Long item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item));
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         // Tiêu đề
         colTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -128,7 +137,7 @@ public class ReportController implements Initializable {
         colType.setCellValueFactory(cell ->
             new javafx.beans.property.SimpleStringProperty(
                 cell.getValue().getReportTypeDisplay()));
-        colType.setStyle("-fx-alignment: CENTER;");
+        colType.setCellFactory(col -> centeredStringCell());
 
         // Mức độ — custom badge cell
         colSeverity.setCellValueFactory(cell ->
@@ -148,7 +157,7 @@ public class ReportController implements Initializable {
             String txt = dt != null ? dt.format(FMT) : "";
             return new javafx.beans.property.SimpleStringProperty(txt);
         });
-        colCreatedAt.setStyle("-fx-alignment: CENTER;");
+        colCreatedAt.setCellFactory(col -> centeredStringCell());
 
         // Cột extra — nội dung phụ thuộc role
         colExtra.setCellValueFactory(cell -> {
@@ -324,6 +333,18 @@ public class ReportController implements Initializable {
     // ═════════════════════════════════════════════════════════════════════════
     // Inner classes — custom TableCell renderers (badge-style)
     // ═════════════════════════════════════════════════════════════════════════
+
+    /** Tạo TableCell căn giữa dùng chung cho các cột text đơn giản. */
+    private static TableCell<Report, String> centeredStringCell() {
+        TableCell<Report, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
+    }
 
     /**
      * Pill badge cell cho cột Trạng thái.

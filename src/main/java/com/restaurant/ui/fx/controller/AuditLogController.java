@@ -19,12 +19,14 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.VBox;
@@ -101,38 +103,53 @@ public class AuditLogController {
         dpFrom.setValue(LocalDate.now().minusDays(7));
         dpTo.setValue(LocalDate.now().plusDays(1));
 
-        // ── TableView columns (value factories) ───────────────────────────────
+        // ── TableView columns (value factories + center alignment) ────────────
         colId.setCellValueFactory(c ->
             new ReadOnlyObjectWrapper<>(c.getValue().logId));
+        colId.setCellFactory(col -> {
+            TableCell<AuditEntry, Long> cell = new TableCell<>() {
+                @Override protected void updateItem(Long item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item));
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         colAction.setCellValueFactory(c ->
             new ReadOnlyStringWrapper(c.getValue().action));
+        colAction.setCellFactory(col -> centeredStringCell());
 
         colActor.setCellValueFactory(c -> {
             Long actor = c.getValue().actorUserId;
             return new ReadOnlyStringWrapper(actor != null ? String.valueOf(actor) : "—");
         });
+        colActor.setCellFactory(col -> centeredStringCell());
 
         colTarget.setCellValueFactory(c -> {
             Long target = c.getValue().targetId;
             return new ReadOnlyStringWrapper(target != null ? String.valueOf(target) : "—");
         });
+        colTarget.setCellFactory(col -> centeredStringCell());
 
         colResult.setCellValueFactory(c ->
             new ReadOnlyStringWrapper(c.getValue().result));
 
-        // ── PHẦN C — pill badge cell ──────────────────────────────────────────
+        // ── PHẦN C — pill badge cell (đã tự center trong ResultBadgeTableCell) ─
         colResult.setCellFactory(col -> new ResultBadgeTableCell());
 
         colDetail.setCellValueFactory(c -> {
             String d = c.getValue().detail;
             return new ReadOnlyStringWrapper(d != null ? d : "");
         });
+        // colDetail giữ left-align vì là chuỗi mô tả dài
 
         colTime.setCellValueFactory(c -> {
             LocalDateTime ldt = c.getValue().loggedAt;
             return new ReadOnlyStringWrapper(ldt != null ? ldt.format(DT_FMT) : "—");
         });
+        colTime.setCellFactory(col -> centeredStringCell());
 
         // ── Ẩn empty state ban đầu ────────────────────────────────────────────
         setEmptyState(false);
@@ -294,6 +311,21 @@ public class AuditLogController {
     // ═════════════════════════════════════════════════════════════════════════
     // Helpers
     // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Tạo TableCell&lt;AuditEntry, String&gt; với nội dung căn giữa theo chiều ngang.
+     * Dùng chung cho các cột text đơn giản (Hành động, Actor, Target, Thời gian…).
+     */
+    private static TableCell<AuditEntry, String> centeredStringCell() {
+        TableCell<AuditEntry, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
+    }
 
     /** Trả về filter action hoặc null nếu chọn "Tất cả". */
     private String buildActionFilter() {

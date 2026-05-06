@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 
 import java.util.List;
@@ -31,13 +32,22 @@ public class StatusPageController extends BasePageController {
     @FXML
     private void initialize() {
         colSTT.setCellValueFactory(c -> c.getValue().stt);
-        colSTT.setStyle("-fx-alignment: CENTER;");
+        colSTT.setCellFactory(col -> {
+            TableCell<StatusRow, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         colName.setCellValueFactory(c -> c.getValue().name);
 
         colStatus.setCellValueFactory(c -> c.getValue().status);
         colStatus.setCellFactory(col -> new StatusCell());
-        colStatus.setStyle("-fx-alignment: CENTER;");
+
 
         statusTable.setItems(rows);
         statusTable.setPlaceholder(new Label("Chưa có món nào được gọi"));
@@ -99,12 +109,13 @@ public class StatusPageController extends BasePageController {
     // ── Status cell with color coding ─────────────────────────────────────────
 
     private static class StatusCell extends TableCell<StatusRow, String> {
+        StatusCell() { setAlignment(Pos.CENTER); }
         @Override
         protected void updateItem(String val, boolean empty) {
             super.updateItem(val, empty);
             if (empty || val == null) { setText(null); setStyle(""); return; }
             setText(val);
-            String style = "-fx-alignment: CENTER; -fx-font-weight: ";
+            String style = "-fx-font-weight: ";
             style += switch (val) {
                 case "Đang chờ"       -> "NORMAL; -fx-text-fill: #6B7280;";
                 case "Đang chế biến"  -> "BOLD;   -fx-text-fill: #F59E0B;";

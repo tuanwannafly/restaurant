@@ -28,8 +28,9 @@ public class StatusBadgeTableCell<S> extends TableCell<S, String> {
 
     public StatusBadgeTableCell() {
         badge.getStyleClass().add("status-badge");
-        box.setStyle("-fx-alignment: center;");
-        setStyle("-fx-alignment: center; -fx-padding: 4 0;");
+        box.setAlignment(javafx.geometry.Pos.CENTER);
+        setAlignment(javafx.geometry.Pos.CENTER);
+        setPadding(new javafx.geometry.Insets(4, 0, 4, 0));
     }
 
     @Override

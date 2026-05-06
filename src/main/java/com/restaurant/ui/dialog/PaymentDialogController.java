@@ -136,7 +136,7 @@ public class PaymentDialogController implements Initializable {
                     setText(empty ? null : item);
                 }
             };
-            cell.setStyle("-fx-alignment: CENTER-RIGHT;");
+            cell.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
             return cell;
         });
     }

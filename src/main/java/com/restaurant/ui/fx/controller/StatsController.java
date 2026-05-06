@@ -118,11 +118,13 @@ public class StatsController implements Initializable {
         // Rank — derived from position in ObservableList
         colRank.setCellFactory(col -> {
             TableCell<TopItem, Number> cell = new TableCell<>() {
+                { setAlignment(javafx.geometry.Pos.CENTER); }
                 @Override
                 protected void updateItem(Number item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty ? null : String.valueOf(getIndex() + 1));
-                    setStyle("-fx-alignment: CENTER; -fx-font-weight: bold; -fx-text-fill: #6B7280;");
+                    if (empty) { setText(null); setStyle(""); return; }
+                    setText(String.valueOf(getIndex() + 1));
+                    setStyle("-fx-font-weight: bold; -fx-text-fill: #6B7280;");
                 }
             };
             return cell;
@@ -135,11 +137,29 @@ public class StatsController implements Initializable {
 
         colQty.setCellValueFactory(c ->
             new SimpleIntegerProperty(c.getValue().totalQty));
-        colQty.setStyle("-fx-alignment: CENTER;");
+        colQty.setCellFactory(col -> {
+            TableCell<TopItem, Number> cell = new TableCell<>() {
+                @Override protected void updateItem(Number item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item.intValue()));
+                }
+            };
+            cell.setAlignment(javafx.geometry.Pos.CENTER);
+            return cell;
+        });
 
         colItemRev.setCellValueFactory(c ->
             new SimpleStringProperty(formatVnd(c.getValue().totalRevenue)));
-        colItemRev.setStyle("-fx-alignment: RIGHT;");
+        colItemRev.setCellFactory(col -> {
+            TableCell<TopItem, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+            return cell;
+        });
     }
 
     // ═════════════════════════════════════════════════════════════════════════

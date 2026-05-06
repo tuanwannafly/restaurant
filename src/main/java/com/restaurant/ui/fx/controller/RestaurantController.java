@@ -118,25 +118,43 @@ public class RestaurantController {
     }
 
     private void setupColumns() {
-        // ID
+        // ID — căn giữa qua cell factory (setStyle trên column chỉ affect header, không affect cell)
         colId.setCellValueFactory(cd ->
             new SimpleLongProperty(cd.getValue().getRestaurantId()).asObject());
-        colId.setStyle("-fx-alignment: CENTER;");
+        colId.setCellFactory(col -> {
+            TableCell<Restaurant, Long> cell = new TableCell<>() {
+                @Override protected void updateItem(Long item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item));
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         // Name
         colName.setCellValueFactory(cd ->
             new SimpleStringProperty(safe(cd.getValue().getName())));
 
-        // Phone
+        // Phone — căn giữa qua cell factory
         colPhone.setCellValueFactory(cd ->
             new SimpleStringProperty(safe(cd.getValue().getPhone())));
-        colPhone.setStyle("-fx-alignment: CENTER;");
+        colPhone.setCellFactory(col -> {
+            TableCell<Restaurant, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         // Email
         colEmail.setCellValueFactory(cd ->
             new SimpleStringProperty(safe(cd.getValue().getEmail())));
 
-        // Ngày tạo
+        // Ngày tạo — căn giữa qua cell factory
         colDate.setCellValueFactory(cd -> {
             Restaurant r = cd.getValue();
             String d = (r.getCreatedAt() != null)
@@ -144,7 +162,16 @@ public class RestaurantController {
                     : "";
             return new SimpleStringProperty(d);
         });
-        colDate.setStyle("-fx-alignment: CENTER;");
+        colDate.setCellFactory(col -> {
+            TableCell<Restaurant, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER);
+            return cell;
+        });
 
         // Trạng thái — colored label
         colStatus.setCellValueFactory(cd ->
@@ -158,9 +185,9 @@ public class RestaurantController {
                 setText(item);
                 setAlignment(Pos.CENTER);
                 if ("Hoạt động".equals(item)) {
-                    setStyle("-fx-text-fill: #16a34a; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                    setStyle("-fx-text-fill: #16a34a; -fx-font-weight: bold;");
                 } else {
-                    setStyle("-fx-text-fill: #dc2626; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                    setStyle("-fx-text-fill: #dc2626; -fx-font-weight: bold;");
                 }
             }
         });

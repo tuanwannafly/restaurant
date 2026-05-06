@@ -17,6 +17,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
@@ -96,11 +97,27 @@ public class MenuController implements Initializable {
     private void initColumns() {
         // Simple property bindings
         colId      .setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getId()));
+        colId.setCellFactory(col -> centeredMenuCell());
+
         colName    .setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getName()));
+        // colName: left-align (food name)
+
         colCategory.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getCategory()));
+        colCategory.setCellFactory(col -> centeredMenuCell());
+
         colPrice   .setCellValueFactory(cd -> {
             long price = (long) cd.getValue().getPrice();
             return new SimpleStringProperty(vndFormat.format(price) + " ₫");
+        });
+        colPrice.setCellFactory(col -> {
+            TableCell<MenuItem, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER_RIGHT);
+            return cell;
         });
 
         // Action column — reusable cell factory
@@ -275,5 +292,15 @@ public class MenuController implements Initializable {
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.showAndWait();
+    }
+    private static TableCell<MenuItem, String> centeredMenuCell() {
+        TableCell<MenuItem, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
     }
 }

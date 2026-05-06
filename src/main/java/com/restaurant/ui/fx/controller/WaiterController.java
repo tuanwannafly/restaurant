@@ -135,6 +135,19 @@ public class WaiterController implements Initializable {
         pollTimeline.play();
     }
 
+    // ─── Helpers — centering ─────────────────────────────────────────────────
+
+    private static TableCell<KitchenDAO.KitchenTicket, String> centeredStringCell() {
+        TableCell<KitchenDAO.KitchenTicket, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(javafx.geometry.Pos.CENTER);
+        return cell;
+    }
+
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     /** Gọi khi đóng cửa sổ / navigate away để dừng poll và thu hồi thread. */
@@ -163,10 +176,21 @@ public class WaiterController implements Initializable {
             (ObservableValue<Number>) (ObservableValue<?>)
                 new SimpleIntegerProperty(cell.getValue().getCapacity()).asObject()
         );
+        colCleanCap.setCellFactory(col -> {
+            TableCell<TableItem, Number> cell = new TableCell<>() {
+                @Override protected void updateItem(Number item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item.intValue()));
+                }
+            };
+            cell.setAlignment(javafx.geometry.Pos.CENTER);
+            return cell;
+        });
 
         colCleanStatus.setCellValueFactory(cell ->
                 new SimpleStringProperty(cell.getValue().getStatusDisplay()));
         colCleanStatus.setCellFactory(col -> new TableCell<>() {
+            { setAlignment(javafx.geometry.Pos.CENTER); }
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -193,23 +217,46 @@ public class WaiterController implements Initializable {
 
         colCancelTable.setCellValueFactory(cell ->
                 new SimpleStringProperty(cell.getValue().tableName));
+        colCancelTable.setCellFactory(col -> centeredStringCell());
 
         colCancelItem.setCellValueFactory(cell ->
                 new SimpleStringProperty(cell.getValue().itemName));
+        // colCancelItem: left-align (item name text)
 
         colCancelQty.setCellValueFactory(cell ->
             new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().quantity)
         );
+        colCancelQty.setCellFactory(col -> {
+            TableCell<KitchenDAO.KitchenTicket, Number> cell = new TableCell<>() {
+                @Override protected void updateItem(Number item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item.intValue()));
+                }
+            };
+            cell.setAlignment(javafx.geometry.Pos.CENTER);
+            return cell;
+        });
 
         colCancelRound.setCellValueFactory(cell ->
             new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().roundNumber)
         );
+        colCancelRound.setCellFactory(col -> {
+            TableCell<KitchenDAO.KitchenTicket, Number> cell = new TableCell<>() {
+                @Override protected void updateItem(Number item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : String.valueOf(item.intValue()));
+                }
+            };
+            cell.setAlignment(javafx.geometry.Pos.CENTER);
+            return cell;
+        });
 
         colCancelTime.setCellValueFactory(cell -> {
             String t = (cell.getValue().createdAt != null)
                     ? cell.getValue().createdAt.format(fmt) : "—";
             return new SimpleStringProperty(t);
         });
+        colCancelTime.setCellFactory(col -> centeredStringCell());
     }
 
     private void setupTabChangeListener() {

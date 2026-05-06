@@ -103,11 +103,20 @@ public class EmployeeController {
 
     private void wireColumns() {
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        colId.setCellFactory(col -> centeredCell());
+
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
+        // colName: left-align (person name)
+
         colRole.setCellValueFactory(c ->
                 new SimpleStringProperty(c.getValue().getRoleDisplay()));
+        colRole.setCellFactory(col -> centeredCell());
+
         colPhone.setCellValueFactory(new PropertyValueFactory<>("phone"));
+        colPhone.setCellFactory(col -> centeredCell());
+
         colStartDate.setCellValueFactory(new PropertyValueFactory<>("startDate"));
+        colStartDate.setCellFactory(col -> centeredCell());
 
         // ── Account status column ──
         if (showAccountCol) {
@@ -325,4 +334,15 @@ public class EmployeeController {
             "-fx-background-color:#EFF6FF;-fx-border-color:#3B82F6;-fx-border-radius:6;" +
             "-fx-background-radius:6;-fx-text-fill:#3B82F6;-fx-font-weight:bold;" +
             "-fx-font-size:12px;-fx-padding:4 10 4 10;-fx-cursor:hand;";
+    /** TableCell&lt;Employee, String&gt; căn giữa dùng chung. */
+    private static TableCell<Employee, String> centeredCell() {
+        TableCell<Employee, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
+    }
 }

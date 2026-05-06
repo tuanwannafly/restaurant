@@ -81,13 +81,25 @@ public class OrderController implements Initializable {
     private void setupColumns() {
         colId.setCellValueFactory(data ->
             new javafx.beans.property.SimpleStringProperty(data.getValue().getId()));
+        colId.setCellFactory(col -> centeredOrderCell());
 
         colTable.setCellValueFactory(data ->
             new javafx.beans.property.SimpleStringProperty(data.getValue().getTableName()));
+        colTable.setCellFactory(col -> centeredOrderCell());
 
         colTotal.setCellValueFactory(data ->
             new javafx.beans.property.SimpleStringProperty(
                 NF.format((long) data.getValue().getTotalAmount()) + " đ"));
+        colTotal.setCellFactory(col -> {
+            TableCell<Order, String> cell = new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            cell.setAlignment(Pos.CENTER_RIGHT);
+            return cell;
+        });
 
         // Colored status badge
         colStatus.setCellValueFactory(data ->
@@ -97,6 +109,7 @@ public class OrderController implements Initializable {
 
         colTime.setCellValueFactory(data ->
             new javafx.beans.property.SimpleStringProperty(data.getValue().getCreatedTime()));
+        colTime.setCellFactory(col -> centeredOrderCell());
 
         // Action buttons cell
         colAction.setCellFactory(col -> new ActionCell());
@@ -287,5 +300,15 @@ public class OrderController implements Initializable {
             b.getStyleClass().addAll("action-btn", style);
             return b;
         }
+    }
+    private static TableCell<Order, String> centeredOrderCell() {
+        TableCell<Order, String> cell = new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+            }
+        };
+        cell.setAlignment(Pos.CENTER);
+        return cell;
     }
 }
