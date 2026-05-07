@@ -25,7 +25,7 @@
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.fx.controller.RestaurantRequestDetailController"
             styleClass="bg-page"
-            stylesheets="@/css/app.css">
+            stylesheets="@../css/app.css">
 
     <!-- ── NORTH — breadcrumb + title ──────────────────────────────────────── -->
     <top>

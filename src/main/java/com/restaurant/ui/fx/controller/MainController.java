@@ -266,12 +266,15 @@ public class MainController implements Initializable, SessionListener {
                 RestaurantRequestListController reqListCtrl = reqListLoader.getController();
 
                 // Wire "Xem chi tiết" → populate detail + navigate
+                // CODE MỚI - ĐÃ FIX
                 reqListCtrl.setOnOpenDetail(req -> {
                     RestaurantRequestDetailController detailCtrl = getRequestDetailController();
                     if (detailCtrl != null) {
                         detailCtrl.populate(req);
+                        navigateTo("request_detail");  // ← chuyển trang CHỈ KHI populate thành công
+                    } else {
+                        System.err.println("[MainController] request_detail controller chưa sẵn sàng");
                     }
-                    navigateTo("request_detail");
                 });
 
                 addPanel("dondk", reqListNode, reqListCtrl::loadData);

@@ -27,7 +27,6 @@
 <StackPane
     xmlns="http://javafx.com/javafx/21"
     xmlns:fx="http://javafx.com/fxml/1"
-    fx:controller="com.restaurant.ui.fx.controller.RestaurantRegistrationController"
     styleClass="login-root"
     stylesheets="@login.css">
 

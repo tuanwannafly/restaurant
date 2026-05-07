@@ -49,6 +49,7 @@ com\restaurant\ui\KitchenTicketCardController.class
 com\restaurant\ui\dialog\MenuStatDialog.class
 com\restaurant\ui\fx\controller\ResultBadgeTableCell$BadgeStyle.class
 com\restaurant\ui\EmployeeController$4.class
+com\restaurant\ui\fx\controller\RestaurantController$11.class
 com\restaurant\ui\fx\controller\DeliveryCardController$1.class
 com\restaurant\ui\fx\controller\StatusPageController.class
 com\restaurant\model\Employee.class
@@ -91,6 +92,7 @@ com\restaurant\dao\UserDAO.class
 com\restaurant\db\DBConnection.class
 com\restaurant\ui\fx\controller\RestaurantController$2.class
 com\restaurant\ui\HomeController$RefreshState.class
+com\restaurant\ui\fx\controller\StatusPageController$2.class
 com\restaurant\ui\fx\controller\StatusPageController$StatusRow.class
 com\restaurant\ui\fx\controller\ReportController$StatusBadgeCell.class
 com\restaurant\ui\TopBarController.class
@@ -114,6 +116,7 @@ com\restaurant\dao\StatsDAO$TopItem.class
 com\restaurant\ui\fx\controller\MainController.class
 com\restaurant\ui\fx\controller\WaiterController$3.class
 com\restaurant\ui\TableController$4.class
+com\restaurant\ui\fx\controller\RestaurantRequestDetailController$5.class
 com\restaurant\ui\fx\controller\RestaurantController$7.class
 com\restaurant\ui\fx\controller\AdminHomePanelController$NavigateHandler.class
 com\restaurant\ui\OrderController.class

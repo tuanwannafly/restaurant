@@ -4,6 +4,8 @@ C:\work\doan\src\main\java\com\restaurant\dao\MenuItemDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\OrderDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\ReportDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\RestaurantDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\RestaurantRequestDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\RestaurantRequestService.java
 C:\work\doan\src\main\java\com\restaurant\dao\StatsDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\TableDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\UserDAO.java
@@ -15,6 +17,7 @@ C:\work\doan\src\main\java\com\restaurant\model\MenuItem.java
 C:\work\doan\src\main\java\com\restaurant\model\Order.java
 C:\work\doan\src\main\java\com\restaurant\model\Report.java
 C:\work\doan\src\main\java\com\restaurant\model\Restaurant.java
+C:\work\doan\src\main\java\com\restaurant\model\RestaurantRequest.java
 C:\work\doan\src\main\java\com\restaurant\model\TableItem.java
 C:\work\doan\src\main\java\com\restaurant\session\AppSession.java
 C:\work\doan\src\main\java\com\restaurant\session\AuditLogger.java
@@ -31,6 +34,7 @@ C:\work\doan\src\main\java\com\restaurant\ui\ActivityListCell.java
 C:\work\doan\src\main\java\com\restaurant\ui\cell\ActionTableCell.java
 C:\work\doan\src\main\java\com\restaurant\ui\control\BadgeLabel.java
 C:\work\doan\src\main\java\com\restaurant\ui\control\CleanField.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\ApproveRequestDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\ConfirmOperationDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\EmployeeDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\MenuDetailDialog.java
@@ -42,6 +46,7 @@ C:\work\doan\src\main\java\com\restaurant\ui\dialog\OrderDetailController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\OrderStatController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\PaymentDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\RegisterStaffDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\dialog\RejectRequestDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\ReportAddController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\ReportDetailController.java
 C:\work\doan\src\main\java\com\restaurant\ui\dialog\TableDialogController.java
@@ -64,6 +69,9 @@ C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ReportController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantDetailController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantRegistrationController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantRequestDetailController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantRequestListController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ResultBadgeTableCell.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\StatsController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\StatusPageController.java
