@@ -161,6 +161,29 @@ public class RestaurantRequestService {
             // ── COMMIT ────────────────────────────────────────────────────────
             conn.commit();
 
+            // ── Gửi email thông báo phê duyệt (fire-and-forget, sau commit) ──
+            // Chạy trên daemon thread riêng để không block transaction.
+            // Thất bại gửi mail chỉ log warn — KHÔNG rollback nghiệp vụ.
+            final RestaurantRequest committedRequest = request;
+            Thread emailThread = new Thread(() -> {
+                try {
+                    com.restaurant.email.EmailService.getInstance()
+                            .sendRestaurantApprovalEmail(
+                                    committedRequest.getOwnerEmail(),
+                                    committedRequest.getOwnerName(),
+                                    committedRequest.getRestaurantName(),
+                                    committedRequest.getOwnerEmail());
+                } catch (Exception emailEx) {
+                    System.err.println(
+                            "[RestaurantRequestService] Cảnh báo: gửi email phê duyệt thất bại"
+                            + " cho đơn #" + committedRequest.getRequestId()
+                            + ": " + emailEx.getMessage());
+                }
+            });
+            emailThread.setDaemon(true);
+            emailThread.setName("email-approval-" + request.getRequestId());
+            emailThread.start();
+
         } catch (IllegalStateException | SecurityException e) {
             // Business errors — rollback và re-throw
             rollbackQuietly(conn);

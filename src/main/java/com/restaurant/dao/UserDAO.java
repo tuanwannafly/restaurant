@@ -761,6 +761,72 @@ public class UserDAO {
         }
     }
 
+    // ── Phase 2 — OTP-based password reset ───────────────────────────────────
+
+    /**
+     * Đặt lại mật khẩu thông qua mã OTP 6 số (luồng quên mật khẩu Phase 2).
+     *
+     * <p>Thực hiện trong một transaction:
+     * <ol>
+     *   <li>Xác thực OTP qua {@link PasswordResetDAO#verifyOtp(String, String)} —
+     *       kiểm tra email, mã OTP, chưa dùng và chưa hết hạn.</li>
+     *   <li>BCrypt-hash {@code newPlainPassword}.</li>
+     *   <li>UPDATE {@code users.password} theo email.</li>
+     *   <li>Gọi {@link PasswordResetDAO#markUsed(String, String)} để huỷ OTP ngay
+     *       lập tức, ngăn replay attack.</li>
+     * </ol>
+     *
+     * @param email           địa chỉ email tài khoản cần đặt lại mật khẩu
+     * @param otp             mã OTP 6 số người dùng nhập vào
+     * @param newPlainPassword mật khẩu mới plain-text (chưa hash)
+     * @return {@code true} nếu mật khẩu được đặt lại thành công;
+     *         {@code false} nếu OTP không hợp lệ / hết hạn / đã dùng
+     * @throws RuntimeException nếu lỗi DB trong bước UPDATE hoặc markUsed
+     */
+    public boolean resetPassword(String email, String otp, String newPlainPassword) {
+        if (email == null || email.isBlank()
+                || otp == null || otp.isBlank()
+                || newPlainPassword == null || newPlainPassword.isBlank()) {
+            return false;
+        }
+
+        PasswordResetDAO prd = PasswordResetDAO.getInstance();
+
+        // 1. Xác thực OTP
+        if (!prd.verifyOtp(email, otp)) {
+            System.err.println("[UserDAO] resetPassword – OTP không hợp lệ hoặc hết hạn cho: " + email);
+            return false;
+        }
+
+        // 2. Hash mật khẩu mới
+        String newHash = BCrypt.hashpw(newPlainPassword, BCrypt.gensalt());
+
+        // 3. UPDATE password trong bảng users (transaction đơn giản — 1 câu UPDATE)
+        String updateSql = "UPDATE users SET password = ? "
+                         + "WHERE LOWER(email) = LOWER(?) AND status = 'ACTIVE'";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(updateSql)) {
+
+            ps.setString(1, newHash);
+            ps.setString(2, email.trim());
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                System.err.println("[UserDAO] resetPassword – không tìm thấy user ACTIVE: " + email);
+                return false;
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(
+                "[UserDAO] Lỗi cập nhật mật khẩu khi reset: " + e.getMessage(), e);
+        }
+
+        // 4. Huỷ OTP ngay sau khi dùng
+        prd.markUsed(email, otp);
+
+        System.out.println("[UserDAO] resetPassword – đặt lại mật khẩu thành công cho: " + email);
+        return true;
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private String mapRoleToEmployeeRole(String roleName) {

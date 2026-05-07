@@ -48,6 +48,9 @@ public class RejectRequestDialogController {
     /** Lý do đã nhập sau khi xác nhận; null nếu hủy. */
     private String reason = null;
 
+    /** Đơn đăng ký đang được xét duyệt (cần để gửi email từ chối). */
+    private RestaurantRequest currentRequest = null;
+
     // ── Static factory ────────────────────────────────────────────────────────
 
     /**
@@ -92,6 +95,7 @@ public class RejectRequestDialogController {
      */
     public void initData(RestaurantRequest request) {
         if (request == null) return;
+        this.currentRequest = request;
         lblRestaurantName.setText(safe(request.getRestaurantName()));
         lblOwnerName.setText("Chủ: " + safe(request.getOwnerName())
                 + " (" + safe(request.getOwnerEmail()) + ")");
@@ -117,6 +121,32 @@ public class RejectRequestDialogController {
 
         // Pass — lưu lý do và đóng
         this.reason = input.trim();
+
+        // ── Gửi email từ chối (fire-and-forget daemon thread) ─────────────────
+        // Không block JavaFX thread. Thất bại chỉ log, không ảnh hưởng UI flow.
+        if (currentRequest != null) {
+            final String finalReason = this.reason;
+            final RestaurantRequest req = currentRequest;
+            Thread emailThread = new Thread(() -> {
+                try {
+                    com.restaurant.email.EmailService.getInstance()
+                            .sendRestaurantRejectionEmail(
+                                    req.getOwnerEmail(),
+                                    req.getOwnerName(),
+                                    req.getRestaurantName(),
+                                    finalReason);
+                } catch (Exception e) {
+                    System.err.println(
+                            "[RejectRequestDialogController] Cảnh báo: gửi email từ chối thất bại"
+                            + " cho đơn #" + req.getRequestId()
+                            + ": " + e.getMessage());
+                }
+            });
+            emailThread.setDaemon(true);
+            emailThread.setName("email-rejection-" + req.getRequestId());
+            emailThread.start();
+        }
+
         closeStage();
     }
 

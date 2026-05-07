@@ -217,17 +217,51 @@ public class LoginController {
         t.start();
     }
 
-    /** Open forgot-password flow (show informational alert for now). */
+    /**
+     * Mở luồng quên mật khẩu (Phase 3).
+     *
+     * <p>Ẩn cửa sổ login hiện tại rồi mở {@code ForgotPasswordView.fxml}
+     * dưới dạng một Stage riêng biệt. Khi người dùng hoàn tất hoặc huỷ,
+     * {@link ForgotPasswordController} / {@link ResetPasswordController}
+     * sẽ tự gọi {@code loginStage.show()} để khôi phục màn hình đăng nhập.
+     */
     @FXML
     private void onForgotPassword() {
-        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
-                javafx.scene.control.Alert.AlertType.INFORMATION);
-        alert.setTitle("Quên mật khẩu");
-        alert.setHeaderText("Đặt lại mật khẩu");
-        alert.setContentText(
-                "Vui lòng liên hệ quản trị viên hệ thống để đặt lại mật khẩu.\n\n"
-                + "Email hỗ trợ: admin@smartrestaurant.vn");
-        alert.showAndWait();
+        javafx.stage.Stage loginStage = (javafx.stage.Stage) btnLogin.getScene().getWindow();
+
+        try {
+            ForgotPasswordController ctrl = new ForgotPasswordController();
+            ctrl.setLoginStage(loginStage);
+
+            javafx.scene.Parent root =
+                    com.restaurant.ui.fx.util.FxUtils.loadFxml("ForgotPasswordView.fxml", ctrl);
+
+            javafx.scene.Scene scene = new javafx.scene.Scene(root, 420, 330);
+
+            // Tải login.css cho cửa sổ này (dùng chung palette và class)
+            java.net.URL cssUrl = getClass().getResource("/fxml/login.css");
+            if (cssUrl != null) {
+                scene.getStylesheets().add(cssUrl.toExternalForm());
+            }
+
+            javafx.stage.Stage fpStage = new javafx.stage.Stage(
+                    javafx.stage.StageStyle.DECORATED);
+            fpStage.setTitle("Quên mật khẩu — SmartRestaurant");
+            fpStage.setScene(scene);
+            fpStage.setResizable(false);
+            // Không dùng initOwner để loginStage có thể hide/show độc lập
+
+            // Ẩn login trước khi mở cửa sổ mới
+            loginStage.hide();
+            fpStage.show();
+
+        } catch (Exception ex) {
+            System.err.println("[LoginController] Không thể mở màn hình quên mật khẩu: "
+                    + ex.getMessage());
+            ex.printStackTrace();
+            // Đảm bảo login luôn khả dụng nếu có lỗi
+            loginStage.show();
+        }
     }
 
     /**
