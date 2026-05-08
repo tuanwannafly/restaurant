@@ -17,9 +17,9 @@ import com.restaurant.data.DataManager;
 import com.restaurant.model.MenuItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -46,14 +46,16 @@ import javafx.util.Duration;
  *
  * <p>Controller cho {@code KitchenView.fxml}.
  *
- * <h3>Polling</h3>
- * Dùng {@link Timeline} chu kỳ {@value #POLL_INTERVAL_MS} ms.
+ * <h3>Cơ chế cập nhật dữ liệu</h3>
+ * Dùng WebSocket push thay cho Timer polling.
+ * Khi nhận {@link WsTopic#KITCHEN} event khớp restaurantId hiện tại,
+ * controller gọi {@code doPoll()} để tải lại dữ liệu.
  * Mỗi lần poll khởi động một {@link Task} trên daemon thread;
  * kết quả được apply trên FX thread qua {@code Platform.runLater}.
  *
  * <h3>Luồng dữ liệu</h3>
  * <pre>
- * Timeline tick
+ * WsEvent (KITCHEN, restaurantId)
  *   └─ doPoll()
  *        ├─ spinner.start()
  *        ├─ Task<KitchenData> (background)
@@ -66,8 +68,7 @@ import javafx.util.Duration;
  */
 public class KitchenController implements Initializable {
 
-    private static final Logger LOGGER           = Logger.getLogger(KitchenController.class.getName());
-    private static final int    POLL_INTERVAL_MS = 5_000;
+    private static final Logger LOGGER = Logger.getLogger(KitchenController.class.getName());
 
     // Category labels (đồng bộ với Swing version)
     private static final String[] CATEGORIES = {"Tất cả", "Món chính", "Đồ uống", "Tráng miệng"};
@@ -105,8 +106,6 @@ public class KitchenController implements Initializable {
     private String selectedCookingCategory = null;
     private int    lastPendingCount        = 0;
 
-    private Timeline pollTimeline;
-
     // ─── Initializable ────────────────────────────────────────────────────────
 
     @Override
@@ -141,8 +140,16 @@ public class KitchenController implements Initializable {
         // Initial load
         doPoll();
 
-        // Start polling Timeline
-        startPolling();
+        // Subscribe WebSocket KITCHEN topic — nhận push thay vì poll định kỳ
+        long sessionRestaurantId = AppSession.getInstance().getRestaurantId();
+        RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
+        wsClient.subscribe(WsTopic.KITCHEN);
+        wsClient.onEvent(event -> {
+            if (WsTopic.KITCHEN.equals(event.getTopic())
+                    && event.getRestaurantId() == sessionRestaurantId) {
+                doPoll();
+            }
+        });
     }
 
     // ─── Spinner injection ────────────────────────────────────────────────────
@@ -261,21 +268,15 @@ public class KitchenController implements Initializable {
         return tb;
     }
 
-    // ─── Polling ──────────────────────────────────────────────────────────────
+    // ─── WebSocket lifecycle ──────────────────────────────────────────────────
 
-    private void startPolling() {
-        pollTimeline = new Timeline(
-            new KeyFrame(Duration.millis(POLL_INTERVAL_MS), e -> doPoll())
-        );
-        pollTimeline.setCycleCount(Timeline.INDEFINITE);
-        pollTimeline.play();
-    }
-
-    /** Dừng polling (gọi khi panel đóng). */
+    /**
+     * Hủy đăng ký nhận event KITCHEN (gọi khi panel đóng).
+     * Xóa event handler khỏi {@link RestaurantEventClient} để tránh
+     * callback vào controller đã bị giải phóng.
+     */
     public void stopPolling() {
-        if (pollTimeline != null) {
-            pollTimeline.stop();
-        }
+        RestaurantEventClient.getInstance().onEvent(null);
     }
 
     // ─── doPoll ───────────────────────────────────────────────────────────────

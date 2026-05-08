@@ -1,23 +1,35 @@
 package com.restaurant.ui;
 
+import java.io.IOException;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
 import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
-import com.restaurant.ui.fx.controller.*;
+import com.restaurant.ui.fx.controller.BasePageController;
+import com.restaurant.ui.fx.controller.CartPageController;
+import com.restaurant.ui.fx.controller.MenuPageController;
+import com.restaurant.ui.fx.controller.PaymentPageController;
+import com.restaurant.ui.fx.controller.StatusPageController;
+import com.restaurant.ui.fx.controller.WaitingPageController;
 import com.restaurant.ui.fx.util.PollManagerFx;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
-import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
-
-import java.io.IOException;
-import java.text.NumberFormat;
-import java.util.*;
 
 /**
  * TableOrderStage — Phase 15: JavaFX Stage thay thế Swing TableOrderFrame.
@@ -52,6 +64,12 @@ public class TableOrderStage extends Stage {
 
     /** Current navigation page key. */
     private String currentPage = PAGE_MENU;
+
+    /**
+     * WS topic riêng cho bàn này — tính một lần từ tableId.
+     * Dùng cho subscribe/filter trong {@link #setupWsSubscription()}.
+     */
+    private final String wsTableTopic;
 
     /** Round counter — tăng mỗi lần gửi order thành công. */
     private int currentRound = 1;
@@ -104,6 +122,7 @@ public class TableOrderStage extends Stage {
         this.orderId        = orderId;
         this.tableName      = tableName;
         this.restaurantName = loadRestaurantName();
+        this.wsTableTopic   = WsTopic.forTable(Integer.parseInt(tableId));
 
         setTitle("Bàn " + tableName);
         setFullScreen(true);
@@ -139,6 +158,9 @@ public class TableOrderStage extends Stage {
 
         // Hiện trang đầu
         navigateTo(PAGE_MENU);
+
+        // Thay polling order_status / order_waiting bằng WebSocket
+        setupWsSubscription();
     }
 
     private void loadPage(String key, String fxmlPath) {
@@ -177,19 +199,8 @@ public class TableOrderStage extends Stage {
         BasePageController ctrl = controllers.get(page);
         if (ctrl != null) ctrl.onNavigatedTo();
 
-        // Bắt đầu poll cho page mới
-        if (PAGE_STATUS.equals(page)) {
-            PollManagerFx.getInstance().register(
-                    "order_status_" + tableId,
-                    () -> getStatusController().refreshTable(),
-                    5_000);
-        }
-        if (PAGE_WAITING.equals(page)) {
-            PollManagerFx.getInstance().register(
-                    "order_waiting_" + tableId,
-                    () -> getWaitingController().checkOrderCompleted(),
-                    5_000);
-        }
+        // WS subscription (setupWsSubscription) đảm nhận refresh —
+        // không cần PollManagerFx.register() cho order_status / order_waiting nữa.
     }
 
     // ── Window lifecycle ───────────────────────────────────────────────────────
@@ -199,8 +210,49 @@ public class TableOrderStage extends Stage {
     }
 
     public void cleanupPolls() {
+        // Xoá WS handler của stage này để không nhận event sau khi đóng
+        RestaurantEventClient.getInstance().onEvent(null);
+
+        // Vẫn unregister PollManagerFx để tránh lỗi nếu còn reference cũ
         PollManagerFx.getInstance().unregister("order_status_"  + tableId);
         PollManagerFx.getInstance().unregister("order_waiting_" + tableId);
+    }
+
+    // ── WebSocket subscription (thay polling order_status / order_waiting) ─────
+
+    /**
+     * Subscribe WS topics {@link WsTopic#ORDERS} và topic bàn cụ thể
+     * ({@code WsTopic.forTable(tableId)}) rồi đăng ký handler dispatch
+     * đến đúng controller tuỳ theo page đang hiển thị.
+     *
+     * <ul>
+     *   <li>STATUS page  → {@link StatusPageController#refreshTable()}</li>
+     *   <li>WAITING page → {@link WaitingPageController#checkOrderCompleted()}</li>
+     * </ul>
+     *
+     * <p>Handler luôn được gọi trên FX Application Thread (đảm bảo bởi
+     * {@link RestaurantEventClient}) nên không cần thêm {@code Platform.runLater()}.</p>
+     *
+     * <p>Để huỷ đăng ký, gọi {@link #cleanupPolls()} — sẽ đặt handler về {@code null}.</p>
+     */
+    private void setupWsSubscription() {
+        RestaurantEventClient ws = RestaurantEventClient.getInstance();
+
+        // Subscribe ORDERS (trạng thái order_items) và topic riêng của bàn
+        ws.subscribe(WsTopic.ORDERS, wsTableTopic);
+
+        // Handler dispatch: chỉ xử lý event liên quan đến đơn/bàn này
+        ws.onEvent(event -> {
+            if (event == null) return;
+            String topic = event.getTopic();
+            if (!WsTopic.ORDERS.equals(topic) && !wsTableTopic.equals(topic)) return;
+
+            if (PAGE_STATUS.equals(currentPage)) {
+                getStatusController().refreshTable();
+            } else if (PAGE_WAITING.equals(currentPage)) {
+                getWaitingController().checkOrderCompleted();
+            }
+        });
     }
 
     // ── Order logic (gọi từ CartPageController) ────────────────────────────────

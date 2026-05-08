@@ -33,12 +33,16 @@ import javafx.util.Duration;
  *   activeCount()                    // debug / test
  * </pre>
  *
- * <h3>Key convention (same as Swing PollManager)</h3>
+ * <h3>Key convention (active keys)</h3>
  * <pre>
- *   "kitchen"            – KitchenPanel
  *   "waiter"             – WaiterServicePanel
- *   "home_stats"         – HomePanel + badge refresh
+ *   "home_stats"         – HomePanel stats
  *   "tableorder_{id}"    – TableOrderView for table {id}
+ *
+ *   ── Migrated to WebSocket push (no longer polled) ───────────────────────
+ *   "kitchen"            – replaced by WsTopic.KITCHEN
+ *   "badge_refresh"      – replaced by WsTopic.BADGE  (see registerBadgeRefresh)
+ *   "request_list_refresh" – replaced by WsTopic.REQUEST_LIST
  * </pre>
  *
  * <h3>Thread contract</h3>
@@ -48,10 +52,10 @@ import javafx.util.Duration;
  * {@link FxUtils#runAsync} inside the task body to keep the UI
  * responsive:
  * <pre>{@code
- * PollManagerFx.getInstance().register("kitchen", () ->
+ * PollManagerFx.getInstance().register("waiter", () ->
  *     FxUtils.runAsync(
- *         () -> kitchenDAO.getPendingItems(restaurantId),
- *         items -> kitchenController.refresh(items)
+ *         () -> waiterDAO.getPendingRequests(restaurantId),
+ *         items -> waiterController.refresh(items)
  *     ), 5_000);
  * }</pre>
  *
@@ -132,7 +136,7 @@ public final class PollManagerFx {
      * <p>If {@code key} is already registered, the call is ignored (no-op).
      * Call {@link #unregister(String)} first to replace a task.
      *
-     * @param key        unique identifier (e.g. {@code "kitchen"})
+     * @param key        unique identifier (e.g. {@code "home_stats"})
      * @param task       runnable executed on the FX Application Thread
      * @param intervalMs repeat interval in milliseconds (≥ 1 000 recommended)
      */
@@ -230,31 +234,44 @@ public final class PollManagerFx {
     // =========================================================================
 
     /**
-     * Registers a badge-refresh polling task for the main navigation bar.
+     * Registers a periodic badge-refresh poll as a <b>safety-net fallback</b>
+     * when WebSocket / Oracle DCN is unavailable.
      *
-     * <p>Replaces the inline snippet that was commented out in the Swing
-     * {@code PollManager}:
-     * <pre>
-     *   PollManager.getInstance().register("home_stats", () -> {
-     *       loadDashboardData();
-     *       refreshBadges();
-     *   }, 10_000);
-     * </pre>
+     * <p><b>Deprecated:</b> Under normal operation badges are driven by
+     * {@link com.restaurant.websocket.WsTopic#BADGE} WebSocket push events and
+     * this method is never called.  It exists solely as a fallback invoked by
+     * {@link com.restaurant.websocket.OracleDcnBridge} when DCN cannot start
+     * (missing {@code CHANGE NOTIFICATION} privilege or Oracle &lt; 11g).</p>
      *
-     * <p>DB work is dispatched to a background thread; badge labels are
-     * updated back on the FX thread via the injected {@link BadgeUpdater}.
+     * <p>Double-register is guarded — calling this more than once is a no-op.</p>
      *
-     * @param intervalMs polling interval in milliseconds (suggest 10 000)
+     * @param intervalMs polling interval in milliseconds (suggest {@code 30_000}
+     *                   when used as a DCN fallback)
      */
+    @Deprecated
     public void registerBadgeRefresh(int intervalMs) {
-        register("badge_refresh", this::refreshBadgesAsync, intervalMs);
+        // Only register if not already running — safe to call from Platform.runLater()
+        if (!timelines.containsKey("badge_refresh")) {
+            register("badge_refresh", this::refreshBadgesAsync, intervalMs);
+            System.out.printf(
+                "[PollManagerFx] Fallback: badge_refresh poll started every %d ms " +
+                "(WebSocket/DCN unavailable).%n", intervalMs);
+        }
     }
 
     /**
-     * Executes the DB queries on a background thread and delivers counts
-     * to the BadgeUpdater on the FX Application Thread.
+     * Executes the badge DB queries on a background thread and delivers counts
+     * to the {@link BadgeUpdater} on the FX Application Thread.
+     *
+     * <p>Phase WS: visibility elevated từ {@code private} → {@code public} để
+     * {@code Main.openMainView()} gọi trực tiếp khi nhận WebSocket push event,
+     * thay thế cơ chế polling định kỳ của {@link #registerBadgeRefresh(int)}.
+     *
+     * <p>Thread-safe: an toàn khi gọi từ FX Application Thread, hoặc từ callback
+     * của {@link com.restaurant.websocket.RestaurantEventClient#onEvent} vốn đã
+     * được dispatch về FX thread qua {@code Platform.runLater}.
      */
-    private void refreshBadgesAsync() {
+    public void refreshBadgesAsync() {
         if (badgeUpdater == null) return;
 
         long restaurantId = AppSession.getInstance().getRestaurantId();

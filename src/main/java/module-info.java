@@ -10,6 +10,8 @@
  *  • DAO / session packages are NOT opened – they are pure Java with no
  *    framework reflection requirement.
  *  • Logging via SLF4J → Logback (transitive from logback-classic).
+ *
+ * Phase WS: Thêm org.java_websocket cho WebSocket push infrastructure.
  */
 module com.restaurant {
 
@@ -39,6 +41,12 @@ module com.restaurant {
 
     requires org.slf4j;
 
+    // ── WebSocket (Phase WS) ─────────────────────────────────────────────────
+    // Artifact: org.java-websocket:Java-WebSocket:1.5.4
+    // Module name: org.java_websocket  (dấu gạch dưới, không phải dấu gạch ngang)
+
+    requires org.java_websocket;
+
     // ── JDK utilities used by business logic ─────────────────────────────────
 
     requires java.desktop;        // java.awt.* still used in non-UI utilities
@@ -57,6 +65,9 @@ module com.restaurant {
     exports com.restaurant.model;
     exports com.restaurant.session;
     exports com.restaurant.ui.fx.util;
+
+    // WebSocket infrastructure (Phase WS)
+    exports com.restaurant.websocket;
 
     // JavaFX UI packages
     exports com.restaurant.ui.fx.controller;

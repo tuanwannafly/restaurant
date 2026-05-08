@@ -11,6 +11,10 @@ import com.restaurant.ui.fx.controller.LoginController;
 import com.restaurant.ui.fx.controller.MainController;
 import com.restaurant.ui.fx.util.FxUtils;
 import com.restaurant.ui.fx.util.PollManagerFx;
+import com.restaurant.websocket.OracleDcnBridge;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsTopic;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -41,6 +45,16 @@ import javafx.stage.Stage;
  *   <li>Silent re-auth performs its DB look-ups in {@code init()} so
  *       the result is ready before the FX thread starts painting.</li>
  * </ul>
+ *
+ * <h3>Phase WS — WebSocket push infrastructure</h3>
+ * Sau khi scene hiển thị, {@link #openMainView(Stage)} khởi động:
+ * <ol>
+ *   <li>{@link RestaurantEventServer} — WebSocket server port 8025.</li>
+ *   <li>{@link RestaurantEventClient} — kết nối và subscribe BADGE/KITCHEN/ORDERS/REQUEST_LIST.</li>
+ *   <li>{@link OracleDcnBridge} — lắng nghe Oracle DCN, broadcast WsEvent khi DB thay đổi.</li>
+ * </ol>
+ * Badge refresh được kích hoạt ngay khi nhận push thay vì chờ poll 10 giây.
+ * {@code stop()} dọn dẹp WS và DCN trước khi dừng {@link PollManagerFx}.
  */
 public class Main extends Application {
 
@@ -137,12 +151,36 @@ public class Main extends Application {
      * {@inheritDoc}
      *
      * <p>Called when the application is about to exit (last window closed or
-     * {@link Platform#exit()} called).  Stops all polling timers so no
-     * background work runs after the session ends.
+     * {@link Platform#exit()} called).
+     *
+     * <h3>Shutdown order (Phase WS)</h3>
+     * <ol>
+     *   <li>Dừng {@link OracleDcnBridge} — không còn nhận DCN event từ Oracle.</li>
+     *   <li>Disconnect {@link RestaurantEventClient} — tắt auto-reconnect.</li>
+     *   <li>Dừng {@link RestaurantEventServer} — đóng cổng WebSocket.</li>
+     *   <li>Dừng {@link PollManagerFx} — dừng mọi Timeline còn lại.</li>
+     * </ol>
+     * Thứ tự: nguồn push (DCN) → đường truyền (WS) → consumer (PollManager)
+     * để tránh push rác sau khi app đã dọn dẹp state.
      */
     @Override
     public void stop() {
-        // Ensure all Timelines are stopped (parallel to Swing MainFrame.handleLogout)
+        // ── 1. Dừng nguồn push Oracle DCN ────────────────────────────────────
+        try {
+            OracleDcnBridge.getInstance().stop();
+        } catch (Exception ignored) {}
+
+        // ── 2. Ngắt WebSocket client (tắt auto-reconnect) ────────────────────
+        try {
+            RestaurantEventClient.getInstance().disconnect();
+        } catch (Exception ignored) {}
+
+        // ── 3. Dừng WebSocket server (giải phóng cổng) ───────────────────────
+        try {
+            RestaurantEventServer.getInstance().stop();
+        } catch (Exception ignored) {}
+
+        // ── 4. Dừng mọi JavaFX Timeline (phải trên FX thread) ────────────────
         Platform.runLater(() -> {
             try {
                 PollManagerFx.getInstance().stopAll();
@@ -187,6 +225,19 @@ public class Main extends Application {
      *
      * <p>Equivalent to {@code new MainFrame(); frame.setVisible(true)} in the
      * Swing version.
+     *
+     * <h3>Phase WS additions (sau khi scene hiển thị)</h3>
+     * <ol>
+     *   <li>Inject {@link PollManagerFx.BadgeUpdater} vào PollManagerFx
+     *       (giữ nguyên như cũ).</li>
+     *   <li>Khởi động {@link RestaurantEventServer} tại port 8025.</li>
+     *   <li>Kết nối {@link RestaurantEventClient} và subscribe 4 topic:
+     *       BADGE, KITCHEN, ORDERS, REQUEST_LIST.</li>
+     *   <li>Đăng ký {@code onEvent} handler → gọi
+     *       {@link PollManagerFx#refreshBadgesAsync()} ngay khi nhận push.</li>
+     *   <li>Khởi động {@link OracleDcnBridge} (fallback-safe nếu thiếu privilege).</li>
+     *   <li>Gọi {@link PollManagerFx#refreshBadgesAsync()} một lần ngay để load badge ban đầu.</li>
+     * </ol>
      */
     private void openMainView(Stage stage) {
         MainController controller = new MainController();
@@ -200,14 +251,60 @@ public class Main extends Application {
         stage.setMinHeight(600);
         stage.show();
 
-        // Wire badge updater into PollManagerFx
+        // ── Badge updater: inject callback vào PollManagerFx (giữ nguyên) ────────
+        // Callback chạy trên FX thread, cập nhật 4 BadgeLabel trên nav bar.
         PollManagerFx.getInstance().setBadgeUpdater((k, w, p, r) -> {
             if (controller.getKitchenBadge() != null) controller.getKitchenBadge().setCount(k);
             if (controller.getWaiterBadge()  != null) controller.getWaiterBadge() .setCount(w);
             if (controller.getCashierBadge() != null) controller.getCashierBadge().setCount(p);
             if (controller.getRequestBadge() != null) controller.getRequestBadge().setCount(r);
         });
-        PollManagerFx.getInstance().registerBadgeRefresh(10_000);
+
+        // ── Phase WS: WebSocket push thay thế polling badge mỗi 10 giây ────────
+        //
+        //  Luồng dữ liệu:
+        //    Oracle DB thay đổi
+        //      → OracleDcnBridge (DCN callback thread)
+        //        → RestaurantEventServer.broadcast(WsEvent)
+        //          → RestaurantEventClient.onMessage (WS thread)
+        //            → Platform.runLater → onEvent handler (FX thread)
+        //              → PollManagerFx.refreshBadgesAsync() → BadgeUpdater
+        //
+        //  (1) Khởi động WebSocket server nội bộ
+        try {
+            RestaurantEventServer.getInstance().start();
+        } catch (Exception wsServerEx) {
+            System.err.println("[Main] WS server không thể start: " + wsServerEx.getMessage()
+                    + " — badge sẽ không nhận push.");
+        }
+
+        //  (2) Kết nối client và subscribe tất cả topic cần thiết.
+        //      connect() non-blocking — onOpen() gửi SUB frames sau khi handshake xong.
+        RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
+        wsClient.connect();
+        wsClient.subscribe(
+                WsTopic.BADGE,
+                WsTopic.KITCHEN,
+                WsTopic.ORDERS,
+                WsTopic.REQUEST_LIST
+        );
+
+        //  (3) Mọi push event → kích hoạt badge refresh ngay lập tức.
+        //      onEvent() callback luôn chạy trên FX thread (Platform.runLater trong client)
+        //      nên refreshBadgesAsync() an toàn để gọi trực tiếp.
+        wsClient.onEvent(event -> PollManagerFx.getInstance().refreshBadgesAsync());
+
+        //  (4) Khởi động Oracle DCN bridge.
+        //      Fallback-safe: nếu thiếu privilege hoặc Oracle < 11g → log warning,
+        //      không crash, PollManagerFx vẫn có thể dùng register() thủ công nếu cần.
+        try {
+            OracleDcnBridge.getInstance().start();
+        } catch (Exception dcnEx) {
+            System.err.println("[Main] OracleDcnBridge không thể start: " + dcnEx.getMessage());
+        }
+
+        //  (5) Load badge ngay lập tức (không chờ push đầu tiên từ Oracle).
+        PollManagerFx.getInstance().refreshBadgesAsync();
     }
 
     /**

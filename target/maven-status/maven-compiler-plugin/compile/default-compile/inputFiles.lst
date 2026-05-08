@@ -2,6 +2,7 @@ C:\work\doan\src\main\java\com\restaurant\dao\EmployeeDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\KitchenDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\MenuItemDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\OrderDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\PasswordResetDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\ReportDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\RestaurantDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\RestaurantRequestDAO.java
@@ -60,6 +61,7 @@ C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\CartPageController.ja
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\CashierController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\CashierPaymentDialogController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\DeliveryCardController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ForgotPasswordController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\LoginController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\MainController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\MenuPageController.java
@@ -67,6 +69,7 @@ C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\MyRestaurantControlle
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\PaymentPageController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ProfileController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ReportController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ResetPasswordController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantDetailController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantDialogController.java

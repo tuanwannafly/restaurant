@@ -9,7 +9,8 @@ import java.util.stream.Collectors;
 import com.restaurant.dao.RestaurantRequestDAO;
 import com.restaurant.model.RestaurantRequest;
 import com.restaurant.model.RestaurantRequest.RequestStatus;
-import com.restaurant.ui.fx.util.PollManagerFx;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -103,7 +104,13 @@ public class RestaurantRequestListController {
         setupComboBox();
         setupColumns();
         loadData();
-        registerPollRefresh();
+
+        // Thay PollManagerFx 10 s bằng WebSocket push
+        RestaurantEventClient ws = RestaurantEventClient.getInstance();
+        ws.subscribe(WsTopic.REQUEST_LIST);
+        ws.onEvent(event -> {
+            if (event != null && WsTopic.REQUEST_LIST.equals(event.getTopic())) loadData();
+        });
     }
 
     private void setupComboBox() {
@@ -311,21 +318,11 @@ public class RestaurantRequestListController {
         }
     }
 
-    // ── PollManagerFx — refresh định kỳ 10 giây ──────────────────────────────
+    // ── WebSocket cleanup ─────────────────────────────────────────────────────
 
-    private static final String POLL_KEY = "request_list_refresh";
-
-    private void registerPollRefresh() {
-        PollManagerFx poll = PollManagerFx.getInstance();
-        // Tránh đăng ký kép nếu loadData() được gọi lại (navigate)
-        if (!poll.isRunning(POLL_KEY)) {
-            poll.register(POLL_KEY, this::loadData, 10_000);
-        }
-    }
-
-    /** Huỷ đăng ký poll khi rời màn hình (gọi từ MainController nếu cần). */
-    public void stopRefresh() {
-        PollManagerFx.getInstance().unregister(POLL_KEY);
+    /** Huỷ WS handler khi rời màn hình (gọi từ MainController nếu cần). */
+    public void cleanup() {
+        RestaurantEventClient.getInstance().onEvent(null);
     }
 
     // ── Inner TableCell classes ────────────────────────────────────────────────
