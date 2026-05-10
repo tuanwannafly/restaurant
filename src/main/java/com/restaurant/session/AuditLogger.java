@@ -264,21 +264,24 @@ public final class AuditLogger {
     private void insertLog(String action, Long actorUserId, Long targetId,
                            String sessionToken, String opToken,
                            String result, String detail) {
+        // Ghi rõ logged_at = SYSTIMESTAMP để đảm bảo không bao giờ NULL,
+        // dù DB có hay không có DEFAULT/trigger cho cột này.
         String sql = """
             INSERT INTO security_audit_log
-                (action, actor_user_id, target_id, session_token, op_token, result, detail)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (action, actor_user_id, target_id, session_token, op_token,
+                 result, detail, logged_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
             """;
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, truncate(action, 50));
-            if (actorUserId != null) ps.setLong  (2, actorUserId); else ps.setNull(2, java.sql.Types.NUMERIC);
-            if (targetId    != null) ps.setLong  (3, targetId);    else ps.setNull(3, java.sql.Types.NUMERIC);
+            if (actorUserId != null) ps.setLong(2, actorUserId); else ps.setNull(2, java.sql.Types.NUMERIC);
+            if (targetId    != null) ps.setLong(3, targetId);    else ps.setNull(3, java.sql.Types.NUMERIC);
             ps.setString(4, sessionToken != null ? truncate(sessionToken, 36) : null);
-            ps.setString(5, opToken      != null ? truncate(opToken,      16) : null);
-            ps.setString(6, truncate(result, 10));
-            ps.setString(7, detail);
+            ps.setString(5, opToken      != null ? truncate(opToken,      36) : null); // DB là VARCHAR2(36)
+            ps.setString(6, truncate(result, 20));   // DB là VARCHAR2(20)
+            ps.setString(7, truncate(detail, 2000)); // DB là VARCHAR2(2000)
 
             ps.executeUpdate();
 
@@ -294,8 +297,11 @@ public final class AuditLogger {
                                         int limit) {
         List<AuditEntry> list = new ArrayList<>();
 
+        // Dùng ROW_NUMBER() thay vì cột log_id trực tiếp để tránh
+        // ORA-00904 khi schema chưa có cột log_id (hoặc cột có tên khác).
         StringBuilder sb = new StringBuilder("""
-            SELECT log_id, action, actor_user_id, target_id,
+            SELECT ROW_NUMBER() OVER (ORDER BY logged_at DESC) AS log_id,
+                   action, actor_user_id, target_id,
                    session_token, op_token, result, detail, logged_at
               FROM security_audit_log
              WHERE 1=1
@@ -308,7 +314,7 @@ public final class AuditLogger {
         if (to != null)
             sb.append(" AND logged_at <= ?");
 
-        sb.append(" ORDER BY logged_at DESC");
+        sb.append(" ORDER BY logged_at DESC NULLS LAST");
         sb.append(" FETCH FIRST ").append(limit).append(" ROWS ONLY");
 
         try (Connection conn = DBConnection.getInstance().getConnection();

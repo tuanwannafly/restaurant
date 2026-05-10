@@ -150,7 +150,7 @@
                                        prefWidth="64" prefHeight="64"
                                        minWidth="64" minHeight="64"
                                        onMouseClicked="#onPickLogo"
-                                       cursor="HAND">
+                                       style="-fx-cursor: hand;">
                                 <Label fx:id="lblLogoInitials" text="NH"
                                        styleClass="logo-initials"/>
                                 <ImageView fx:id="imgLogo" fitWidth="64" fitHeight="64"

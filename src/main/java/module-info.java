@@ -20,13 +20,15 @@ module com.restaurant {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.media;
-    requires javafx.web;          // Charts (BarChart, LineChart) via javafx.scene.chart
+    requires javafx.web;  
+    requires jakarta.mail;        // Charts (BarChart, LineChart) via javafx.scene.chart
 
     // ── Database ─────────────────────────────────────────────────────────────
 
     requires java.sql;            // java.sql.DriverManager, Connection, etc.
     requires org.xerial.sqlitejdbc;
     requires com.zaxxer.hikari;
+    requires com.oracle.database.jdbc;
 
     // ── Security ─────────────────────────────────────────────────────────────
 

@@ -116,10 +116,10 @@ public class PasswordResetDAO {
             SELECT 1
             FROM   password_reset_tokens prt
             JOIN   users u ON u.user_id = prt.user_id
-            WHERE  LOWER(u.email)  = LOWER(?)
-              AND  prt.otp_code    = ?
-              AND  prt.used        = 'N'
-              AND  prt.expires_at  > SYSTIMESTAMP
+            WHERE  LOWER(u.email)       = LOWER(?)
+              AND  prt.token            = ?
+              AND  NVL(prt.used, 0)     = 0
+              AND  prt.expires_at       > SYSTIMESTAMP
             """;
 
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -155,9 +155,9 @@ public class PasswordResetDAO {
 
         String sql = """
             UPDATE password_reset_tokens prt
-            SET    prt.used = 'Y'
-            WHERE  prt.otp_code = ?
-              AND  prt.used     = 'N'
+            SET    prt.used = 1
+            WHERE  prt.token    = ?
+              AND  prt.used     = 0
               AND  prt.user_id  = (
                        SELECT user_id
                        FROM   users
@@ -214,8 +214,8 @@ public class PasswordResetDAO {
      */
     private void invalidateOldTokens(long userId) {
         String sql = "UPDATE password_reset_tokens "
-                   + "SET used = 'Y' "
-                   + "WHERE user_id = ? AND used = 'N'";
+                   + "SET used = 1 "
+                   + "WHERE user_id = ? AND used = 0";
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
@@ -234,8 +234,8 @@ public class PasswordResetDAO {
      */
     private void insertOtp(long userId, String otp) {
         String sql = "INSERT INTO password_reset_tokens "
-                   + "    (user_id, otp_code, expires_at) "
-                   + "VALUES (?, ?, SYSTIMESTAMP + INTERVAL '"
+                   + "    (user_id, token, used, expires_at) "
+                   + "VALUES (?, ?, 0, SYSTIMESTAMP + INTERVAL '"
                    + OTP_TTL_MINUTES + "' MINUTE)";
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

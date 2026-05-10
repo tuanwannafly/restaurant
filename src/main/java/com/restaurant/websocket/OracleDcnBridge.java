@@ -12,7 +12,6 @@ import com.restaurant.session.AppSession;
 import com.restaurant.ui.fx.util.PollManagerFx;
 
 import javafx.application.Platform;
-
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.dcn.DatabaseChangeEvent;
 import oracle.jdbc.dcn.DatabaseChangeListener;
@@ -149,9 +148,9 @@ public final class OracleDcnBridge {
             // Bước 1b: Kiểm tra Oracle version — DCN yêu cầu 11g trở lên
             int oracleMajor = dcnConnection.getMetaData().getDatabaseMajorVersion();
             if (oracleMajor < 11) {
-                LOGGER.warning("[DcnBridge] Oracle " + oracleMajor
-                        + ".x < 11g — DCN không khả dụng."
-                        + " Fallback về PollManagerFx badge poll.");
+                LOGGER.log(Level.WARNING,
+                        "[DcnBridge] Oracle {0}.x < 11g — DCN không khả dụng."
+                        + " Fallback về PollManagerFx badge poll.", oracleMajor);
                 safeClose(dcnConnection);
                 dcnConnection = null;
                 scheduleFallbackBadgePoll();
@@ -169,28 +168,30 @@ public final class OracleDcnBridge {
             registration = dcnConnection.registerDatabaseChangeNotification(props);
 
             // Bước 4: Thêm listener xử lý thay đổi
-            registration.addChangeListener(new RestaurantDcnListener());
+            registration.addListener(new RestaurantDcnListener());
 
-            LOGGER.info("[DcnBridge] Kết nối DCN thành công — regId="
-                    + registration.getRegId() + ".");
+            LOGGER.log(Level.INFO, "[DcnBridge] Kết nối DCN thành công — regId={0}.",
+                    registration.getRegId());
 
             // Bước 5: "Đính" registration vào từng bảng cần theo dõi
             registerTables();
 
-            LOGGER.info("[DcnBridge] Đang theo dõi " + WATCHED_TABLES.length
-                    + " bảng: " + String.join(", ", WATCHED_TABLES));
+            LOGGER.log(Level.INFO, "[DcnBridge] Đang theo dõi {0} bảng: {1}",
+                    new Object[]{WATCHED_TABLES.length, String.join(", ", WATCHED_TABLES)});
 
         } catch (Exception e) {
             String msg = e.getMessage();
             if (msg != null && (msg.contains("ORA-29970") || msg.contains("29970"))) {
                 // ORA-29970: CHANGE NOTIFICATION privilege chưa được cấp
-                LOGGER.warning("[DCN] Chưa có quyền CHANGE NOTIFICATION — chạy: "
-                        + "GRANT CHANGE NOTIFICATION TO " + resolveDbUser());
+                LOGGER.log(Level.WARNING,
+                        "[DCN] Chưa có quyền CHANGE NOTIFICATION — chạy: GRANT CHANGE NOTIFICATION TO {0}",
+                        resolveDbUser());
                 scheduleFallbackBadgePoll();
             } else if (msg != null && (msg.contains("ORA-29972") || msg.contains("29972"))) {
                 // ORA-29972: một số phiên bản Oracle dùng code này cho lỗi privilege
-                LOGGER.warning("[DCN] Chưa có quyền CHANGE NOTIFICATION — chạy: "
-                        + "GRANT CHANGE NOTIFICATION TO " + resolveDbUser());
+                LOGGER.log(Level.WARNING,
+                        "[DCN] Chưa có quyền CHANGE NOTIFICATION — chạy: GRANT CHANGE NOTIFICATION TO {0}",
+                        resolveDbUser());
                 scheduleFallbackBadgePoll();
             } else if (msg != null && msg.contains("DCN")) {
                 LOGGER.warning("[DcnBridge] Oracle không hỗ trợ DCN."
@@ -219,7 +220,7 @@ public final class OracleDcnBridge {
         }
         long regId = registration.getRegId();
         stopInternal();
-        LOGGER.info("[DcnBridge] DCN ngắt kết nối thành công (regId=" + regId + ").");
+        LOGGER.log(Level.INFO, "[DcnBridge] DCN ngắt kết nối thành công (regId={0}).", regId);
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
@@ -238,8 +239,8 @@ public final class OracleDcnBridge {
                     String sql = "SELECT COUNT(*) FROM " + table + " WHERE ROWNUM = 1";
                     ResultSet rs = stmt.executeQuery(sql);
                     if (rs != null) rs.close();
-                    LOGGER.fine("[DcnBridge] Đã đính bảng: " + table);
-                } catch (Exception e) {
+                    LOGGER.log(Level.FINE, "[DcnBridge] Đã đính bảng: {0}", table);
+                } catch (java.sql.SQLException e) {
                     LOGGER.log(Level.WARNING,
                             "[DcnBridge] Không thể đính bảng '" + table
                                     + "' vào DCN registration. Bỏ qua.", e);
@@ -256,19 +257,15 @@ public final class OracleDcnBridge {
             if (dcnConnection != null) {
                 try {
                     dcnConnection.unregisterDatabaseChangeNotification(registration);
-                    LOGGER.info("[DcnBridge] DCN registration unregistered (regId="
-                            + registration.getRegId() + ").");
-                } catch (Exception e) {
+                    LOGGER.log(Level.INFO, "[DcnBridge] DCN registration unregistered (regId={0}).",
+                            registration.getRegId());
+                } catch (java.sql.SQLException e) {
                     LOGGER.log(Level.FINE,
                             "[DcnBridge] Lỗi khi unregister DCN registration — bỏ qua.", e);
                 }
             }
-            // Bước 2: Đóng client-side registration object
-            try {
-                registration.close();
-            } catch (Exception e) {
-                LOGGER.log(Level.FINE, "[DcnBridge] Lỗi khi đóng registration.", e);
-            }
+            // Bước 2: unregisterDatabaseChangeNotification() đã giải phóng toàn bộ
+            // client-side registration — không cần gọi close() riêng.
             registration = null;
         }
         if (dcnConnection != null) {
@@ -286,6 +283,7 @@ public final class OracleDcnBridge {
      * <p>{@code Platform.runLater} bắt buộc vì {@link PollManagerFx#register} yêu cầu
      * FX Application Thread, trong khi {@code start()} có thể được gọi từ bất kỳ thread nào.</p>
      */
+    @SuppressWarnings("deprecated")
     private static void scheduleFallbackBadgePoll() {
         Platform.runLater(() ->
             PollManagerFx.getInstance().registerBadgeRefresh(30_000)
@@ -355,33 +353,31 @@ public final class OracleDcnBridge {
 
             for (TableChangeDescription tcd : tableChanges) {
                 String tableName = tcd.getTableName().toUpperCase();
-                LOGGER.fine("[DcnBridge] Bảng thay đổi: " + tableName);
+                LOGGER.log(Level.FINE, "[DcnBridge] Bảng thay đổi: {0}", tableName);
 
                 switch (tableName) {
                     // ── ORDERS / ORDER_ITEMS → thông báo waiter + badge ──────
-                    case "ORDERS":
+                    case "ORDERS" -> {
                         server.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
-                        break;
+                    }
 
                     // ── ORDER_ITEMS → thông báo kitchen + badge ──────────────
                     // ORDER_ITEMS phục vụ đồng thời waiter view và kitchen view
-                    case "ORDER_ITEMS":
+                    case "ORDER_ITEMS" -> {
                         server.broadcast(WsEvent.of(WsTopic.ORDERS,  restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.KITCHEN, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,   restaurantId));
-                        break;
+                    }
 
                     // ── RESTAURANT_REQUESTS → thông báo request list + badge ─
-                    case "RESTAURANT_REQUESTS":
+                    case "RESTAURANT_REQUESTS" -> {
                         server.broadcast(WsEvent.of(WsTopic.REQUEST_LIST, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,        restaurantId));
-                        break;
+                    }
 
-                    default:
-                        LOGGER.fine("[DcnBridge] Bảng không được map: " + tableName
-                                + " — bỏ qua.");
-                        break;
+                    default -> LOGGER.log(Level.FINE,
+                            "[DcnBridge] Bảng không được map: {0} — bỏ qua.", tableName);
                 }
             }
         }

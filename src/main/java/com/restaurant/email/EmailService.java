@@ -1,13 +1,18 @@
 package com.restaurant.email;
 
-import jakarta.mail.*;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
-
 import java.io.InputStream;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import jakarta.mail.Authenticator;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.PasswordAuthentication;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 
 /**
  * Singleton quản lý gửi email qua SMTP.
@@ -210,7 +215,7 @@ public class EmailService {
                                             String ownerName,
                                             String restaurantName,
                                             String loginEmail) {
-        String subject = "🎉 Chúc mừng! Nhà hàng "" + restaurantName + "" đã được phê duyệt";
+        String subject = "🎉 Chúc mừng! Nhà hàng " + restaurantName + " đã được phê duyệt";
 
         String html = "<!DOCTYPE html>"
             + "<html lang=\"vi\"><head><meta charset=\"UTF-8\">"
@@ -290,7 +295,7 @@ public class EmailService {
                                              String ownerName,
                                              String restaurantName,
                                              String reason) {
-        String subject = "Thông báo về đơn đăng ký nhà hàng "" + restaurantName + """;
+        String subject = "Thông báo về đơn đăng ký nhà hàng " + restaurantName + "";
 
         String html = "<!DOCTYPE html>"
             + "<html lang=\"vi\"><head><meta charset=\"UTF-8\">"

@@ -469,25 +469,55 @@ public class MainController implements Initializable, SessionListener {
     // ── Private: logout flow ───────────────────────────────────────────────
 
     /**
-     * Opens {@code LoginDialog}; if login succeeds spawns a new
-     * {@link MainStage}, otherwise exits the application.
+     * Closes the current main window and re-opens the login screen.
+     * On successful login a new MainController + MainView are spawned.
+     * On cancel the application exits.
      */
     private void openLoginAndRespawn() {
-        try {
-            // Load LoginDialog (FXML or Stage)
-            Class<?> loginClass = Class.forName("com.restaurant.ui.LoginDialog");
-            Object loginDlg = loginClass.getDeclaredConstructor().newInstance();
-            loginClass.getMethod("showAndWait").invoke(loginDlg);
+        // Đóng cửa sổ hiện tại
+        Stage currentStage = (Stage) rootPane.getScene().getWindow();
 
-            boolean success = (boolean) loginClass.getMethod("isLoginSuccess").invoke(loginDlg);
-            if (success) {
-                // Reopen main window
-                Class<?> mainStageClass = Class.forName("com.restaurant.ui.MainStage");
-                Object   mainStage      = mainStageClass.getDeclaredConstructor().newInstance();
-                mainStageClass.getMethod("show").invoke(mainStage);
-            } else {
+        LoginController loginController = new LoginController();
+
+        loginController.setOnLoginSuccess(() -> {
+            try {
+                MainController newMain = new MainController();
+                javafx.scene.Parent root =
+                        com.restaurant.ui.fx.util.FxUtils.loadFxml("MainView.fxml", newMain);
+
+                javafx.scene.Scene scene = new javafx.scene.Scene(root, 1280, 780);
+                com.restaurant.ui.fx.util.FxUtils.loadCss(scene);
+
+                Stage newStage = new Stage();
+                newStage.setTitle("SmartRestaurant");
+                newStage.setMinWidth(900);
+                newStage.setMinHeight(600);
+                newStage.setScene(scene);
+                newStage.setOnCloseRequest(e -> Platform.exit());
+                newStage.show();
+                currentStage.close();
+            } catch (Exception e) {
+                e.printStackTrace();
                 Platform.exit();
             }
+        });
+
+        loginController.setOnLoginCancelled(Platform::exit);
+
+        try {
+            javafx.scene.Parent loginRoot =
+                    com.restaurant.ui.fx.util.FxUtils.loadFxml("LoginView.fxml", loginController);
+
+            javafx.scene.Scene loginScene = new javafx.scene.Scene(loginRoot, 440, 560);
+            com.restaurant.ui.fx.util.FxUtils.loadCss(loginScene);
+
+            Stage loginStage = new Stage();
+            loginStage.setTitle("Đăng nhập — SmartRestaurant");
+            loginStage.setResizable(false);
+            loginStage.setScene(loginScene);
+            loginStage.centerOnScreen();
+            loginStage.show();
+            currentStage.close();
         } catch (Exception ex) {
             ex.printStackTrace();
             Platform.exit();

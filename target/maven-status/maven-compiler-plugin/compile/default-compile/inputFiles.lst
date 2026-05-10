@@ -100,4 +100,9 @@ C:\work\doan\src\main\java\com\restaurant\ui\TableController.java
 C:\work\doan\src\main\java\com\restaurant\ui\TableOrderStage.java
 C:\work\doan\src\main\java\com\restaurant\ui\TopBarController.java
 C:\work\doan\src\main\java\com\restaurant\ui\UIConstants.java
+C:\work\doan\src\main\java\com\restaurant\websocket\OracleDcnBridge.java
+C:\work\doan\src\main\java\com\restaurant\websocket\RestaurantEventClient.java
+C:\work\doan\src\main\java\com\restaurant\websocket\RestaurantEventServer.java
+C:\work\doan\src\main\java\com\restaurant\websocket\WsEvent.java
+C:\work\doan\src\main\java\com\restaurant\websocket\WsTopic.java
 C:\work\doan\src\main\java\module-info.java
