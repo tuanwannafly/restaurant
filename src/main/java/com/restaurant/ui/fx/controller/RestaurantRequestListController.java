@@ -79,6 +79,9 @@ public class RestaurantRequestListController {
 
     private final RestaurantRequestDAO dao = new RestaurantRequestDAO();
 
+    /** Cancel-token trả về từ addEventHandler — dùng để huỷ đăng ký khi cleanup. */
+    private Runnable cancelWsHandler;
+
     private List<RestaurantRequest> allItems       = new ArrayList<>();
     private List<RestaurantRequest> displayedItems = new ArrayList<>();
 
@@ -108,7 +111,7 @@ public class RestaurantRequestListController {
         // Thay PollManagerFx 10 s bằng WebSocket push
         RestaurantEventClient ws = RestaurantEventClient.getInstance();
         ws.subscribe(WsTopic.REQUEST_LIST);
-        ws.onEvent(event -> {
+        cancelWsHandler = ws.addEventHandler(event -> {
             if (event != null && WsTopic.REQUEST_LIST.equals(event.getTopic())) loadData();
         });
     }
@@ -322,7 +325,7 @@ public class RestaurantRequestListController {
 
     /** Huỷ WS handler khi rời màn hình (gọi từ MainController nếu cần). */
     public void cleanup() {
-        RestaurantEventClient.getInstance().onEvent(null);
+        if (cancelWsHandler != null) { cancelWsHandler.run(); cancelWsHandler = null; }
     }
 
     // ── Inner TableCell classes ────────────────────────────────────────────────

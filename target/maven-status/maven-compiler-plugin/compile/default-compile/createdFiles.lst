@@ -23,6 +23,7 @@ com\restaurant\dao\TableDAO$1.class
 com\restaurant\ui\fx\controller\CashierController$PaymentRequest.class
 com\restaurant\dao\RestaurantRequestDAO.class
 com\restaurant\ui\fx\controller\RestaurantDialogController$4.class
+com\restaurant\ui\fx\controller\TableOrderSingleController$CartItemCell.class
 com\restaurant\ui\dialog\EmployeeDialogController$1.class
 com\restaurant\ui\dialog\MenuDialogController.class
 com\restaurant\ui\dialog\OrderDetailController$2.class
@@ -47,6 +48,7 @@ com\restaurant\ui\cell\ActionTableCell.class
 com\restaurant\ui\control\BadgeLabel$1.class
 module-info.class
 com\restaurant\ui\fx\util\FxUtils$1.class
+com\restaurant\session\TabletSession.class
 com\restaurant\websocket\WsEvent.class
 com\restaurant\ui\fx\controller\RestaurantController.class
 com\restaurant\ui\ImageLoader.class
@@ -62,6 +64,7 @@ com\restaurant\ui\EmployeeController$4.class
 com\restaurant\ui\fx\controller\RestaurantController$11.class
 com\restaurant\ui\fx\controller\DeliveryCardController$1.class
 com\restaurant\ui\fx\controller\StatusPageController.class
+com\restaurant\dao\TabletOrderDAO.class
 com\restaurant\model\Employee.class
 com\restaurant\ui\fx\controller\RestaurantRegistrationController$1.class
 com\restaurant\ui\fx\controller\AuditLogController$3.class
@@ -167,7 +170,9 @@ com\restaurant\ui\fx\util\PollManagerFx$BadgeUpdater.class
 com\restaurant\ui\dialog\EmployeeDialogController.class
 com\restaurant\email\EmailService$1.class
 com\restaurant\ui\dialog\ConfirmOperationDialogController.class
+com\restaurant\ui\fx\controller\TableLoginDialogController.class
 com\restaurant\ui\TableOrderStage$1.class
+com\restaurant\ui\fx\controller\TableOrderSingleController.class
 com\restaurant\model\Order$OrderItem.class
 com\restaurant\ui\dialog\PaymentDialogController$1.class
 com\restaurant\ui\fx\controller\RestaurantDialogController.class
@@ -243,6 +248,7 @@ com\restaurant\ui\fx\controller\CashierController$3.class
 com\restaurant\dao\EmployeeDAO.class
 com\restaurant\ui\fx\controller\CartPageController$2.class
 com\restaurant\ui\fx\controller\RestaurantRequestDetailController.class
+com\restaurant\ui\fx\controller\TableLoginDialogController$1.class
 com\restaurant\ui\fx\controller\RestaurantRequestListController$StatusBadgeCell$1Style.class
 com\restaurant\ui\fx\controller\WaiterController$1.class
 com\restaurant\ui\OrderController$3.class

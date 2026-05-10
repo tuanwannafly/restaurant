@@ -9,6 +9,7 @@ C:\work\doan\src\main\java\com\restaurant\dao\RestaurantRequestDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\RestaurantRequestService.java
 C:\work\doan\src\main\java\com\restaurant\dao\StatsDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\TableDAO.java
+C:\work\doan\src\main\java\com\restaurant\dao\TabletOrderDAO.java
 C:\work\doan\src\main\java\com\restaurant\dao\UserDAO.java
 C:\work\doan\src\main\java\com\restaurant\data\DataManager.java
 C:\work\doan\src\main\java\com\restaurant\db\DBConnection.java
@@ -30,6 +31,7 @@ C:\work\doan\src\main\java\com\restaurant\session\RbacGuard.java
 C:\work\doan\src\main\java\com\restaurant\session\RbacTest.java
 C:\work\doan\src\main\java\com\restaurant\session\RefreshTokenService.java
 C:\work\doan\src\main\java\com\restaurant\session\SessionExpiredException.java
+C:\work\doan\src\main\java\com\restaurant\session\TabletSession.java
 C:\work\doan\src\main\java\com\restaurant\session\TokenService.java
 C:\work\doan\src\main\java\com\restaurant\session\TokenStorage.java
 C:\work\doan\src\main\java\com\restaurant\ui\ActivityListCell.java
@@ -79,6 +81,8 @@ C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\RestaurantRequestList
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\ResultBadgeTableCell.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\StatsController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\StatusPageController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\TableLoginDialogController.java
+C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\TableOrderSingleController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\WaiterController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\controller\WaitingPageController.java
 C:\work\doan\src\main\java\com\restaurant\ui\fx\util\FxUtils.java

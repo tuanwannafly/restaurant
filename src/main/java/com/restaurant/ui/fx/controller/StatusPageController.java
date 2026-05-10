@@ -8,9 +8,10 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
-
-import java.util.List;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 
 /**
  * StatusPageController — Phase 15.
@@ -86,7 +87,6 @@ public class StatusPageController extends BasePageController {
             case ACCEPTED,
                  COOKING    -> "Đang chế biến";
             case READY      -> "Đã chế biến";
-            case DELIVERING -> "Đang mang lên";
             case DELIVERED  -> "Đã nhận";
             default         -> "Đang chờ";
         };

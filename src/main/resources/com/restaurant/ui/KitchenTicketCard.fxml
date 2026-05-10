@@ -60,4 +60,40 @@
                   -fx-font-size: 12px;
                   -fx-text-fill: #94A3B8;"/>
 
+    <!-- Divider -->
+    <Separator style="-fx-opacity: 0.5;"/>
+
+    <!-- Action buttons -->
+    <!-- btnStartCooking: chỉ hiện ở cột PENDING (PENDING/ACCEPTED → COOKING) -->
+    <Button fx:id="btnStartCooking"
+            text="▶ Bắt đầu nấu"
+            maxWidth="Infinity"
+            managed="false"
+            visible="false"
+            onAction="#onStartCooking"
+            style="-fx-font-family: 'Segoe UI';
+                   -fx-font-size: 12px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #3B82F6;
+                   -fx-text-fill: #FFFFFF;
+                   -fx-background-radius: 6;
+                   -fx-padding: 7 0 7 0;
+                   -fx-cursor: hand;"/>
+
+    <!-- btnMarkReady: chỉ hiện ở cột COOKING (COOKING → READY) -->
+    <Button fx:id="btnMarkReady"
+            text="✔ Hoàn thành"
+            maxWidth="Infinity"
+            managed="false"
+            visible="false"
+            onAction="#onMarkReady"
+            style="-fx-font-family: 'Segoe UI';
+                   -fx-font-size: 12px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #10B981;
+                   -fx-text-fill: #FFFFFF;
+                   -fx-background-radius: 6;
+                   -fx-padding: 7 0 7 0;
+                   -fx-cursor: hand;"/>
+
 </VBox>

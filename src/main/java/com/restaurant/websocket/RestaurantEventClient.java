@@ -2,6 +2,7 @@ package com.restaurant.websocket;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -83,8 +84,12 @@ public final class RestaurantEventClient extends WebSocketClient {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    /** Callback nhận event — luôn được gọi trên FX thread. */
-    private volatile Consumer<WsEvent> eventHandler;
+    /**
+     * Danh sách handler nhận event — hỗ trợ nhiều controller cùng đăng ký.
+     * CopyOnWriteArrayList đảm bảo thread-safe khi iterate + add/remove đồng thời.
+     */
+    private final CopyOnWriteArrayList<Consumer<WsEvent>> eventHandlers =
+            new CopyOnWriteArrayList<>();
 
     /** Topics đã subscribe — được gửi lại sau mỗi lần reconnect thành công. */
     private volatile String[] pendingTopics = new String[0];
@@ -125,15 +130,18 @@ public final class RestaurantEventClient extends WebSocketClient {
 
         try {
             WsEvent event = WsEvent.fromJson(message);
-            Consumer<WsEvent> handler = this.eventHandler;
-            if (handler != null) {
+            // Snapshot handlers để tránh ConcurrentModificationException
+            Consumer<WsEvent>[] handlers = eventHandlers.toArray(new Consumer[0]);
+            if (handlers.length > 0) {
                 // Luôn dispatch trên FX Application Thread để controller cập nhật UI an toàn
                 Platform.runLater(() -> {
-                    try {
-                        handler.accept(event);
-                    } catch (Exception e) {
-                        LOGGER.log(Level.WARNING,
-                                "[WsClient] Lỗi trong event handler với event: " + event, e);
+                    for (Consumer<WsEvent> handler : handlers) {
+                        try {
+                            handler.accept(event);
+                        } catch (Exception e) {
+                            LOGGER.log(Level.WARNING,
+                                    "[WsClient] Lỗi trong event handler với event: " + event, e);
+                        }
                     }
                 });
             }
@@ -187,17 +195,40 @@ public final class RestaurantEventClient extends WebSocketClient {
     }
 
     /**
-     * Đăng ký consumer nhận {@link WsEvent}.
+     * Đăng ký consumer nhận {@link WsEvent}. Hỗ trợ nhiều handler đồng thời.
      *
      * <p>Consumer luôn được gọi trên FX Application Thread nên có thể cập nhật
      * UI trực tiếp mà không cần {@code Platform.runLater()} bổ sung.
      *
-     * <p>Chỉ có thể đăng ký một handler tại một thời điểm — gọi lại sẽ thay thế.
+     * <p>Trả về một {@link Runnable} cancel-token — gọi nó để huỷ đăng ký
+     * handler này mà không ảnh hưởng đến handler của controller khác.
      *
-     * @param handler consumer nhận WsEvent; {@code null} để bỏ handler
+     * <pre>{@code
+     * // Trong initialize():
+     * cancelWs = RestaurantEventClient.getInstance().addEventHandler(event -> { ... });
+     *
+     * // Trong cleanup():
+     * if (cancelWs != null) { cancelWs.run(); cancelWs = null; }
+     * }</pre>
+     *
+     * @param handler consumer nhận WsEvent
+     * @return Runnable để huỷ đăng ký handler này
      */
+    public Runnable addEventHandler(Consumer<WsEvent> handler) {
+        if (handler == null) return () -> {};
+        eventHandlers.add(handler);
+        return () -> eventHandlers.remove(handler);
+    }
+
+    /**
+     * @deprecated Dùng {@link #addEventHandler(Consumer)} thay thế.
+     * Phương thức này XÓA TOÀN BỘ handler và thêm handler mới (hoặc xóa hết nếu null).
+     * Không dùng khi nhiều controller cùng subscribe.
+     */
+    @Deprecated
     public void onEvent(Consumer<WsEvent> handler) {
-        this.eventHandler = handler;
+        eventHandlers.clear();
+        if (handler != null) eventHandlers.add(handler);
     }
 
     /**
@@ -207,7 +238,7 @@ public final class RestaurantEventClient extends WebSocketClient {
     public void disconnect() {
         intentionalClose = true;
         pendingTopics     = new String[0];
-        eventHandler      = null;
+        eventHandlers.clear();
         if (isOpen()) {
             close();
         }

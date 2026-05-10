@@ -12,11 +12,14 @@ import com.restaurant.dao.OrderDAO;
 import com.restaurant.dao.TableDAO;
 import com.restaurant.model.Order;
 import com.restaurant.model.TableItem;
+import com.restaurant.session.AppSession;
 import com.restaurant.ui.fx.util.ToastNotificationFx;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
-import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -100,9 +103,10 @@ public class CashierController implements Initializable {
      * Dừng khi scene bị unload (override {@code stop()} hoặc dùng sceneProperty listener).
      */
     private Timeline pollTimeline;
+    private Runnable cancelWsHandler;
 
-    /** Khoảng cách giữa các lần poll (giây). Giống Swing POLL_INTERVAL_MS = 5000. */
-    private static final int POLL_INTERVAL_S = 5;
+    /** Khoảng cách fallback polling (giây) — WS sẽ kích trigger trước khi đến lượt này. */
+    private static final int POLL_INTERVAL_S = 30;
 
     // ─── DAO ─────────────────────────────────────────────────────────────────
 
@@ -118,6 +122,7 @@ public class CashierController implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         loadData();
+        setupWebSocket();
         startPolling();
     }
 
@@ -137,6 +142,22 @@ public class CashierController implements Initializable {
     }
 
     /**
+     * Đăng ký WebSocket handler — nhận push event từ ORDERS/BADGE → gọi doPoll() ngay.
+     */
+    private void setupWebSocket() {
+        long myRestaurantId = AppSession.getInstance().getRestaurantId();
+        RestaurantEventClient ws = RestaurantEventClient.getInstance();
+        cancelWsHandler = ws.addEventHandler(event -> {
+            if (event.getRestaurantId() == myRestaurantId
+                    && (WsTopic.ORDERS.equals(event.getTopic())
+                        || WsTopic.BADGE.equals(event.getTopic()))) {
+                doPoll();
+            }
+        });
+        ws.subscribe(WsTopic.ORDERS, WsTopic.BADGE);
+    }
+
+    /**
      * Dừng polling — gọi khi view bị ẩn hoặc navigate sang panel khác.
      * Nên bind với sceneProperty hoặc gọi từ parent controller.
      */
@@ -145,6 +166,7 @@ public class CashierController implements Initializable {
             pollTimeline.stop();
             lastPaymentCount = -1;
         }
+        if (cancelWsHandler != null) { cancelWsHandler.run(); cancelWsHandler = null; }
     }
 
     // ─── doPoll ──────────────────────────────────────────────────────────────

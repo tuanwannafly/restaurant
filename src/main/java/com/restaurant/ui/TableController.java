@@ -263,6 +263,14 @@ public class TableController implements Initializable {
             TableDialogController ctrl = loader.getController();
             ctrl.setItem(item);
 
+            // Edit mode: pre-fill existing loginId so admin can see it
+            if (item != null) {
+                long restaurantId = com.restaurant.session.AppSession.getInstance().getRestaurantId();
+                String existingLoginId = new com.restaurant.dao.UserDAO()
+                        .getTabletLoginId(item.getId(), restaurantId);
+                ctrl.setExistingLoginId(existingLoginId);
+            }
+
             Stage stage = new Stage();
             stage.setTitle(item == null ? "Thêm bàn" : "Cập nhật bàn");
             stage.setScene(new Scene(root));
@@ -272,11 +280,26 @@ public class TableController implements Initializable {
             stage.showAndWait();
 
             if (ctrl.isSaved()) {
-                TableItem saved = ctrl.getResult();
+                TableItem savedItem   = ctrl.getResult();
+                String loginId        = ctrl.getLoginId();
+                String password       = ctrl.getPassword();
+                long restaurantId     = com.restaurant.session.AppSession.getInstance().getRestaurantId();
+
                 Task<Void> task = new Task<>() {
                     @Override protected Void call() {
-                        if (item == null) new TableDAO().create(saved);
-                        else              new TableDAO().update(saved);
+                        com.restaurant.dao.UserDAO userDAO = new com.restaurant.dao.UserDAO();
+                        if (item == null) {
+                            // Create table first, get generated ID
+                            TableItem created = new TableDAO().create(savedItem);
+                            // Create tablet user account
+                            userDAO.createTabletUser(created.getId(), restaurantId, loginId, password);
+                        } else {
+                            new TableDAO().update(savedItem);
+                            // Update credentials: always update loginId; update password only if provided
+                            if (!password.isEmpty()) {
+                                userDAO.updateTabletUserPassword(savedItem.getId(), restaurantId, password);
+                            }
+                        }
                         return null;
                     }
                 };

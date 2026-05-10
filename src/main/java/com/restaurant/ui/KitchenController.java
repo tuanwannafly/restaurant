@@ -105,6 +105,7 @@ public class KitchenController implements Initializable {
     private String selectedPendingCategory = null;
     private String selectedCookingCategory = null;
     private int    lastPendingCount        = 0;
+    private Runnable cancelWsHandler;
 
     // ─── Initializable ────────────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ public class KitchenController implements Initializable {
         long sessionRestaurantId = AppSession.getInstance().getRestaurantId();
         RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
         wsClient.subscribe(WsTopic.KITCHEN);
-        wsClient.onEvent(event -> {
+        cancelWsHandler = wsClient.addEventHandler(event -> {
             if (WsTopic.KITCHEN.equals(event.getTopic())
                     && event.getRestaurantId() == sessionRestaurantId) {
                 doPoll();
@@ -276,7 +277,7 @@ public class KitchenController implements Initializable {
      * callback vào controller đã bị giải phóng.
      */
     public void stopPolling() {
-        RestaurantEventClient.getInstance().onEvent(null);
+        if (cancelWsHandler != null) { cancelWsHandler.run(); cancelWsHandler = null; }
     }
 
     // ─── doPoll ───────────────────────────────────────────────────────────────
@@ -441,10 +442,12 @@ public class KitchenController implements Initializable {
 
             if (isPending) {
                 ctrl.bindPending(itemName, tickets,
-                        () -> openDetailDialog(itemName, tickets, true));
+                        () -> openDetailDialog(itemName, tickets, true),
+                        this::doPoll);
             } else {
                 ctrl.bindCooking(itemName, tickets,
-                        () -> openDetailDialog(itemName, tickets, false));
+                        () -> openDetailDialog(itemName, tickets, false),
+                        this::doPoll);
             }
 
             return root;

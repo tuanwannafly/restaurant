@@ -51,6 +51,7 @@ public class LoginController {
     @FXML private CheckBox      chkRemember;
     @FXML private Label         lblError;
     @FXML private Button        btnLogin;
+    @FXML private Button        btnTableLogin;
 
     // ── Callbacks set by Main ─────────────────────────────────────────────────
 
@@ -305,6 +306,40 @@ public class LoginController {
             System.err.println("[LoginController] Không thể mở màn hình đăng ký: "
                     + ex.getMessage());
             ex.printStackTrace();
+        }
+    }
+
+    // ── Table login ────────────────────────────────────────────────────────────
+
+    /**
+     * Mở dialog đăng nhập bàn ăn — dành cho khách tại bàn.
+     * Sau khi đăng nhập thành công, gọi callback {@link #onLoginSuccess} giống đăng nhập thường.
+     */
+    @FXML
+    private void onTableLogin() {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
+                    getClass().getResource("/fxml/dialog/TableLoginDialog.fxml"));
+            javafx.scene.Parent root = loader.load();
+
+            TableLoginDialogController dlgCtrl = loader.getController();
+            dlgCtrl.setOnLoginSuccess(() -> {
+                // Called on JavaFX thread after successful table login
+                if (onLoginSuccess != null) {
+                    onLoginSuccess.run();
+                }
+            });
+
+            javafx.stage.Stage dlgStage = new javafx.stage.Stage();
+            dlgStage.setTitle("Đăng nhập bàn ăn");
+            dlgStage.setScene(new javafx.scene.Scene(root));
+            dlgStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            dlgStage.initOwner(btnLogin.getScene().getWindow());
+            dlgStage.setResizable(false);
+            dlgStage.showAndWait();
+
+        } catch (Exception ex) {
+            showError("Không mở được dialog đăng nhập bàn: " + ex.getMessage());
         }
     }
 

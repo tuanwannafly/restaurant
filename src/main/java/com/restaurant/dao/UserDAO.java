@@ -82,7 +82,8 @@ public class UserDAO {
         String sql = """
             SELECT u.user_id, u.name, u.email, u.password,
                    r.name  AS role_name,
-                   u.restaurant_id
+                   u.restaurant_id,
+                   u.table_id
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.id
             WHERE LOWER(u.email) = LOWER(?)
@@ -120,6 +121,13 @@ public class UserDAO {
 
                 // Đăng nhập thành công → ghi vào AppSession
                 AppSession.getInstance().login(userId, name, email.trim(), roleName, restaurantId);
+
+                // Nếu là tài khoản TABLET → lưu thêm table_id
+                if ("TABLET".equalsIgnoreCase(roleName)) {
+                    String tableIdStr = rs.getString("table_id");
+                    AppSession.getInstance().setTableId(tableIdStr);
+                    System.out.println("[UserDAO] TABLET login: tableId=" + tableIdStr);
+                }
 
                 // Phase 6: Sinh session token và lưu vào AppSession
                 try {
@@ -825,6 +833,143 @@ public class UserDAO {
 
         System.out.println("[UserDAO] resetPassword – đặt lại mật khẩu thành công cho: " + email);
         return true;
+    }
+
+    // ── Tablet / Table account management ────────────────────────────────────
+
+    /**
+     * Tạo tài khoản TABLET cho bàn ăn.
+     * Email nội bộ = {@code {loginId}@tablet.local} (không bao giờ hiển thị ra ngoài).
+     *
+     * @param tableId      ID bàn (PRIMARY KEY trong restaurant_tables)
+     * @param restaurantId ID nhà hàng
+     * @param loginId      Mã đăng nhập do admin đặt (VD: "ban01", "ban-vip")
+     * @param plainPassword Mật khẩu thuần (chưa hash)
+     * @return {@code true} nếu tạo thành công
+     */
+    public boolean createTabletUser(String tableId, long restaurantId,
+                                     String loginId, String plainPassword) {
+        String email = loginId.trim().toLowerCase() + "@tablet.local";
+        String hashedPw = BCrypt.hashpw(plainPassword, BCrypt.gensalt());
+
+        String sql =
+            "INSERT INTO users (name, email, password, role_id, restaurant_id, table_id, status) "
+          + "VALUES (?, ?, ?, (SELECT id FROM roles WHERE name = 'TABLET'), ?, ?, 'ACTIVE')";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, "Bàn " + loginId);
+            ps.setString(2, email);
+            ps.setString(3, hashedPw);
+            ps.setLong  (4, restaurantId);
+            ps.setLong  (5, Long.parseLong(tableId));   // FIX: table_id là NUMBER trong Oracle
+            ps.executeUpdate();
+            System.out.println("[UserDAO] Tạo tài khoản TABLET: " + email + " → table_id=" + tableId);
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("[UserDAO] createTabletUser lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Cập nhật mật khẩu cho tài khoản TABLET của bàn.
+     *
+     * @param tableId      ID bàn
+     * @param restaurantId ID nhà hàng
+     * @param newPassword  Mật khẩu mới (thuần)
+     * @return {@code true} nếu cập nhật thành công
+     */
+    public boolean updateTabletUserPassword(String tableId, long restaurantId,
+                                             String newPassword) {
+        String hashed = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        String sql =
+            "UPDATE users SET password = ? "
+          + "WHERE table_id = ? AND restaurant_id = ? "
+          + "  AND role_id = (SELECT id FROM roles WHERE name = 'TABLET')";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, hashed);
+            ps.setLong  (2, Long.parseLong(tableId));  // FIX: NUMBER
+            ps.setLong  (3, restaurantId);
+            int rows = ps.executeUpdate();
+            return rows > 0;
+
+        } catch (Exception e) {
+            System.err.println("[UserDAO] updateTabletUserPassword lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Kiểm tra xem bàn đã có tài khoản TABLET chưa.
+     */
+    public boolean hasTabletUser(String tableId, long restaurantId) {
+        String sql =
+            "SELECT 1 FROM users "
+          + "WHERE table_id = ? AND restaurant_id = ? "
+          + "  AND role_id = (SELECT id FROM roles WHERE name = 'TABLET') "
+          + "  AND ROWNUM = 1";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong  (1, Long.parseLong(tableId));  // FIX: NUMBER
+            ps.setLong  (2, restaurantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Lấy loginId hiển thị cho admin (phần trước "@tablet.local" trong email).
+     *
+     * @return loginId hoặc {@code null} nếu chưa có tài khoản TABLET
+     */
+    public String getTabletLoginId(String tableId, long restaurantId) {
+        String sql =
+            "SELECT email FROM users "
+          + "WHERE table_id = ? AND restaurant_id = ? "
+          + "  AND role_id = (SELECT id FROM roles WHERE name = 'TABLET') "
+          + "  AND ROWNUM = 1";
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong  (1, Long.parseLong(tableId));  // FIX: NUMBER
+            ps.setLong  (2, restaurantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String email = rs.getString("email");
+                    // Strip "@tablet.local" suffix
+                    int at = email.indexOf('@');
+                    return at > 0 ? email.substring(0, at) : email;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[UserDAO] getTabletLoginId lỗi: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Đăng nhập bàn bằng loginId + password.
+     * Chuyển đổi nội bộ: {@code {loginId}@tablet.local} rồi gọi {@link #login}.
+     *
+     * @param loginId  Mã đăng nhập bàn (không chứa "@")
+     * @param password Mật khẩu thuần
+     * @return {@code true} nếu đăng nhập thành công
+     */
+    public boolean loginAsTable(String loginId, String password) {
+        String email = loginId.trim().toLowerCase() + "@tablet.local";
+        return login(email, password);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

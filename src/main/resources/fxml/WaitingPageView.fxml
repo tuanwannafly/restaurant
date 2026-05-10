@@ -18,8 +18,9 @@
                    alignment="CENTER"/>
             <HBox alignment="CENTER_RIGHT" HBox.hgrow="ALWAYS">
                 <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
-                <Button text="✕" styleClass="btn-ghost-sm" onAction="#onClose"
-                        tooltip="Đóng màn hình bàn"/>
+                <Button text="✕" styleClass="btn-ghost-sm" onAction="#onClose">
+                    <tooltip><Tooltip text="Đóng màn hình bàn"/></tooltip>
+                </Button>
             </HBox>
         </HBox>
     </top>

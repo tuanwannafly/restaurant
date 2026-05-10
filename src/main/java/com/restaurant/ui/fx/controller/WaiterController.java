@@ -13,6 +13,8 @@ import com.restaurant.dao.KitchenDAO;
 import com.restaurant.dao.TableDAO;
 import com.restaurant.model.TableItem;
 import com.restaurant.session.AppSession;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
@@ -99,7 +101,11 @@ public class WaiterController implements Initializable {
 
     // ─── Polling state ────────────────────────────────────────────────────────
 
+    /** Fallback polling 30s — dùng khi WS tạm ngắt. */
     private Timeline pollTimeline;
+    private Runnable cancelWsHandler;
+    private static final int FALLBACK_INTERVAL_S = 30;
+
     private int      lastServeCount = -1;
     private int      lastCleanCount = -1;
 
@@ -128,9 +134,22 @@ public class WaiterController implements Initializable {
         // Initial load
         loadData();
 
-        // Polling every 5 seconds
+        // ── WebSocket real-time push ──────────────────────────────────────────
+        long myRestaurantId = AppSession.getInstance().getRestaurantId();
+        RestaurantEventClient ws = RestaurantEventClient.getInstance();
+        cancelWsHandler = ws.addEventHandler(event -> {
+            if (event.getRestaurantId() == myRestaurantId
+                    && (WsTopic.KITCHEN.equals(event.getTopic())
+                        || WsTopic.ORDERS.equals(event.getTopic())
+                        || WsTopic.BADGE.equals(event.getTopic()))) {
+                doPoll();
+            }
+        });
+        ws.subscribe(WsTopic.KITCHEN, WsTopic.ORDERS, WsTopic.BADGE);
+
+        // Fallback polling 30s (bắt cập nhật khi WS tạm ngắt)
         pollTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(5), e -> doPoll()));
+                new KeyFrame(Duration.seconds(FALLBACK_INTERVAL_S), e -> doPoll()));
         pollTimeline.setCycleCount(Timeline.INDEFINITE);
         pollTimeline.play();
     }
@@ -155,6 +174,7 @@ public class WaiterController implements Initializable {
         if (pollTimeline != null) {
             pollTimeline.stop();
         }
+        if (cancelWsHandler != null) { cancelWsHandler.run(); cancelWsHandler = null; }
         executor.shutdownNow();
     }
 

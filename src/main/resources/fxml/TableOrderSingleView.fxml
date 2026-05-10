@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.image.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" 
+            fx:controller="com.restaurant.ui.fx.controller.TableOrderSingleController"
+            style="-fx-background-color: #F3F4F6;">
+    
+    <!-- Header -->
+    <top>
+        <HBox style="-fx-background-color: white; -fx-padding: 15 25; -fx-border-color: #E5E7EB; -fx-border-width: 0 0 1 0;" alignment="CENTER_LEFT" spacing="20">
+            <VBox>
+                <Label text="SmartRestaurant" style="-fx-font-size: 18; -fx-font-weight: bold; -fx-text-fill: #3B82F6;"/>
+                <Label fx:id="lblRestaurantName" style="-fx-font-size: 12; -fx-text-fill: #6B7280;"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="tfSearch" promptText="🔍 Tìm món ăn..." style="-fx-pref-width: 300; -fx-background-radius: 20;"/>
+            <Label fx:id="lblTableBadge" style="-fx-background-color: #3B82F6; -fx-text-fill: white; -fx-padding: 5 15; -fx-background-radius: 15; -fx-font-weight: bold;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <HBox spacing="0">
+            <!-- Left: Menu (70%) -->
+            <VBox HBox.hgrow="ALWAYS" spacing="10">
+                <padding><Insets top="15" right="10" bottom="15" left="20"/></padding>
+                <HBox fx:id="categoryBar" spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 5 0;"/>
+                <ScrollPane fitToWidth="true" style="-fx-background-color: transparent; -fx-background: transparent;" VBox.vgrow="ALWAYS">
+                    <FlowPane fx:id="menuGrid" hgap="15" vgap="15">
+                        <padding><Insets bottom="20"/></padding>
+                    </FlowPane>
+                </ScrollPane>
+            </VBox>
+
+            <!-- Right: Bill/Cart Summary (30%) -->
+            <VBox prefWidth="380" style="-fx-background-color: white; -fx-border-color: #E5E7EB; -fx-border-width: 0 0 0 1;">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                
+                <Label text="ĐƠN HÀNG CỦA BẠN" style="-fx-font-weight: bold; -fx-font-size: 15; -fx-text-fill: #374151;"/>
+                <Separator style="-fx-padding: 10 0;"/>
+                
+                <ListView fx:id="lvCart" VBox.vgrow="ALWAYS" style="-fx-background-color: transparent; -fx-border-color: transparent;"/>
+                
+                <VBox spacing="15" style="-fx-padding: 20 0 0 0;">
+                    <Separator/>
+                    <HBox alignment="CENTER_LEFT">
+                        <Label text="Tổng cộng:" style="-fx-font-size: 16; -fx-text-fill: #6B7280;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="lblTotalAmount" text="0 đ" style="-fx-font-size: 22; -fx-font-weight: bold; -fx-text-fill: #EF4444;"/>
+                    </HBox>
+                    
+                    <Button fx:id="btnSendOrder" onAction="#onSendOrder" text="XÁC NHẬN GỬI MÓN" maxWidth="Infinity" prefHeight="50"
+                            style="-fx-background-color: #10B981; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand;"/>
+                    
+                    <HBox spacing="10">
+                        <Button onAction="#onViewStatus" text="Xem trạng thái" HBox.hgrow="ALWAYS" maxWidth="Infinity" 
+                                style="-fx-background-color: #F3F4F6; -fx-text-fill: #4B5563; -fx-background-radius: 8;"/>
+                        <Button onAction="#onRequestPayment" text="Thanh toán" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                                style="-fx-background-color: #3B82F6; -fx-text-fill: white; -fx-background-radius: 8;"/>
+                    </HBox>
+                </VBox>
+            </VBox>
+        </HBox>
+    </center>
+</BorderPane>

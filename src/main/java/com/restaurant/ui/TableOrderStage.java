@@ -14,6 +14,7 @@ import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.MenuItem;
 import com.restaurant.model.Order;
+import com.restaurant.session.AppSession;
 import com.restaurant.ui.fx.controller.BasePageController;
 import com.restaurant.ui.fx.controller.CartPageController;
 import com.restaurant.ui.fx.controller.MenuPageController;
@@ -22,6 +23,8 @@ import com.restaurant.ui.fx.controller.StatusPageController;
 import com.restaurant.ui.fx.controller.WaitingPageController;
 import com.restaurant.ui.fx.util.PollManagerFx;
 import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsEvent;
 import com.restaurant.websocket.WsTopic;
 
 import javafx.concurrent.Task;
@@ -64,6 +67,9 @@ public class TableOrderStage extends Stage {
 
     /** Current navigation page key. */
     private String currentPage = PAGE_MENU;
+
+    /** Cancel-token từ addEventHandler — để huỷ đăng ký khi đóng stage. */
+    private Runnable cancelWsHandler;
 
     /**
      * WS topic riêng cho bàn này — tính một lần từ tableId.
@@ -113,6 +119,11 @@ public class TableOrderStage extends Stage {
         }
 
         public double subtotal() { return unitPrice * quantity; }
+
+        @Override
+        public String toString() {
+            return quantity + "x " + name + "  " + TableOrderStage.formatPrice(subtotal()) + "đ";
+        }
     }
 
     // ── Constructor ────────────────────────────────────────────────────────────
@@ -138,11 +149,10 @@ public class TableOrderStage extends Stage {
         rootPane = new StackPane();
 
         // Load tất cả pages
-        loadPage(PAGE_MENU,    "/com/restaurant/ui/fxml/MenuPageView.fxml");
-        loadPage(PAGE_CART,    "/com/restaurant/ui/fxml/CartPageView.fxml");
-        loadPage(PAGE_STATUS,  "/com/restaurant/ui/fxml/StatusPageView.fxml");
-        loadPage(PAGE_PAYMENT, "/com/restaurant/ui/fxml/PaymentPageView.fxml");
-        loadPage(PAGE_WAITING, "/com/restaurant/ui/fxml/WaitingPageView.fxml");
+        loadPage(PAGE_MENU,    "/fxml/TableOrderSingleView.fxml");
+        loadPage(PAGE_STATUS,  "/fxml/StatusPageView.fxml");
+        loadPage(PAGE_PAYMENT, "/fxml/PaymentPageView.fxml");
+        loadPage(PAGE_WAITING, "/fxml/WaitingPageView.fxml");
 
         // Thêm vào StackPane, ẩn tất cả
         pages.values().forEach(p -> {
@@ -211,7 +221,7 @@ public class TableOrderStage extends Stage {
 
     public void cleanupPolls() {
         // Xoá WS handler của stage này để không nhận event sau khi đóng
-        RestaurantEventClient.getInstance().onEvent(null);
+        if (cancelWsHandler != null) { cancelWsHandler.run(); cancelWsHandler = null; }
 
         // Vẫn unregister PollManagerFx để tránh lỗi nếu còn reference cũ
         PollManagerFx.getInstance().unregister("order_status_"  + tableId);
@@ -242,7 +252,7 @@ public class TableOrderStage extends Stage {
         ws.subscribe(WsTopic.ORDERS, wsTableTopic);
 
         // Handler dispatch: chỉ xử lý event liên quan đến đơn/bàn này
-        ws.onEvent(event -> {
+        cancelWsHandler = ws.addEventHandler(event -> {
             if (event == null) return;
             String topic = event.getTopic();
             if (!WsTopic.ORDERS.equals(topic) && !wsTableTopic.equals(topic)) return;
@@ -282,6 +292,19 @@ public class TableOrderStage extends Stage {
             if (ok) {
                 currentRound++;
                 cartItems.clear();
+
+                // Broadcast push đến tất cả màn hình nhân viên trong nhà hàng
+                try {
+                    long rid = AppSession.getInstance().getRestaurantId();
+                    RestaurantEventServer srv = RestaurantEventServer.getInstance();
+                    srv.broadcast(WsEvent.of(WsTopic.KITCHEN, rid));
+                    srv.broadcast(WsEvent.of(WsTopic.ORDERS,  rid));
+                    srv.broadcast(WsEvent.of(WsTopic.BADGE,   rid));
+                    srv.broadcast(WsEvent.of(WsTopic.forTable(Integer.parseInt(tableId)), rid));
+                } catch (Exception wsEx) {
+                    System.err.println("[TableOrderStage] Broadcast lỗi: " + wsEx.getMessage());
+                }
+
                 onSuccess.run();
             } else {
                 onError.run();

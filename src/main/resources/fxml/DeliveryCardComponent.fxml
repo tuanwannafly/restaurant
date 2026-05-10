@@ -35,19 +35,10 @@
     <Region prefHeight="10"/>
 
     <!-- ── Nút hành động ─────────────────────────────────────────────── -->
-    <HBox spacing="8">
-        <Button fx:id="btnDelivering"
-                text="🚶 Đang mang"
-                styleClass="action-btn,btn-warning"
-                onAction="#onDelivering"
-                maxWidth="Infinity"
-                HBox.hgrow="ALWAYS"/>
-        <Button fx:id="btnDelivered"
-                text="✔ Đã giao xong"
-                styleClass="action-btn,btn-success"
-                onAction="#onDelivered"
-                maxWidth="Infinity"
-                HBox.hgrow="ALWAYS"/>
-    </HBox>
+    <Button fx:id="btnDelivered"
+            text="✔ Đã giao xong"
+            styleClass="action-btn,btn-success"
+            onAction="#onDelivered"
+            maxWidth="Infinity"/>
 
 </VBox>

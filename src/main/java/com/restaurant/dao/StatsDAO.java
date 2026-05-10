@@ -261,6 +261,80 @@ public class StatsDAO {
         return result;
     }
 
+    // ── Method 4b: getRestaurantHomeDashboardStats ────────────────────────────
+
+    /**
+     * Thống kê tổng quan dành cho màn hình Trang chủ của RESTAURANT_ADMIN.<br>
+     * Trả về Map với các keys:
+     * <ul>
+     *   <li>{@code tables_occupied}   – số bàn đang có khách (status = 'OCCUPIED')</li>
+     *   <li>{@code tables_available}  – số bàn trống (status = 'AVAILABLE')</li>
+     *   <li>{@code orders_today}      – số đơn hoàn thành hôm nay</li>
+     *   <li>{@code revenue_today}     – doanh thu hôm nay (VND)</li>
+     *   <li>{@code items_cooking}     – số món đang được nấu (PENDING/ACCEPTED/COOKING)</li>
+     *   <li>{@code reports_pending}   – số báo cáo chưa xử lý (status = 'OPEN')</li>
+     * </ul>
+     *
+     * @param restaurantId ID nhà hàng cần lấy số liệu
+     * @return Map&lt;String, Long&gt; – không bao giờ null; giá trị mặc định là 0
+     */
+    public Map<String, Long> getRestaurantHomeDashboardStats(long restaurantId) {
+        String sql =
+            "SELECT " +
+            "  (SELECT COUNT(*) FROM restaurant_tables " +
+            "    WHERE restaurant_id = ? AND status = 'OCCUPIED')                AS tables_occupied, " +
+            "  (SELECT COUNT(*) FROM restaurant_tables " +
+            "    WHERE restaurant_id = ? AND status = 'AVAILABLE')               AS tables_available, " +
+            "  (SELECT COUNT(*) FROM orders " +
+            "    WHERE restaurant_id = ? AND status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))                     AS orders_today, " +
+            "  (SELECT NVL(SUM(total_amount), 0) FROM orders " +
+            "    WHERE restaurant_id = ? AND status = 'COMPLETED' " +
+            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))                     AS revenue_today, " +
+            "  (SELECT COUNT(*) FROM order_items oi " +
+            "    JOIN orders o ON oi.order_id = o.order_id " +
+            "    WHERE o.restaurant_id = ? " +
+            "      AND oi.item_status IN ('PENDING','ACCEPTED','COOKING'))        AS items_cooking, " +
+            "  (SELECT COUNT(*) FROM reports " +
+            "    WHERE restaurant_id = ? AND status = 'OPEN')                    AS reports_pending " +
+            "FROM DUAL";
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("tables_occupied",  0L);
+        result.put("tables_available", 0L);
+        result.put("orders_today",     0L);
+        result.put("revenue_today",    0L);
+        result.put("items_cooking",    0L);
+        result.put("reports_pending",  0L);
+
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, restaurantId);
+            ps.setLong(2, restaurantId);
+            ps.setLong(3, restaurantId);
+            ps.setLong(4, restaurantId);
+            ps.setLong(5, restaurantId);
+            ps.setLong(6, restaurantId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    result.put("tables_occupied",  rs.getLong("tables_occupied"));
+                    result.put("tables_available", rs.getLong("tables_available"));
+                    result.put("orders_today",     rs.getLong("orders_today"));
+                    result.put("revenue_today",    rs.getLong("revenue_today"));
+                    result.put("items_cooking",    rs.getLong("items_cooking"));
+                    result.put("reports_pending",  rs.getLong("reports_pending"));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("[StatsDAO] getRestaurantHomeDashboardStats lỗi: " + e.getMessage());
+        }
+
+        return result;
+    }
+
     // ── Method 5: getAdminDashboardStats ──────────────────────────────────────
 
     /**

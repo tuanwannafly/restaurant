@@ -352,19 +352,27 @@ public final class OracleDcnBridge {
             RestaurantEventServer server = RestaurantEventServer.getInstance();
 
             for (TableChangeDescription tcd : tableChanges) {
-                String tableName = tcd.getTableName().toUpperCase();
-                LOGGER.log(Level.FINE, "[DcnBridge] Bảng thay đổi: {0}", tableName);
+                // Oracle DCN trả về tên dạng "SCHEMA.TABLENAME" (vd: "C##ADMIN.ORDERS").
+                // Lấy phần đơn giản sau dấu chấm để so sánh với switch.
+                String fullName  = tcd.getTableName().toUpperCase();
+                String tableName = fullName.contains(".")
+                        ? fullName.substring(fullName.lastIndexOf('.') + 1)
+                        : fullName;
+                LOGGER.log(Level.INFO,
+                        "[DcnBridge] DCN event — bảng: {0} (đầy đủ: {1})",
+                        new Object[]{tableName, fullName});
 
                 switch (tableName) {
                     // ── ORDERS / ORDER_ITEMS → thông báo waiter + badge ──────
                     case "ORDERS" -> {
+                        LOGGER.info("[DcnBridge] → broadcast ORDERS + BADGE");
                         server.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
                     }
 
                     // ── ORDER_ITEMS → thông báo kitchen + badge ──────────────
-                    // ORDER_ITEMS phục vụ đồng thời waiter view và kitchen view
                     case "ORDER_ITEMS" -> {
+                        LOGGER.info("[DcnBridge] → broadcast ORDERS + KITCHEN + BADGE");
                         server.broadcast(WsEvent.of(WsTopic.ORDERS,  restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.KITCHEN, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,   restaurantId));
@@ -372,12 +380,14 @@ public final class OracleDcnBridge {
 
                     // ── RESTAURANT_REQUESTS → thông báo request list + badge ─
                     case "RESTAURANT_REQUESTS" -> {
+                        LOGGER.info("[DcnBridge] → broadcast REQUEST_LIST + BADGE");
                         server.broadcast(WsEvent.of(WsTopic.REQUEST_LIST, restaurantId));
                         server.broadcast(WsEvent.of(WsTopic.BADGE,        restaurantId));
                     }
 
-                    default -> LOGGER.log(Level.FINE,
-                            "[DcnBridge] Bảng không được map: {0} — bỏ qua.", tableName);
+                    default -> LOGGER.log(Level.WARNING,
+                            "[DcnBridge] Bảng không được map: {0} (full={1}) — bỏ qua.",
+                            new Object[]{tableName, fullName});
                 }
             }
         }

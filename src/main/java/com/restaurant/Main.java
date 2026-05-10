@@ -2,11 +2,16 @@ package com.restaurant;
 
 import java.util.Optional;
 
+import com.restaurant.dao.TabletOrderDAO;
 import com.restaurant.dao.UserDAO;
 import com.restaurant.data.DataManager;
+import com.restaurant.model.Order;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.RefreshTokenService;
+import com.restaurant.session.TabletSession;
 import com.restaurant.session.TokenStorage;
+import com.restaurant.ui.TableOrderStage;
+import com.restaurant.websocket.WsEvent;
 import com.restaurant.ui.fx.controller.LoginController;
 import com.restaurant.ui.fx.controller.MainController;
 import com.restaurant.ui.fx.util.FxUtils;
@@ -126,6 +131,13 @@ public class Main extends Application {
     public void start(Stage primaryStage) {
         configureStage(primaryStage);
 
+        // ── Kiểm tra tablet mode trước ────────────────────────────────────────
+        TabletSession tablet = TabletSession.getInstance();
+        if (tablet.isValid()) {
+            openTabletMode(primaryStage, tablet);
+            return;
+        }
+
         if (silentLoginOk && AppSession.getInstance().isLoggedIn()) {
             // ── Silent login succeeded → open MainView directly ────────────────
             try {
@@ -145,6 +157,74 @@ public class Main extends Application {
             // ── Normal path → show login screen ───────────────────────────────
             openLoginView(primaryStage);
         }
+    }
+
+    /**
+     * Khởi động ứng dụng ở chế độ tablet khách.
+     *
+     * <p>Không yêu cầu đăng nhập — đọc tableId và restaurantId từ tablet.properties.
+     * Tự động mở {@link TableOrderStage} full-screen và kết nối WebSocket.
+     * Nếu không có order active cho bàn, tạo mới PENDING tự động.
+     *
+     * @param primaryStage stage chính của JavaFX
+     * @param tablet       TabletSession đã validate
+     */
+    private void openTabletMode(Stage primaryStage, TabletSession tablet) {
+        System.out.println("[Main] Starting in TABLET MODE — tableId="
+                + tablet.getTableId() + ", restaurantId=" + tablet.getRestaurantId());
+
+        // Set session tối thiểu để DAO không bị NPE khi gọi AppSession.rid()
+        AppSession.getInstance().loginAsTablet(tablet.getRestaurantId());
+
+        // Lấy hoặc tạo order active cho bàn
+        TabletOrderDAO tabletDao = new TabletOrderDAO(tablet.getRestaurantId());
+        Order order = tabletDao.getOrCreateActiveOrder(tablet.getTableId());
+
+        if (order == null) {
+            // Không kết nối được DB → hiện màn hình lỗi
+            showTabletError(primaryStage,
+                    "Không kết nối được cơ sở dữ liệu.\nVui lòng gọi nhân viên hỗ trợ.");
+            return;
+        }
+
+        String tableName = tabletDao.getTableName(tablet.getTableId());
+
+        // Khởi động WebSocket để nhận push từ server nhà hàng
+        try {
+            RestaurantEventServer.getInstance().start();
+        } catch (Exception e) {
+            System.err.println("[Main] WS server lỗi (tablet): " + e.getMessage());
+        }
+        RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
+        wsClient.connect();
+        wsClient.subscribe(WsTopic.forTable(Integer.parseInt(tablet.getTableId())));
+
+        // Mở màn hình đặt món full-screen
+        TableOrderStage orderStage = new TableOrderStage(
+                tablet.getTableId(),
+                order.getId(),
+                tableName
+        );
+        orderStage.setFullScreen(true);
+        orderStage.setFullScreenExitHint("");
+        // Chặn tắt cửa sổ để tablet luôn ở màn hình đặt món
+        orderStage.setOnCloseRequest(e -> e.consume());
+        orderStage.show();
+
+        primaryStage.close();
+    }
+
+    /**
+     * Hiện màn hình lỗi đơn giản khi tablet không khởi động được.
+     */
+    private void showTabletError(Stage stage, String message) {
+        javafx.scene.control.Label lbl = new javafx.scene.control.Label(message);
+        lbl.setStyle("-fx-font-size: 22px; -fx-text-alignment: center; -fx-padding: 40px;");
+        lbl.setWrapText(true);
+        javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane(lbl);
+        stage.setScene(new javafx.scene.Scene(root, 800, 600));
+        stage.setTitle("Lỗi khởi động tablet");
+        stage.show();
     }
 
     /**
@@ -290,9 +370,9 @@ public class Main extends Application {
         );
 
         //  (3) Mọi push event → kích hoạt badge refresh ngay lập tức.
-        //      onEvent() callback luôn chạy trên FX thread (Platform.runLater trong client)
-        //      nên refreshBadgesAsync() an toàn để gọi trực tiếp.
-        wsClient.onEvent(event -> PollManagerFx.getInstance().refreshBadgesAsync());
+        //      addEventHandler() trả về cancel token — không cần lưu vì badge refresh
+        //      tồn tại suốt vòng đời app. Handler luôn chạy trên FX thread.
+        wsClient.addEventHandler(event -> PollManagerFx.getInstance().refreshBadgesAsync());
 
         //  (4) Khởi động Oracle DCN bridge.
         //      Fallback-safe: nếu thiếu privilege hoặc Oracle < 11g → log warning,
@@ -315,12 +395,78 @@ public class Main extends Application {
      * <p>Equivalent to the Swing {@code LoginDialog} + follow-on
      * {@code MainFrame} construction.
      */
+    /**
+     * Mở màn hình đặt món sau khi tài khoản TABLET đăng nhập thành công.
+     *
+     * <p>Luồng:
+     * <ol>
+     *   <li>Lấy tableId từ AppSession (đã được UserDAO.login() set từ users.table_id).</li>
+     *   <li>Tìm hoặc tạo order PENDING cho bàn đó.</li>
+     *   <li>Khởi động WebSocket (subscribe topic riêng của bàn).</li>
+     *   <li>Mở TableOrderStage full-screen, đóng màn hình login.</li>
+     * </ol>
+     *
+     * @param loginStage stage màn hình login (sẽ được đóng)
+     */
+    private void openTabletAfterLogin(Stage loginStage) {
+        AppSession session = AppSession.getInstance();
+        String tableId = session.getTableId();
+
+        if (tableId == null || tableId.isBlank()) {
+            FxUtils.showToast(loginStage,
+                    "Tài khoản tablet chưa được gán bàn.\nVui lòng liên hệ quản lý.",
+                    FxUtils.ToastType.ERROR, 5000);
+            return;
+        }
+
+        // Lấy hoặc tạo order active cho bàn
+        TabletOrderDAO tabletDao = new TabletOrderDAO(session.getRestaurantId());
+        Order order = tabletDao.getOrCreateActiveOrder(tableId);
+
+        if (order == null) {
+            FxUtils.showToast(loginStage,
+                    "Không tạo được đơn hàng cho bàn.\nVui lòng thử lại.",
+                    FxUtils.ToastType.ERROR, 5000);
+            return;
+        }
+
+        String tableName = tabletDao.getTableName(tableId);
+
+        // Khởi động WebSocket — subscribe topic riêng của bàn
+        try {
+            RestaurantEventServer.getInstance().start();
+        } catch (Exception e) {
+            System.err.println("[Main] WS server lỗi (tablet): " + e.getMessage());
+        }
+        RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
+        wsClient.connect();
+        wsClient.subscribe(WsTopic.forTable(Integer.parseInt(tableId)));
+
+        // Mở màn hình đặt món full-screen
+        TableOrderStage orderStage = new TableOrderStage(tableId, order.getId(), tableName);
+        orderStage.setFullScreen(true);
+        orderStage.setFullScreenExitHint("");
+        orderStage.setOnCloseRequest(e -> e.consume()); // chặn tắt cửa sổ
+        orderStage.show();
+
+        loginStage.close();
+    }
+
     private void openLoginView(Stage stage) {
         LoginController loginController = new LoginController();
 
         // Callback: invoked by LoginController after successful authentication
         loginController.setOnLoginSuccess(() -> {
             try {
+                String role = AppSession.getInstance().getUserRole();
+
+                // ── Tài khoản TABLET → mở thẳng màn hình đặt món ─────────────
+                if ("TABLET".equalsIgnoreCase(role)) {
+                    openTabletAfterLogin(stage);
+                    return;
+                }
+
+                // ── Tài khoản nhân viên thông thường → mở MainView ────────────
                 openMainView(stage);
             } catch (Exception e) {
                 System.err.println("[Main] MainView failed after login: " + e.getMessage());
@@ -332,8 +478,6 @@ public class Main extends Application {
                     + "\nVui lòng thử đăng nhập lại.",
                     FxUtils.ToastType.ERROR,
                     5000);
-
-                // Allow user to try again rather than hard-exiting
             }
         });
 

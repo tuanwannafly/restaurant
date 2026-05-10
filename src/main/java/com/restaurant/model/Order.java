@@ -142,8 +142,8 @@ public class Order {
             ACCEPTED,
             COOKING,
             READY,
-            DELIVERING,
-            DELIVERED
+            DELIVERED,
+            CANCELLED
         }
 
         private String     menuItemId;

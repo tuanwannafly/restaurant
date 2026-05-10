@@ -27,6 +27,10 @@ import javafx.scene.layout.VBox;
  * <p>Được load động trong {@link WaiterController#rebuildDeliveryCards(java.util.Map)}.
  * {@link #setData(List, KitchenDAO, Runnable)} phải được gọi ngay sau khi load.
  *
+ * <p>Luồng trạng thái hợp lệ theo constraint DB (CHK_ITEM_ORD_STATUS):
+ * PENDING → ACCEPTED → COOKING → READY → DELIVERED (hoặc CANCELLED).
+ * Không có trạng thái DELIVERING — nút "Đã giao xong" chuyển thẳng READY → DELIVERED.
+ *
  * Đặt vào: {@code src/main/java/com/restaurant/ui/fx/controller/DeliveryCardController.java}
  */
 public class DeliveryCardController implements Initializable {
@@ -36,7 +40,6 @@ public class DeliveryCardController implements Initializable {
     @FXML private VBox   cardRoot;
     @FXML private Label  lblCardTitle;
     @FXML private VBox   itemsBox;
-    @FXML private Button btnDelivering;
     @FXML private Button btnDelivered;
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -56,7 +59,6 @@ public class DeliveryCardController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Hover effect – thêm/xóa style class
         cardRoot.setOnMouseEntered(e -> cardRoot.getStyleClass().add("delivery-card-hover"));
         cardRoot.setOnMouseExited(e  -> cardRoot.getStyleClass().remove("delivery-card-hover"));
     }
@@ -97,18 +99,13 @@ public class DeliveryCardController implements Initializable {
             itemsBox.getChildren().add(buildItemRow(t));
         }
 
-        // Trạng thái các nút
-        boolean allDelivering = tickets.stream().allMatch(
-                t -> t.itemStatus == Order.OrderItem.ItemStatus.DELIVERING
-                  || t.itemStatus == Order.OrderItem.ItemStatus.DELIVERED);
+        // Disable nút nếu tất cả đã DELIVERED
         boolean allDelivered = tickets.stream().allMatch(
                 t -> t.itemStatus == Order.OrderItem.ItemStatus.DELIVERED);
-
-        btnDelivering.setDisable(allDelivering);
         btnDelivered.setDisable(allDelivered);
 
         // Điều chỉnh chiều cao card theo số món
-        double height = 46 + tickets.size() * 34.0 + 58;
+        double height = 46 + tickets.size() * 34.0 + 44;
         cardRoot.setPrefHeight(height);
     }
 
@@ -143,10 +140,6 @@ public class DeliveryCardController implements Initializable {
                 badge.setText("Sẵn sàng");
                 badge.getStyleClass().add("badge-ready");
             }
-            case DELIVERING -> {
-                badge.setText("Đang mang");
-                badge.getStyleClass().add("badge-delivering");
-            }
             case DELIVERED -> {
                 badge.setText("Đã giao");
                 badge.getStyleClass().add("badge-delivered");
@@ -159,40 +152,15 @@ public class DeliveryCardController implements Initializable {
         return badge;
     }
 
-    // ─── Button handlers ──────────────────────────────────────────────────────
+    // ─── Button handler ───────────────────────────────────────────────────────
 
-    /** "🚶 Đang mang" — chuyển READY → DELIVERING */
-    @FXML
-    private void onDelivering() {
-        btnDelivering.setDisable(true);
-
-        Task<Void> task = new Task<>() {
-            @Override
-            protected Void call() {
-                for (KitchenDAO.KitchenTicket t : tickets) {
-                    if (t.itemStatus == Order.OrderItem.ItemStatus.READY) {
-                        kitchenDAO.updateItemStatus(
-                                t.itemId, Order.OrderItem.ItemStatus.DELIVERING);
-                    }
-                }
-                return null;
-            }
-        };
-        task.setOnSucceeded(e  -> onRefresh.run());
-        task.setOnFailed(e     -> {
-            btnDelivering.setDisable(false);
-            showCardError("Lỗi cập nhật: " + task.getException().getMessage());
-        });
-        executor.submit(task);
-    }
-
-    /** "✔ Đã giao xong" — chuyển tất cả → DELIVERED */
+    /**
+     * "✔ Đã giao xong" — chuyển tất cả món READY → DELIVERED.
+     * Đây là bước duy nhất: constraint DB (CHK_ITEM_ORD_STATUS) không có DELIVERING.
+     */
     @FXML
     private void onDelivered() {
         btnDelivered.setDisable(true);
-        btnDelivering.setDisable(true);
-
-        KitchenDAO.KitchenTicket first = tickets.get(0);
 
         Task<Void> task = new Task<>() {
             @Override
@@ -217,7 +185,6 @@ public class DeliveryCardController implements Initializable {
     // ─── Error helper ─────────────────────────────────────────────────────────
 
     private void showCardError(String msg) {
-        // Hiện label lỗi nhỏ dưới card
         Label err = new Label("⚠ " + msg);
         err.getStyleClass().add("card-error-label");
         err.setWrapText(true);

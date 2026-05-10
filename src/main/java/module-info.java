@@ -96,6 +96,9 @@ module com.restaurant {
     opens com.restaurant.session           to com.fasterxml.jackson.databind;
     opens com.restaurant.data              to com.fasterxml.jackson.databind;
 
+    // Jackson deserialises WsEvent (WebSocket DTO)
+    opens com.restaurant.websocket         to com.fasterxml.jackson.databind;
+
     // Allow the JavaFX application thread to open the root package
     opens com.restaurant                   to javafx.fxml, javafx.graphics;
 }
