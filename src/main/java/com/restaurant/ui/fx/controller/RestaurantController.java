@@ -410,6 +410,25 @@ public class RestaurantController {
                         case NEW -> {
                             userDAO.registerRestaurantAdmin(
                                 choice.newName, choice.newEmail, choice.newPassword, rid);
+                            // Gửi email thông báo tài khoản cho admin mới
+                            Thread emailThread = new Thread(() -> {
+                                try {
+                                    com.restaurant.email.EmailService.getInstance()
+                                            .sendNewAdminAccountEmail(
+                                                    choice.newEmail,
+                                                    choice.newName,
+                                                    saved.getName(),
+                                                    choice.newEmail,
+                                                    choice.newPassword);
+                                } catch (Exception emailEx) {
+                                    System.err.println(
+                                            "[RestaurantController] Cảnh báo: gửi email admin mới thất bại: "
+                                            + emailEx.getMessage());
+                                }
+                            });
+                            emailThread.setDaemon(true);
+                            emailThread.setName("email-new-admin-" + rid);
+                            emailThread.start();
                             yield "Nhà hàng đã được tạo!\nTài khoản admin mới: " + choice.newEmail;
                         }
                         case SKIP -> "Nhà hàng đã được tạo. Nhớ gán admin sau!";

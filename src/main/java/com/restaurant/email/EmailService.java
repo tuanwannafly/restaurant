@@ -194,6 +194,94 @@ public class EmailService {
     // -----------------------------------------------------------------------
 
     /**
+     * Gửi email thông báo tài khoản RESTAURANT_ADMIN mới được tạo bởi hệ thống admin.
+     *
+     * <p>Email HTML tiếng Việt, bao gồm:
+     * <ul>
+     *   <li>Tên admin và tên nhà hàng được gán</li>
+     *   <li>Thông tin đăng nhập (email + mật khẩu ban đầu)</li>
+     *   <li>Lời nhắc đổi mật khẩu sau lần đăng nhập đầu tiên</li>
+     * </ul>
+     *
+     * <p>Thực thi bất đồng bộ (fire-and-forget daemon thread) — không block caller.
+     *
+     * @param toEmail        địa chỉ email người nhận (admin nhà hàng)
+     * @param adminName      họ tên admin
+     * @param restaurantName tên nhà hàng được gán
+     * @param loginEmail     email dùng để đăng nhập
+     * @param plainPassword  mật khẩu ban đầu (plain text, trước khi hash)
+     */
+    public void sendNewAdminAccountEmail(String toEmail,
+                                         String adminName,
+                                         String restaurantName,
+                                         String loginEmail,
+                                         String plainPassword) {
+        String subject = "🔑 Tài khoản quản lý nhà hàng " + restaurantName + " đã được tạo";
+
+        String html = "<!DOCTYPE html>"
+            + "<html lang=\"vi\"><head><meta charset=\"UTF-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<style>"
+            + "  body{margin:0;padding:0;background:#f4f4f7;font-family:Arial,sans-serif;color:#333}"
+            + "  .wrapper{max-width:600px;margin:32px auto;background:#fff;border-radius:8px;"
+            + "            box-shadow:0 2px 8px rgba(0,0,0,.1);overflow:hidden}"
+            + "  .header{background:#2563EB;padding:32px 24px;text-align:center}"
+            + "  .header h1{margin:0;color:#fff;font-size:22px;letter-spacing:.5px}"
+            + "  .header p{margin:6px 0 0;color:#BFDBFE;font-size:14px}"
+            + "  .body{padding:32px 24px}"
+            + "  .greeting{font-size:16px;margin-bottom:16px}"
+            + "  .highlight{background:#EFF6FF;border-left:4px solid #2563EB;padding:16px 20px;"
+            + "              border-radius:4px;margin:20px 0}"
+            + "  .highlight p{margin:6px 0;font-size:15px}"
+            + "  .highlight strong{color:#1D4ED8}"
+            + "  .info-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;"
+            + "             padding:16px 20px;margin:20px 0}"
+            + "  .info-box p{margin:6px 0;font-size:14px}"
+            + "  .info-box .label{color:#64748b;font-size:12px;text-transform:uppercase;"
+            + "                    letter-spacing:.5px;margin-bottom:2px}"
+            + "  .info-box .value{font-weight:bold;color:#1e293b;font-size:15px;"
+            + "                    font-family:monospace}"
+            + "  .warn-box{background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;"
+            + "             padding:14px 18px;margin:20px 0;font-size:14px;color:#92400E}"
+            + "  .btn{display:inline-block;margin:24px 0;padding:12px 32px;"
+            + "        background:#2563EB;color:#fff!important;text-decoration:none;"
+            + "        border-radius:6px;font-size:15px;font-weight:bold}"
+            + "  .footer{background:#f8fafc;padding:16px 24px;text-align:center;"
+            + "           font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0}"
+            + "</style></head><body>"
+            + "<div class=\"wrapper\">"
+            + "  <div class=\"header\">"
+            + "    <h1>🔑 Tài khoản quản lý của bạn đã sẵn sàng!</h1>"
+            + "    <p>SmartRestaurant — Hệ thống quản lý nhà hàng</p>"
+            + "  </div>"
+            + "  <div class=\"body\">"
+            + "    <p class=\"greeting\">Xin chào <strong>" + escapeHtml(adminName) + "</strong>,</p>"
+            + "    <p>Tài khoản <strong>Quản lý nhà hàng (Restaurant Admin)</strong> đã được tạo cho bạn bởi quản trị viên hệ thống.</p>"
+            + "    <div class=\"highlight\">"
+            + "      <p>🏪 <strong>Nhà hàng:</strong> " + escapeHtml(restaurantName) + "</p>"
+            + "      <p>👤 <strong>Vai trò:</strong> Restaurant Admin</p>"
+            + "    </div>"
+            + "    <p>Sử dụng thông tin bên dưới để đăng nhập vào hệ thống:</p>"
+            + "    <div class=\"info-box\">"
+            + "      <p class=\"label\">Email đăng nhập</p>"
+            + "      <p class=\"value\">" + escapeHtml(loginEmail) + "</p>"
+            + "      <p class=\"label\" style=\"margin-top:12px\">Mật khẩu ban đầu</p>"
+            + "      <p class=\"value\">" + escapeHtml(plainPassword) + "</p>"
+            + "    </div>"
+            + "    <div class=\"warn-box\">"
+            + "      ⚠️ <strong>Quan trọng:</strong> Vui lòng đổi mật khẩu ngay sau lần đăng nhập đầu tiên để bảo mật tài khoản."
+            + "    </div>"
+            + "    <a href=\"https://smartrestaurant.example.com/login\" class=\"btn\">Đăng nhập ngay →</a>"
+            + "    <p style=\"margin-top:24px\">Trân trọng,<br><strong>Đội ngũ SmartRestaurant</strong></p>"
+            + "  </div>"
+            + "  <div class=\"footer\">© 2025 SmartRestaurant. Email này được gửi tự động, vui lòng không trả lời.</div>"
+            + "</div>"
+            + "</body></html>";
+
+        sendHtml(toEmail, subject, html);
+    }
+
+    /**
      * Gửi email thông báo đơn đăng ký nhà hàng đã được SUPER_ADMIN phê duyệt.
      *
      * <p>Email HTML tiếng Việt, bao gồm:

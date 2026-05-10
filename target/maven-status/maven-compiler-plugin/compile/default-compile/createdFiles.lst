@@ -150,7 +150,6 @@ com\restaurant\ui\fx\controller\RestaurantController$7.class
 com\restaurant\websocket\RestaurantEventClient.class
 com\restaurant\ui\fx\controller\AdminHomePanelController$NavigateHandler.class
 com\restaurant\ui\OrderController.class
-com\restaurant\ui\fx\controller\DeliveryCardController$3.class
 com\restaurant\ui\fx\controller\RestaurantDetailController$2.class
 com\restaurant\ui\fx\controller\RestaurantRequestListController.class
 com\restaurant\ui\fx\controller\AdminStatsController$1.class
@@ -216,6 +215,7 @@ com\restaurant\dao\MenuItemDAO.class
 com\restaurant\ui\fx\controller\RestaurantController$6.class
 com\restaurant\model\Restaurant$Status.class
 com\restaurant\dao\PasswordResetDAO.class
+com\restaurant\ui\KitchenTicketCardController$1.class
 com\restaurant\ui\OrderController$5.class
 com\restaurant\ui\TableOrderStage.class
 com\restaurant\ui\fx\controller\ReportController$2.class

@@ -232,7 +232,35 @@ public class RestaurantRequestService {
      * @throws RuntimeException         nếu lỗi DB
      */
     public void reject(long requestId, long reviewedBy, String reason) {
-        new RestaurantRequestDAO().reject(requestId, reviewedBy, reason);
+        RestaurantRequestDAO dao = new RestaurantRequestDAO();
+
+        // Lấy thông tin đơn trước khi từ chối (cần email/tên để gửi thông báo)
+        RestaurantRequest request = dao.findById(requestId);
+
+        dao.reject(requestId, reviewedBy, reason);
+
+        // Gửi email thông báo từ chối (fire-and-forget, sau khi DB đã cập nhật)
+        if (request != null) {
+            final RestaurantRequest snap = request;
+            Thread emailThread = new Thread(() -> {
+                try {
+                    com.restaurant.email.EmailService.getInstance()
+                            .sendRestaurantRejectionEmail(
+                                    snap.getOwnerEmail(),
+                                    snap.getOwnerName(),
+                                    snap.getRestaurantName(),
+                                    reason);
+                } catch (Exception emailEx) {
+                    System.err.println(
+                            "[RestaurantRequestService] Cảnh báo: gửi email từ chối thất bại"
+                            + " cho đơn #" + requestId
+                            + ": " + emailEx.getMessage());
+                }
+            });
+            emailThread.setDaemon(true);
+            emailThread.setName("email-rejection-" + requestId);
+            emailThread.start();
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
