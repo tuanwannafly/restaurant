@@ -405,6 +405,28 @@ public class RestaurantController {
                     return switch (choice.mode) {
                         case EXISTING -> {
                             userDAO.assignAdminToRestaurant(choice.existingUserId, rid);
+                            // Gửi email thông báo cho admin được gán vào nhà hàng mới
+                            userDAO.findRestaurantAdmins().stream()
+                                    .filter(a -> a.getUserId() == choice.existingUserId)
+                                    .findFirst()
+                                    .ifPresent(admin -> {
+                                        Thread emailThread = new Thread(() -> {
+                                            try {
+                                                com.restaurant.email.EmailService.getInstance()
+                                                        .sendAdminAssignedEmail(
+                                                                admin.getEmail(),
+                                                                admin.getName(),
+                                                                saved.getName());
+                                            } catch (Exception emailEx) {
+                                                System.err.println(
+                                                        "[RestaurantController] Cảnh báo: gửi email gán admin thất bại: "
+                                                        + emailEx.getMessage());
+                                            }
+                                        });
+                                        emailThread.setDaemon(true);
+                                        emailThread.setName("email-assign-admin-" + rid);
+                                        emailThread.start();
+                                    });
                             yield "Nhà hàng đã được tạo và gán admin thành công!";
                         }
                         case NEW -> {

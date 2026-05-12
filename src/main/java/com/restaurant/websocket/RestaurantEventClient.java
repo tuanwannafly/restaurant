@@ -221,6 +221,30 @@ public final class RestaurantEventClient extends WebSocketClient {
     }
 
     /**
+     * Relay event đến WsServer đang chạy (có thể ở process khác) bằng cách
+     * gửi frame {@code "PUB:<json>"} qua kết nối WebSocket hiện tại.
+     *
+     * <p>Dùng khi {@link RestaurantEventServer} trong process này không chạy được
+     * (port bị chiếm). WsClient đã kết nối đến server của process kia — gửi PUB
+     * để server đó broadcast đến tất cả subscriber, bao gồm TableOrderStage.</p>
+     *
+     * @param event sự kiện cần relay
+     */
+    public void publishToServer(WsEvent event) {
+        if (event == null) return;
+        if (!isOpen()) {
+            LOGGER.warning("[WsClient] publishToServer: kết nối chưa sẵn sàng, bỏ qua event: " + event);
+            return;
+        }
+        try {
+            send("PUB:" + event.toJson());
+            LOGGER.fine("[WsClient] PUB → server: topic='" + event.getTopic() + "'");
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "[WsClient] publishToServer thất bại: " + event, e);
+        }
+    }
+
+    /**
      * @deprecated Dùng {@link #addEventHandler(Consumer)} thay thế.
      * Phương thức này XÓA TOÀN BỘ handler và thêm handler mới (hoặc xóa hết nếu null).
      * Không dùng khi nhiều controller cùng subscribe.

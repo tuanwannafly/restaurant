@@ -62,6 +62,9 @@ public final class RestaurantEventServer extends WebSocketServer {
     /** Prefix dùng trong frame subscribe từ client. */
     private static final String SUB_PREFIX = "SUB:";
 
+    /** Prefix dùng khi client muốn relay event qua server (cross-process broadcast). */
+    private static final String PUB_PREFIX = "PUB:";
+
     // ── Singleton ─────────────────────────────────────────────────────────────
 
     private static volatile RestaurantEventServer instance;
@@ -92,6 +95,9 @@ public final class RestaurantEventServer extends WebSocketServer {
      */
     private final Map<String, Set<WebSocket>> subscribers = new ConcurrentHashMap<>();
 
+    /** True khi server đã bind thành công và đang chạy. */
+    private volatile boolean serverRunning = false;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     private RestaurantEventServer(int port) {
@@ -118,14 +124,29 @@ public final class RestaurantEventServer extends WebSocketServer {
     /**
      * Xử lý frame text từ client.
      *
-     * <p>Hiện tại chỉ nhận lệnh subscribe dạng {@code "SUB:<topic>"}.
-     * Frame nào không khớp prefix sẽ bị bỏ qua và log ở mức FINE.
+     * <ul>
+     *   <li>{@code "SUB:<topic>"} — subscribe conn vào topic đó.</li>
+     *   <li>{@code "PUB:<json>"} — nhận event JSON từ process khác và broadcast đến
+     *       tất cả subscriber trong process này (cross-process relay).</li>
+     * </ul>
      */
     @Override
     public void onMessage(WebSocket conn, String message) {
-        if (message != null && message.startsWith(SUB_PREFIX)) {
+        if (message == null) return;
+        if (message.startsWith(SUB_PREFIX)) {
             String topic = message.substring(SUB_PREFIX.length()).trim();
             subscribe(conn, topic);
+        } else if (message.startsWith(PUB_PREFIX)) {
+            String json = message.substring(PUB_PREFIX.length()).trim();
+            try {
+                WsEvent event = WsEvent.fromJson(json);
+                LOGGER.fine("[WsServer] PUB relay — topic='" + event.getTopic() + "'");
+                broadcast(event);
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING,
+                        "[WsServer] PUB frame không hợp lệ từ "
+                        + conn.getRemoteSocketAddress() + ": " + json, e);
+            }
         } else {
             LOGGER.fine("[WsServer] Frame không rõ từ " + conn.getRemoteSocketAddress()
                     + ": " + message);
@@ -140,6 +161,7 @@ public final class RestaurantEventServer extends WebSocketServer {
 
     @Override
     public void onStart() {
+        serverRunning = true;
         LOGGER.info("[WsServer] Server khởi động thành công tại cổng "
                 + getAddress().getPort());
     }
@@ -210,11 +232,18 @@ public final class RestaurantEventServer extends WebSocketServer {
     }
 
     /**
+     * Trả về {@code true} nếu server đã bind thành công và đang chạy.
+     * Dùng để kiểm tra trước khi quyết định dispatch trực tiếp (intra-process).
+     */
+    public boolean isRunning() { return serverRunning; }
+
+    /**
      * Dừng WebSocket server, giải phóng cổng.
      * Nên gọi khi logout hoặc khi ứng dụng đóng.
      */
     @Override
     public void stop() {
+        serverRunning = false;
         try {
             super.stop();
             LOGGER.info("[WsServer] Server đã dừng.");

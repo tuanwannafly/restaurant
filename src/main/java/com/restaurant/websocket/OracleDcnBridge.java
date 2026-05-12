@@ -350,6 +350,11 @@ public final class OracleDcnBridge {
 
             long restaurantId = AppSession.getInstance().getRestaurantId();
             RestaurantEventServer server = RestaurantEventServer.getInstance();
+            RestaurantEventClient client = RestaurantEventClient.getInstance();
+
+            // Nếu WsServer không chạy được (port bị chiếm), dispatch trực tiếp
+            // đến các handler trong cùng JVM để TableOrderStage vẫn nhận event.
+            final boolean serverDown = !server.isRunning();
 
             for (TableChangeDescription tcd : tableChanges) {
                 // Oracle DCN trả về tên dạng "SCHEMA.TABLENAME" (vd: "C##ADMIN.ORDERS").
@@ -366,23 +371,43 @@ public final class OracleDcnBridge {
                     // ── ORDERS / ORDER_ITEMS → thông báo waiter + badge ──────
                     case "ORDERS" -> {
                         LOGGER.info("[DcnBridge] → broadcast ORDERS + BADGE");
-                        server.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
-                        server.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
+                        WsEvent ordersEvt = WsEvent.of(WsTopic.ORDERS, restaurantId);
+                        WsEvent badgeEvt  = WsEvent.of(WsTopic.BADGE,  restaurantId);
+                        server.broadcast(ordersEvt);
+                        server.broadcast(badgeEvt);
+                        if (serverDown) {
+                            client.publishToServer(ordersEvt);
+                            client.publishToServer(badgeEvt);
+                        }
                     }
 
                     // ── ORDER_ITEMS → thông báo kitchen + badge ──────────────
                     case "ORDER_ITEMS" -> {
                         LOGGER.info("[DcnBridge] → broadcast ORDERS + KITCHEN + BADGE");
-                        server.broadcast(WsEvent.of(WsTopic.ORDERS,  restaurantId));
-                        server.broadcast(WsEvent.of(WsTopic.KITCHEN, restaurantId));
-                        server.broadcast(WsEvent.of(WsTopic.BADGE,   restaurantId));
+                        WsEvent ordersEvt  = WsEvent.of(WsTopic.ORDERS,  restaurantId);
+                        WsEvent kitchenEvt = WsEvent.of(WsTopic.KITCHEN, restaurantId);
+                        WsEvent badgeEvt   = WsEvent.of(WsTopic.BADGE,   restaurantId);
+                        server.broadcast(ordersEvt);
+                        server.broadcast(kitchenEvt);
+                        server.broadcast(badgeEvt);
+                        if (serverDown) {
+                            client.publishToServer(ordersEvt);
+                            client.publishToServer(kitchenEvt);
+                            client.publishToServer(badgeEvt);
+                        }
                     }
 
                     // ── RESTAURANT_REQUESTS → thông báo request list + badge ─
                     case "RESTAURANT_REQUESTS" -> {
                         LOGGER.info("[DcnBridge] → broadcast REQUEST_LIST + BADGE");
-                        server.broadcast(WsEvent.of(WsTopic.REQUEST_LIST, restaurantId));
-                        server.broadcast(WsEvent.of(WsTopic.BADGE,        restaurantId));
+                        WsEvent reqEvt   = WsEvent.of(WsTopic.REQUEST_LIST, restaurantId);
+                        WsEvent badgeEvt = WsEvent.of(WsTopic.BADGE,        restaurantId);
+                        server.broadcast(reqEvt);
+                        server.broadcast(badgeEvt);
+                        if (serverDown) {
+                            client.publishToServer(reqEvt);
+                            client.publishToServer(badgeEvt);
+                        }
                     }
 
                     default -> LOGGER.log(Level.WARNING,

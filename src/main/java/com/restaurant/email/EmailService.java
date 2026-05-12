@@ -194,6 +194,62 @@ public class EmailService {
     // -----------------------------------------------------------------------
 
     /**
+     * Gửi email thông báo cho admin hiện có khi được gán quản lý nhà hàng mới.
+     *
+     * @param toEmail        địa chỉ email admin
+     * @param adminName      họ tên admin
+     * @param restaurantName tên nhà hàng vừa được gán
+     */
+    public void sendAdminAssignedEmail(String toEmail,
+                                       String adminName,
+                                       String restaurantName) {
+        String subject = "📋 Bạn đã được gán quản lý nhà hàng " + restaurantName;
+
+        String html = "<!DOCTYPE html>"
+            + "<html lang=\"vi\"><head><meta charset=\"UTF-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<style>"
+            + "  body{margin:0;padding:0;background:#f4f4f7;font-family:Arial,sans-serif;color:#333}"
+            + "  .wrapper{max-width:600px;margin:32px auto;background:#fff;border-radius:8px;"
+            + "            box-shadow:0 2px 8px rgba(0,0,0,.1);overflow:hidden}"
+            + "  .header{background:#7C3AED;padding:32px 24px;text-align:center}"
+            + "  .header h1{margin:0;color:#fff;font-size:22px;letter-spacing:.5px}"
+            + "  .header p{margin:6px 0 0;color:#DDD6FE;font-size:14px}"
+            + "  .body{padding:32px 24px}"
+            + "  .highlight{background:#F5F3FF;border-left:4px solid #7C3AED;padding:16px 20px;"
+            + "              border-radius:4px;margin:20px 0}"
+            + "  .highlight p{margin:6px 0;font-size:15px}"
+            + "  .highlight strong{color:#5B21B6}"
+            + "  .btn{display:inline-block;margin:24px 0;padding:12px 32px;"
+            + "        background:#7C3AED;color:#fff!important;text-decoration:none;"
+            + "        border-radius:6px;font-size:15px;font-weight:bold}"
+            + "  .footer{background:#f8fafc;padding:16px 24px;text-align:center;"
+            + "           font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0}"
+            + "</style></head><body>"
+            + "<div class=\"wrapper\">"
+            + "  <div class=\"header\">"
+            + "    <h1>📋 Bạn được gán quản lý nhà hàng mới!</h1>"
+            + "    <p>SmartRestaurant — Hệ thống quản lý nhà hàng</p>"
+            + "  </div>"
+            + "  <div class=\"body\">"
+            + "    <p>Xin chào <strong>" + escapeHtml(adminName) + "</strong>,</p>"
+            + "    <p>Quản trị viên hệ thống vừa gán bạn làm <strong>Quản lý (Restaurant Admin)</strong> cho nhà hàng sau:</p>"
+            + "    <div class=\"highlight\">"
+            + "      <p>🏪 <strong>Nhà hàng:</strong> " + escapeHtml(restaurantName) + "</p>"
+            + "      <p>👤 <strong>Vai trò:</strong> Restaurant Admin</p>"
+            + "    </div>"
+            + "    <p>Đăng nhập bằng tài khoản hiện tại của bạn để bắt đầu quản lý nhà hàng này.</p>"
+            + "    <a href=\"https://smartrestaurant.example.com/login\" class=\"btn\">Đăng nhập ngay →</a>"
+            + "    <p style=\"margin-top:24px\">Trân trọng,<br><strong>Đội ngũ SmartRestaurant</strong></p>"
+            + "  </div>"
+            + "  <div class=\"footer\">© 2025 SmartRestaurant. Email này được gửi tự động, vui lòng không trả lời.</div>"
+            + "</div>"
+            + "</body></html>";
+
+        sendHtml(toEmail, subject, html);
+    }
+
+    /**
      * Gửi email thông báo tài khoản RESTAURANT_ADMIN mới được tạo bởi hệ thống admin.
      *
      * <p>Email HTML tiếng Việt, bao gồm:
