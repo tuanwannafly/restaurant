@@ -130,7 +130,8 @@ public class KitchenDAO {
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
             "       oi.created_at,    oi.assigned_to, " +
-            "       mi.name AS item_name, t.table_number, t.table_id " +
+            "       mi.name AS item_name, t.table_number, t.table_id, " +
+            "       NULL AS note, NULL AS assigned_employee_name " +
             "FROM   order_items oi " +
             "JOIN   orders           o  ON oi.order_id     = o.order_id " +
             "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
@@ -138,7 +139,7 @@ public class KitchenDAO {
             "WHERE  o.restaurant_id = ? " +
             "  AND  oi.item_status  = 'READY' " +
             "  AND  (o.table_id, oi.round_number) IN ( " +
-            "           SELECT oi2.order_id, oi2.round_number " +
+            "           SELECT o2.table_id, oi2.round_number " +
             "           FROM   order_items oi2 " +
             "           JOIN   orders o2 ON oi2.order_id = o2.order_id " +
             "           WHERE  o2.restaurant_id = ? " +

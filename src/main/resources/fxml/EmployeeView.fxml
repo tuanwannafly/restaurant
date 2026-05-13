@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.EmployeeController"
+            style="-fx-background-color: #F8FAFC;">
+    <padding><Insets top="24" right="48" bottom="24" left="48"/></padding>
+
+    <!-- ── TOP: title bar + filter bar ──────────────────────────────────── -->
+    <top>
+        <VBox spacing="14" BorderPane.alignment="CENTER">
+
+            <!-- Title + action buttons -->
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <Label text="Quản lý nhân viên"
+                       style="-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:#1E293B;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <!-- Shown only when user has REGISTER_STAFF permission -->
+                <Button fx:id="btnRegister"
+                        text="👤 Tạo tài khoản"
+                        onAction="#openRegisterDialog"
+                        visible="false" managed="false"
+                        prefWidth="148" prefHeight="36"
+                        style="-fx-background-color:white;-fx-border-color:#3B82F6;-fx-border-radius:6;
+                               -fx-background-radius:6;-fx-text-fill:#3B82F6;-fx-font-size:13px;
+                               -fx-cursor:hand;"/>
+
+                <Button fx:id="btnAdd"
+                        text="＋ Thêm nhân viên"
+                        onAction="#openAddDialog"
+                        prefWidth="158" prefHeight="36"
+                        style="-fx-background-color:#3B82F6;-fx-text-fill:white;-fx-background-radius:6;
+                               -fx-border-radius:6;-fx-font-size:13px;-fx-cursor:hand;"/>
+            </HBox>
+
+            <!-- Search + role filter -->
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <TextField fx:id="searchField"
+                           promptText="Tìm kiếm theo tên, ID..."
+                           prefWidth="240" prefHeight="34"
+                           onKeyReleased="#onSearchKeyReleased"
+                           style="-fx-background-radius:6;-fx-border-radius:6;
+                                  -fx-border-color:#CBD5E1;-fx-font-size:13px;
+                                  -fx-padding:4 10 4 10;"/>
+
+                <Label text="Vai trò:"
+                       style="-fx-font-size:13px;-fx-text-fill:#475569;"/>
+
+                <!-- Role toggle buttons injected programmatically -->
+                <HBox fx:id="roleFilterBox" spacing="6" alignment="CENTER_LEFT"/>
+            </HBox>
+
+            <VBox.margin><Insets bottom="0"/></VBox.margin>
+        </VBox>
+        <BorderPane.margin><Insets bottom="16"/></BorderPane.margin>
+    </top>
+
+    <!-- ── CENTER: table ─────────────────────────────────────────────────── -->
+    <center>
+        <TableView fx:id="tableView"
+                   style="-fx-background-color:white;-fx-border-color:#E2E8F0;
+                          -fx-border-radius:8;-fx-background-radius:8;">
+            <columns>
+                <TableColumn fx:id="colId"        text="ID"           prefWidth="70"  minWidth="60"/>
+                <TableColumn fx:id="colName"      text="Tên"          prefWidth="170" minWidth="120"/>
+                <TableColumn fx:id="colRole"      text="Vai trò"      prefWidth="105" minWidth="90"/>
+                <TableColumn fx:id="colPhone"     text="SDT"          prefWidth="125" minWidth="100"/>
+                <TableColumn fx:id="colStartDate" text="Ngày vào làm" prefWidth="125" minWidth="100"/>
+                <!-- colAccount hidden by default; shown when REGISTER_STAFF permission present -->
+                <TableColumn fx:id="colAccount"   text="Tài khoản"    prefWidth="135" minWidth="110"
+                             visible="false"/>
+                <TableColumn fx:id="colActions"   text="Hành động"    prefWidth="270" minWidth="240"
+                             sortable="false" resizable="false"/>
+            </columns>
+            <placeholder>
+                <Label text="Không có dữ liệu nhân viên"
+                       style="-fx-text-fill:#94A3B8;-fx-font-size:14px;"/>
+            </placeholder>
+        </TableView>
+    </center>
+</BorderPane>

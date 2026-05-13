@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  OpenTableDialog.fxml  —  Phase 5
+  Dialog nhập thông tin khách để mở bàn.
+
+  Layout:
+    BorderPane
+      TOP    : title label
+      CENTER : GridPane form  (tên khách + số điện thoại)
+      BOTTOM : button bar  (Hủy | Mở bàn)
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.dialog.OpenTableDialogController"
+            prefWidth="460" prefHeight="290"
+            styleClass="dialog-root">
+
+    <!-- ══════  TOP — title  ══════════════════════════════════════════ -->
+    <top>
+        <VBox styleClass="dialog-header">
+            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+            <Label fx:id="lblTitle" text="Mở bàn" styleClass="dialog-title"/>
+            <Label text="Nhập thông tin khách hàng (tùy chọn)"
+                   styleClass="dialog-subtitle"/>
+        </VBox>
+    </top>
+
+    <!-- ══════  CENTER — form  ════════════════════════════════════════ -->
+    <center>
+        <GridPane styleClass="dialog-form"
+                  hgap="12" vgap="16">
+            <padding><Insets top="8" right="24" bottom="8" left="24"/></padding>
+
+            <!-- Row 0 : Tên khách -->
+            <Label text="Tên khách:"
+                   styleClass="form-label"
+                   GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+            <TextField fx:id="tfName"
+                       promptText="(tùy chọn)"
+                       prefHeight="36"
+                       styleClass="form-field"
+                       GridPane.columnIndex="1" GridPane.rowIndex="0"
+                       GridPane.hgrow="ALWAYS"/>
+
+            <!-- Row 1 : Số điện thoại -->
+            <Label text="Số điện thoại:"
+                   styleClass="form-label"
+                   GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+            <TextField fx:id="tfPhone"
+                       promptText="(tùy chọn)"
+                       prefHeight="36"
+                       styleClass="form-field"
+                       GridPane.columnIndex="1" GridPane.rowIndex="1"
+                       GridPane.hgrow="ALWAYS"/>
+
+            <!-- Column constraints -->
+            <columnConstraints>
+                <ColumnConstraints minWidth="130" prefWidth="130" hgrow="NEVER"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+        </GridPane>
+    </center>
+
+    <!-- ══════  BOTTOM — buttons  ═════════════════════════════════════ -->
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" spacing="10"
+              styleClass="dialog-footer">
+            <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+
+            <Button text="Hủy"
+                    prefWidth="90" prefHeight="36"
+                    styleClass="btn-outline"
+                    onAction="#onCancel"
+                    defaultButton="false"
+                    cancelButton="true"/>
+
+            <Button text="Mở bàn"
+                    prefWidth="110" prefHeight="36"
+                    styleClass="btn-primary"
+                    onAction="#onConfirm"
+                    defaultButton="true"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

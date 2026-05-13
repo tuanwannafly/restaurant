@@ -1,0 +1,830 @@
+/*
+ * app.css  —  SmartRestaurant JavaFX Theme
+ * ─────────────────────────────────────────
+ * Colour palette:
+ *   Primary        #5B6AF0   (indigo)
+ *   Primary-light  #EEF0FD
+ *   Surface        #F8F9FC
+ *   Card           #FFFFFF
+ *   Border-subtle  #E8EAF0
+ *   Text-primary   #1A1D2E
+ *   Text-secondary #6B7280
+ *   Text-tertiary  #B0B7C3
+ *   Danger         #EF4444
+ *   Neutral-bg     #F3F4F6
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROOT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.root-pane {
+    -fx-background-color: #F8F9FC;
+    -fx-font-family: "Segoe UI", "San Francisco", "Helvetica Neue", sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOP BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.top-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E8EAF0 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 52px;
+}
+
+.logo-mark {
+    -fx-background-color: #5B6AF0;
+    -fx-background-radius: 8px;
+}
+
+.logo-mark-text {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.app-name-label {
+    -fx-text-fill: #5B6AF0;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.restaurant-name-label {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 12px;
+}
+
+.dot-separator {
+    -fx-text-fill: #B0B7C3;
+    -fx-font-size: 14px;
+}
+
+/* Role badge — top-bar variant (grey pill) */
+.role-badge {
+    -fx-background-color: #F3F4F6;
+    -fx-background-radius: 4px;
+    -fx-padding: 3 8 3 8;
+}
+
+.role-badge-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.profile-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #1A1D2E;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 6px;
+    -fx-border-color: transparent;
+}
+
+.profile-btn:hover {
+    -fx-background-color: #F3F4F6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sidebar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent #E8EAF0 transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-pref-width: 220px;
+    -fx-min-width: 220px;
+    -fx-max-width: 220px;
+    -fx-padding: 20 12 16 12;
+    -fx-spacing: 2;
+}
+
+.sidebar-separator {
+    -fx-background-color: #E8EAF0;
+    -fx-padding: 0;
+}
+
+/* Nav items */
+.nav-item {
+    -fx-pref-height: 40px;
+    -fx-background-radius: 8px;
+    -fx-padding: 0 12 0 12;
+    -fx-cursor: hand;
+}
+
+.nav-item-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 13px;
+}
+
+.nav-item:hover-nav                   { -fx-background-color: #F3F4F6; }
+.nav-item:hover-nav .nav-item-text    { -fx-text-fill: #1A1D2E; }
+.nav-item:active-nav                  { -fx-background-color: #EEF0FD; }
+.nav-item:active-nav .nav-item-text   { -fx-text-fill: #5B6AF0; -fx-font-weight: bold; }
+
+/* BadgeLabel container */
+.badge-label-container {
+    -fx-pref-height: 40px;
+    -fx-background-radius: 8px;
+    -fx-padding: 0 12 0 12;
+    -fx-cursor: hand;
+    -fx-min-width: 196px;
+}
+
+.nav-label-text {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 13px;
+}
+
+.badge-label-container:hover-nav                    { -fx-background-color: #F3F4F6; }
+.badge-label-container:hover-nav .nav-label-text    { -fx-text-fill: #1A1D2E; }
+.badge-label-container:active-nav                   { -fx-background-color: #EEF0FD; }
+.badge-label-container:active-nav .nav-label-text   { -fx-text-fill: #5B6AF0; -fx-font-weight: bold; }
+
+/* Badge dot */
+.badge-dot {
+    -fx-background-color: #EF4444;
+    -fx-background-radius: 9px;
+    -fx-min-width: 16px; -fx-min-height: 16px;
+    -fx-max-width: 18px; -fx-max-height: 18px;
+    -fx-alignment: center;
+}
+
+.badge-dot-text {
+    -fx-text-fill: white;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   USER INFO PANEL (bottom of sidebar)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.user-info-panel {
+    -fx-padding: 8 0 0 0;
+    -fx-spacing: 8;
+}
+
+.avatar-circle {
+    -fx-background-color: #5B6AF0;
+    -fx-background-radius: 100px;
+}
+
+.avatar-initials {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.user-name-label {
+    -fx-text-fill: #1A1D2E;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.user-role-label {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 11px;
+}
+
+.logout-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #EF4444;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-padding: 6 12 6 12;
+    -fx-background-radius: 6px;
+    -fx-border-color: transparent;
+    -fx-alignment: center-left;
+}
+
+.logout-btn:hover { -fx-background-color: #FEF2F2; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTENT AREA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.content-area {
+    -fx-background-color: #F8F9FC;
+    -fx-padding: 0;
+}
+
+.placeholder-pane {
+    -fx-background-color: #F8F9FC;
+    -fx-alignment: center;
+}
+
+.placeholder-label {
+    -fx-text-fill: #B0B7C3;
+    -fx-font-size: 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED COMPONENTS  (Phase 13+)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Buttons ────────────────────────────────────────────────── */
+
+.btn-primary {
+    -fx-background-color: #2563EB;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-pref-height: 34;
+}
+
+.btn-primary:hover    { -fx-background-color: #1D4ED8; }
+.btn-primary:disabled { -fx-background-color: #CBD5E1; -fx-text-fill: white; -fx-opacity: 1; }
+
+.btn-outline {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1.2;
+    -fx-text-fill: #0F172A;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-pref-height: 34;
+}
+
+.btn-outline:hover { -fx-background-color: #F8FAFC; }
+
+.btn-outline-sm {
+    -fx-background-color: white;
+    -fx-background-radius: 6;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-text-fill: #0F172A;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+    -fx-pref-height: 30;
+    -fx-pref-width: 100;
+}
+
+.btn-outline-sm:hover { -fx-background-color: #F8FAFC; }
+
+/* ── Status / message labels ────────────────────────────────── */
+
+.msg-label   { -fx-font-size: 11px; -fx-text-fill: #64748B; }
+.msg-success { -fx-font-size: 11px; -fx-text-fill: #16A34A; }
+.msg-danger  { -fx-font-size: 11px; -fx-text-fill: #DC2626; }
+
+.hint-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+
+.card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+}
+
+/* ── Form elements ──────────────────────────────────────────── */
+
+.section-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #64748B;
+    -fx-padding: 0 0 10 0;
+}
+
+.field-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+    -fx-min-width: 130;
+    -fx-pref-width: 130;
+}
+
+.readonly-value {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+}
+
+.divider-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+    -fx-padding: 4 0 4 0;
+}
+
+/* ── CleanField (custom TextField) ──────────────────────────── */
+
+.clean-field {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0F172A;
+    -fx-pref-height: 36;
+}
+
+.clean-field:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+.clean-field.readonly-field,
+.clean-field:disabled {
+    -fx-background-color: #F3F4F6;
+    -fx-text-fill: #64748B;
+    -fx-border-color: #E2E8F0;
+    -fx-opacity: 1;
+}
+
+/* PasswordField — same look as CleanField */
+.tab-content .password-field {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
+    -fx-pref-height: 36;
+}
+
+.tab-content .password-field:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+/* ─── TextArea ──────────────────────────────────────────────── */
+
+.clean-textarea {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0F172A;
+}
+
+.clean-textarea:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 4, 0, 0, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MY RESTAURANT VIEW
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page-root {
+    -fx-background-color: #F8FAFC;
+}
+
+.body-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.body-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Page header bar */
+.page-header {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #E2E8F0 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 16 24 16 24;
+}
+
+.page-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0F172A;
+}
+
+.header-sub {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+}
+
+.sep-dot {
+    -fx-text-fill: #E2E8F0;
+    -fx-font-size: 13px;
+}
+
+/* Status badges (inline text, no background) */
+.badge-success { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #16A34A; }
+.badge-warning { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #D97706; }
+
+/* Logo circle avatar */
+.logo-circle {
+    -fx-background-color: #EFF6FF;
+    -fx-background-radius: 32;
+    -fx-border-color: #BFDBFE;
+    -fx-border-radius: 32;
+    -fx-border-width: 1.5;
+}
+
+.logo-initials {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2563EB;
+}
+
+/* Hours card */
+.hours-day    { -fx-font-size: 13px; -fx-text-fill: #64748B; }
+.hours-open   { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #16A34A; }
+.hours-closed { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #DC2626; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MY PROFILE DIALOG
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dialog-root    { -fx-background-color: white; }
+
+.dialog-header  { -fx-background-color: #2563EB; }
+
+.dialog-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+
+/* Role badge — dialog variant (outlined, on blue background) */
+.role-badge--dialog {
+    -fx-background-color: transparent;
+    -fx-border-color: #93C5FD;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-text-fill: #BFDBFE;
+}
+
+.profile-tabs {
+    -fx-tab-min-height: 36;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.tab-content { -fx-background-color: white; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AdminHomePanel.css — styles cho màn hình Tổng quan (SUPER_ADMIN)
+   Append vào file app.css hiện có của project.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Navbar ────────────────────────────────────────────────────────────────── */
+
+.navbar {
+    -fx-background-color: #FFFFFF;
+}
+
+/* ── Nav pill buttons ──────────────────────────────────────────────────────── */
+
+.nav-pill {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-padding: 6 16 6 16;
+    -fx-background-radius: 9999;
+    -fx-border-radius: 9999;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+}
+
+.nav-pill:hover {
+    -fx-background-color: #1D4ED8;
+}
+
+.nav-pill:pressed {
+    -fx-background-color: #1E40AF;
+}
+
+/* Active state — same look; Home is always "current page" */
+.nav-pill-active {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: white;
+}
+
+/* ── Stat labels (left column) ─────────────────────────────────────────────── */
+
+.stat-label {
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #374151;
+    -fx-min-width: 220px;
+    -fx-alignment: CENTER_LEFT;
+}
+
+/* ── Stat fields (read-only TextFields) ────────────────────────────────────── */
+
+.stat-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D1D5DB;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #111827;
+}
+
+/* Remove focus ring highlight for read-only stat fields */
+.stat-field:focused {
+    -fx-border-color: #D1D5DB;
+    -fx-effect: null;
+}
+
+/* ── Logout button ─────────────────────────────────────────────────────────── */
+
+.logout-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 20px;
+    -fx-cursor: hand;
+    -fx-padding: 4 4 4 4;
+}
+
+.logout-btn:hover {
+    -fx-text-fill: #DC2626;
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOME DASHBOARD  (HomeView.fxml)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ScrollPane wrapper */
+.home-scroll {
+    -fx-background: #F1F3F8;
+    -fx-background-color: #F1F3F8;
+    -fx-border-color: transparent;
+}
+
+.home-scroll > .viewport {
+    -fx-background-color: #F1F3F8;
+}
+
+.home-root {
+    -fx-background-color: #F1F3F8;
+}
+
+/* ── Header banner ─────────────────────────────────────────────────────── */
+
+.home-header-banner {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent #E8EAF0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.home-greeting {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1A1D2E;
+}
+
+.home-subtitle {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #6B7280;
+}
+
+.home-dot {
+    -fx-font-size: 10px;
+    -fx-text-fill: #10B981;
+}
+
+.home-refresh-text {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-text-fill: #9CA3AF;
+}
+
+/* ── Body ──────────────────────────────────────────────────────────────── */
+
+.home-body {
+    -fx-background-color: #F1F3F8;
+}
+
+/* ── Section labels ────────────────────────────────────────────────────── */
+
+.home-section-row {
+    /* intentionally empty — layout only */
+}
+
+.home-section-accent {
+    -fx-background-color: #5B6AF0;
+    -fx-min-width: 3px;
+    -fx-pref-width: 3px;
+    -fx-max-width: 3px;
+    -fx-min-height: 14px;
+    -fx-pref-height: 14px;
+    -fx-background-radius: 2px;
+}
+
+.home-section-label {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #64748B;
+    -fx-letter-spacing: 0.5px;
+}
+
+/* ── Activity card ─────────────────────────────────────────────────────── */
+
+.home-activity-card {
+    -fx-background-color: white;
+    -fx-background-radius: 12px;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 10, 0, 0, 3);
+}
+
+.home-activity-list {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 4 0 4 0;
+    -fx-border-color: transparent;
+    -fx-background-radius: 12px;
+}
+
+.home-activity-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.home-activity-list .list-cell:odd {
+    -fx-background-color: #F8FAFC;
+}
+
+.home-activity-list .list-cell:selected {
+    -fx-background-color: #EEF0FD;
+}
+
+.home-activity-list .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-pref-width: 6px;
+}
+
+.home-activity-list .scroll-bar:vertical .thumb {
+    -fx-background-color: #CBD5E1;
+    -fx-background-radius: 3px;
+}
+
+.home-activity-list .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.home-activity-list .scroll-bar:vertical .increment-button,
+.home-activity-list .scroll-bar:vertical .decrement-button {
+    -fx-background-color: transparent;
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGO MARK  (improved v2)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.logo-mark {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #5B6AF0, #7C3AED);
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(91,106,240,0.35), 10, 0, 0, 2);
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
+}
+
+.logo-mark-text {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Segoe UI";
+}
+
+.app-name-label {
+    -fx-text-fill: #1A1D2E;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROFILE CONTEXT MENU  (TopBar dropdown)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.profile-context-menu {
+    -fx-background-color: white;
+    -fx-background-radius: 10px;
+    -fx-border-color: #E8EAF0;
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 16, 0, 0, 4);
+}
+
+.profile-context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 8 16 8 16;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-text-fill: #1A1D2E;
+}
+
+.profile-context-menu .menu-item:focused,
+.profile-context-menu .menu-item:hover {
+    -fx-background-color: #F3F4F6;
+    -fx-background-radius: 6px;
+}
+
+.profile-context-menu .menu-item-danger {
+    -fx-text-fill: #EF4444;
+}
+
+.profile-context-menu .menu-item-danger:focused,
+.profile-context-menu .menu-item-danger:hover {
+    -fx-background-color: #FEF2F2;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOME DASHBOARD — BAR CHART
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.home-chart-card {
+    -fx-background-color: white;
+    -fx-background-radius: 14px;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 14px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.07), 12, 0, 0, 3);
+}
+
+.home-bar-chart {
+    -fx-background-color: transparent;
+    -fx-plot-background-color: transparent;
+    -fx-horizontal-grid-lines-visible: true;
+    -fx-vertical-grid-lines-visible: false;
+    -fx-horizontal-zero-line-visible: false;
+    -fx-padding: 0 0 0 0;
+}
+
+.home-bar-chart .chart-plot-background {
+    -fx-background-color: transparent;
+}
+
+.home-bar-chart .chart-vertical-grid-lines {
+    -fx-stroke: transparent;
+}
+
+.home-bar-chart .chart-horizontal-grid-lines {
+    -fx-stroke: #F1F3F8;
+    -fx-stroke-width: 1;
+}
+
+.home-bar-chart .axis {
+    -fx-tick-label-fill: #94A3B8;
+    -fx-tick-label-font-size: 11px;
+    -fx-font-family: "Segoe UI";
+}
+
+.home-bar-chart .axis-label {
+    -fx-text-fill: transparent;
+}
+
+.home-bar-chart .chart-content {
+    -fx-padding: 4 8 0 0;
+}
+
+.home-bar-chart .bar-legend-symbol {
+    -fx-background-radius: 4px;
+}
+
+/* Bar colours are set programmatically in HomeController#applyBarColors() */
+/* Fallback defaults for the 3 data series positions */
+.home-bar-chart .default-color0.chart-bar { -fx-bar-fill: #3B82F6; }
+.home-bar-chart .default-color1.chart-bar { -fx-bar-fill: #10B981; }
+.home-bar-chart .default-color2.chart-bar { -fx-bar-fill: #EF4444; }
+
+.home-bar-chart .chart-bar {
+    -fx-background-radius: 5 5 0 0;
+}

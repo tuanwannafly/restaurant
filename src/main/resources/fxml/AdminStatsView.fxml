@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  📁 VỊ TRÍ: src/main/resources/fxml/AdminStatsView.fxml
+-->
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.BarChart?>
+<?import javafx.scene.chart.CategoryAxis?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane
+    styleClass="page-bg"
+    xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1"
+    fx:controller="com.restaurant.ui.fx.controller.AdminStatsController">
+
+    <!-- ══════════════════════════════════════════════════════════
+         NORTH — Tiêu đề + bộ lọc ngày tổng quan
+    ══════════════════════════════════════════════════════════ -->
+    <top>
+        <VBox styleClass="top-bar" spacing="10">
+            <padding><Insets top="24" right="48" bottom="0" left="48"/></padding>
+
+            <Label text="Thống kê" styleClass="title-label"/>
+
+            <!-- Filter row -->
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="Từ ngày:" styleClass="body-label"/>
+                <DatePicker fx:id="dpFrom" prefWidth="130"/>
+                <Label text="Đến ngày:" styleClass="body-label"/>
+                <DatePicker fx:id="dpTo"   prefWidth="130"/>
+                <Button fx:id="btnFilter" text="🔍 Lọc"
+                        styleClass="btn-outline"
+                        onAction="#onFilter"
+                        prefWidth="90" prefHeight="32"/>
+            </HBox>
+
+            <Separator/>
+        </VBox>
+    </top>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CENTER — Cards + Chart (trong ScrollPane)
+    ══════════════════════════════════════════════════════════ -->
+    <center>
+        <ScrollPane fitToWidth="true" styleClass="scroll-transparent">
+            <content>
+                <VBox spacing="20">
+                    <padding><Insets top="16" right="48" bottom="24" left="48"/></padding>
+
+                    <!-- ── 3 Summary cards ───────────────────────────── -->
+                    <GridPane hgap="16">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="ALWAYS" percentWidth="33.33"/>
+                            <ColumnConstraints hgrow="ALWAYS" percentWidth="33.33"/>
+                            <ColumnConstraints hgrow="ALWAYS" percentWidth="33.33"/>
+                        </columnConstraints>
+
+                        <!-- Card 1: Nhà hàng -->
+                        <VBox GridPane.columnIndex="0"
+                              styleClass="stat-card" spacing="8" alignment="CENTER">
+                            <padding><Insets top="20" right="16" bottom="20" left="16"/></padding>
+                            <Label text="Tổng Nhà Hàng Hoạt Động"
+                                   styleClass="card-title" wrapText="true"/>
+                            <Label fx:id="lblTotalRestaurants" text="–"
+                                   styleClass="card-value"/>
+                        </VBox>
+
+                        <!-- Card 2: Doanh thu -->
+                        <VBox GridPane.columnIndex="1"
+                              styleClass="stat-card" spacing="8" alignment="CENTER">
+                            <padding><Insets top="20" right="16" bottom="20" left="16"/></padding>
+                            <Label text="Tổng Doanh Thu"
+                                   styleClass="card-title"/>
+                            <Label fx:id="lblTotalRevenue" text="–"
+                                   styleClass="card-value"/>
+                        </VBox>
+
+                        <!-- Card 3: Đơn hàng -->
+                        <VBox GridPane.columnIndex="2"
+                              styleClass="stat-card" spacing="8" alignment="CENTER">
+                            <padding><Insets top="20" right="16" bottom="20" left="16"/></padding>
+                            <Label text="Tổng Đơn Hàng"
+                                   styleClass="card-title"/>
+                            <Label fx:id="lblTotalOrders" text="–"
+                                   styleClass="card-value"/>
+                        </VBox>
+                    </GridPane>
+
+                    <!-- ── Chart section ─────────────────────────────── -->
+                    <VBox styleClass="chart-card" spacing="12">
+                        <padding><Insets top="16" right="16" bottom="16" left="16"/></padding>
+
+                        <!-- Chart filter bar -->
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Label text="Loại:" styleClass="body-label"/>
+                            <ComboBox fx:id="cboType" prefWidth="120"/>
+
+                            <Label text="Từ" styleClass="body-label"/>
+                            <ComboBox fx:id="cboChartFrom" prefWidth="110"/>
+
+                            <Label text="Đến" styleClass="body-label"/>
+                            <ComboBox fx:id="cboChartTo" prefWidth="110"/>
+
+                            <!-- Spacer -->
+                            <Region HBox.hgrow="ALWAYS"/>
+
+                            <Button fx:id="btnDrawChart"
+                                    text="📊 Vẽ biểu đồ"
+                                    styleClass="btn-primary"
+                                    onAction="#onDrawChart"
+                                    prefWidth="140" prefHeight="32"/>
+                        </HBox>
+
+                        <!-- JavaFX BarChart -->
+                        <BarChart fx:id="barChart"
+                                  animated="true"
+                                  legendVisible="false"
+                                  prefHeight="320"
+                                  VBox.vgrow="ALWAYS">
+                            <xAxis>
+                                <CategoryAxis fx:id="xAxis" label="Tháng"/>
+                            </xAxis>
+                            <yAxis>
+                                <!-- tickUnit sẽ được set động trong controller -->
+                                <NumberAxis fx:id="yAxis"
+                                            label="Giá trị"
+                                            autoRanging="true"
+                                            forceZeroInRange="true"/>
+                            </yAxis>
+                        </BarChart>
+
+                        <!-- Hint khi chưa có dữ liệu -->
+                        <StackPane fx:id="chartHint" visible="false" prefHeight="320">
+                            <Label text="Chọn bộ lọc rồi nhấn 📊 Vẽ biểu đồ để hiển thị dữ liệu"
+                                   styleClass="hint-label"/>
+                        </StackPane>
+                    </VBox>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+
+</BorderPane>

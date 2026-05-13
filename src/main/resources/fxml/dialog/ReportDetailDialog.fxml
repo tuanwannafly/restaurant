@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<!--
+    ReportDetailDialog.fxml  — Phase 11
+    Xem chi tiết báo cáo. Manager+ có thể đổi trạng thái.
+    Controller: com.restaurant.ui.dialog.ReportDetailController
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.ReportDetailController"
+      spacing="0"
+      style="-fx-background-color: white; -fx-min-width: 500px;">
+
+    <!-- ── Header ──────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" spacing="12"
+          style="-fx-padding: 20 24 16 24; -fx-background-color: #F9FAFB;
+                 -fx-border-color: #E5E7EB; -fx-border-width: 0 0 1 0;">
+        <VBox spacing="2" HBox.hgrow="ALWAYS">
+            <Label fx:id="lblTitleHeader"
+                   text="Chi tiết báo cáo"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 16px;
+                          -fx-font-weight: bold; -fx-text-fill: #111827;"/>
+            <Label fx:id="lblSubtitle"
+                   text="ID: —"
+                   style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11px;
+                          -fx-text-fill: #9CA3AF;"/>
+        </VBox>
+        <!-- Severity badge được set theo giá trị thực -->
+        <Label fx:id="lblSeverityBadge"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12px;
+                      -fx-font-weight: bold; -fx-background-radius: 10;
+                      -fx-padding: 4 10 4 10;"/>
+    </HBox>
+
+    <!-- ── Detail grid ─────────────────────────────────────────────────── -->
+    <GridPane hgap="16" vgap="12"
+              style="-fx-padding: 20 24 20 24;">
+        <columnConstraints>
+            <ColumnConstraints minWidth="110" halignment="RIGHT"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <!-- Hàng 0: Tiêu đề -->
+        <Label text="Tiêu đề:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+        <Label fx:id="lblTitle"
+               text="—" wrapText="true"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-text-fill: #111827;"
+               GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 1: Loại -->
+        <Label text="Loại:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+        <Label fx:id="lblType"
+               text="—"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-text-fill: #111827;"
+               GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 2: Trạng thái hiện tại -->
+        <Label text="Trạng thái:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+        <Label fx:id="lblStatus"
+               text="—"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #1D4ED8;"
+               GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 3: Ngày tạo -->
+        <Label text="Ngày tạo:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+        <Label fx:id="lblCreatedAt"
+               text="—"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-text-fill: #111827;"
+               GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 4: Ngày giải quyết -->
+        <Label text="Giải quyết lúc:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+        <Label fx:id="lblResolvedAt"
+               text="Chưa giải quyết"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-text-fill: #9CA3AF; -fx-font-style: italic;"
+               GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 5: Mô tả -->
+        <Label text="Mô tả:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="5" GridPane.columnIndex="0" GridPane.valignment="TOP"/>
+        <TextArea fx:id="txtDescription"
+                  editable="false" wrapText="true" prefRowCount="4"
+                  style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                         -fx-background-color: #F9FAFB; -fx-border-color: #E5E7EB;
+                         -fx-background-radius: 8; -fx-border-radius: 8;
+                         -fx-text-fill: #374151;"
+                  GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+
+        <!-- Hàng 6: Đổi trạng thái — chỉ hiện cho Manager+ -->
+        <Separator style="-fx-padding: 4 0 4 0;"
+                   GridPane.rowIndex="6" GridPane.columnIndex="0" GridPane.columnSpan="2"/>
+
+        <Label text="Cập nhật:"
+               style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                      -fx-font-weight: bold; -fx-text-fill: #6B7280;"
+               GridPane.rowIndex="7" GridPane.columnIndex="0"
+               fx:id="lblUpdateRow"/>
+        <HBox spacing="8" alignment="CENTER_LEFT"
+              GridPane.rowIndex="7" GridPane.columnIndex="1"
+              fx:id="updateRow">
+            <ComboBox fx:id="cmbNewStatus"
+                      prefWidth="160"
+                      style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;"/>
+            <Button fx:id="btnUpdate"
+                    text="Cập nhật trạng thái"
+                    onAction="#updateStatus"
+                    style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                           -fx-font-weight: bold; -fx-background-color: #10B981;
+                           -fx-text-fill: white; -fx-background-radius: 8;
+                           -fx-padding: 7 14 7 14; -fx-cursor: hand;"/>
+        </HBox>
+    </GridPane>
+
+    <!-- Error label -->
+    <Label fx:id="lblError" text="" visible="false" managed="false"
+           style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12px;
+                  -fx-text-fill: #DC2626; -fx-padding: 0 24 8 24;"/>
+
+    <!-- ── Footer ──────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_RIGHT"
+          style="-fx-padding: 12 24 18 24; -fx-background-color: #F9FAFB;
+                 -fx-border-color: #E5E7EB; -fx-border-width: 1 0 0 0;">
+        <Button text="Đóng"
+                onAction="#close"
+                defaultButton="true"
+                style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                       -fx-background-color: white; -fx-border-color: #D1D5DB;
+                       -fx-border-radius: 8; -fx-background-radius: 8;
+                       -fx-padding: 8 18 8 18; -fx-cursor: hand;"/>
+    </HBox>
+
+</VBox>

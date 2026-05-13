@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.PaymentPageController"
+            styleClass="page-root">
+
+    <top>
+        <HBox styleClass="top-bar" alignment="CENTER_LEFT">
+            <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS">
+                <Label text="⛁" styleClass="logo-icon"/>
+                <Label text="SmartRestaurant" styleClass="logo-text"/>
+            </HBox>
+            <Label text="Yêu cầu thanh toán" styleClass="page-title" HBox.hgrow="ALWAYS"
+                   alignment="CENTER"/>
+            <HBox alignment="CENTER_RIGHT" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
+            </HBox>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true" styleClass="scroll-clean">
+            <VBox alignment="CENTER" spacing="24" styleClass="payment-center">
+                <padding><Insets top="40" right="80" bottom="40" left="80"/></padding>
+
+                <!-- Total -->
+                <Label fx:id="lblTotal" text="Tổng cộng: đang tải..."
+                       styleClass="label-total-lg"/>
+
+                <!-- Method label -->
+                <Label text="Chọn phương thức thanh toán:" styleClass="label-bold"/>
+
+                <!-- Toggle row -->
+                <HBox alignment="CENTER" spacing="12">
+                    <ToggleButton fx:id="tbTransfer" text="🏦  Chuyển khoản"
+                                  prefWidth="180" prefHeight="44"
+                                  styleClass="toggle-payment"/>
+                    <ToggleButton fx:id="tbCash"     text="💵  Tiền mặt"
+                                  prefWidth="180" prefHeight="44"
+                                  styleClass="toggle-payment"/>
+                </HBox>
+
+                <!-- Cash input (ẩn mặc định) -->
+                <VBox fx:id="cashPanel" spacing="8" styleClass="cash-panel"
+                      maxWidth="400" visible="false" managed="false">
+                    <Label text="Nhập số tiền khách đưa:" styleClass="label-bold"/>
+                    <TextField fx:id="tfCashAmount" text="300000"
+                               styleClass="text-field-std"/>
+                    <Label text="Tiền thừa sẽ được tính tự động tại quầy."
+                           styleClass="label-hint"/>
+                </VBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+
+    <bottom>
+        <HBox styleClass="bottom-bar" alignment="CENTER">
+            <HBox alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
+                <Button text="← Quay lại" styleClass="btn-ghost" onAction="#onBack"/>
+            </HBox>
+            <Button text="✅  Gửi yêu cầu" styleClass="btn-primary" onAction="#onSubmit"/>
+        </HBox>
+    </bottom>
+</BorderPane>

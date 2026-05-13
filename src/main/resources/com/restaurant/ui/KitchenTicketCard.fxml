@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+
+<!--
+  KitchenTicketCard.fxml  ─  Phase 8
+  Card hiển thị nhóm món (item name + qty + wait time).
+  Được load bằng FXMLLoader trong KitchenController.
+  Controller: com.restaurant.ui.KitchenTicketCardController
+-->
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.KitchenTicketCardController"
+      fx:id="cardRoot"
+      spacing="8"
+      prefWidth="220"
+      minWidth="220"
+      style="-fx-background-color: #FFFFFF;
+             -fx-background-radius: 8;
+             -fx-border-color: #E2E8F0;
+             -fx-border-radius: 8;
+             -fx-border-width: 1;
+             -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 4, 0, 0, 2);
+             -fx-cursor: hand;">
+    <padding>
+        <Insets top="14" right="14" bottom="14" left="14"/>
+    </padding>
+
+    <!-- Tên món -->
+    <Label fx:id="itemNameLabel"
+           text="Tên món"
+           wrapText="true"
+           style="-fx-font-family: 'Segoe UI';
+                  -fx-font-size: 14px;
+                  -fx-font-weight: bold;
+                  -fx-text-fill: #1E293B;"/>
+
+    <!-- Số lượng -->
+    <Label fx:id="quantityLabel"
+           text="Số lượng: 0"
+           style="-fx-font-family: 'Segoe UI';
+                  -fx-font-size: 13px;
+                  -fx-text-fill: #475569;"/>
+
+    <!-- Thời gian chờ – màu thay đổi qua urgency level -->
+    <Label fx:id="waitLabel"
+           text="Chờ: 0 phút"
+           style="-fx-font-family: 'Segoe UI';
+                  -fx-font-size: 13px;
+                  -fx-text-fill: #10B981;"/>
+
+    <!-- Extra row cho cooking card (assigned staff) -->
+    <Label fx:id="staffLabel"
+           text=""
+           managed="false"
+           visible="false"
+           style="-fx-font-family: 'Segoe UI';
+                  -fx-font-size: 12px;
+                  -fx-text-fill: #94A3B8;"/>
+
+    <!-- Divider -->
+    <Separator style="-fx-opacity: 0.5;"/>
+
+    <!-- Action buttons -->
+    <!-- btnStartCooking: chỉ hiện ở cột PENDING (PENDING/ACCEPTED → COOKING) -->
+    <Button fx:id="btnStartCooking"
+            text="▶ Bắt đầu nấu"
+            maxWidth="Infinity"
+            managed="false"
+            visible="false"
+            onAction="#onStartCooking"
+            style="-fx-font-family: 'Segoe UI';
+                   -fx-font-size: 12px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #3B82F6;
+                   -fx-text-fill: #FFFFFF;
+                   -fx-background-radius: 6;
+                   -fx-padding: 7 0 7 0;
+                   -fx-cursor: hand;"/>
+
+    <!-- btnMarkReady: chỉ hiện ở cột COOKING (COOKING → READY) -->
+    <Button fx:id="btnMarkReady"
+            text="✔ Hoàn thành"
+            maxWidth="Infinity"
+            managed="false"
+            visible="false"
+            onAction="#onMarkReady"
+            style="-fx-font-family: 'Segoe UI';
+                   -fx-font-size: 12px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #10B981;
+                   -fx-text-fill: #FFFFFF;
+                   -fx-background-radius: 6;
+                   -fx-padding: 7 0 7 0;
+                   -fx-cursor: hand;"/>
+
+</VBox>

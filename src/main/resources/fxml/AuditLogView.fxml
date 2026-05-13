@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  📁 VỊ TRÍ: src/main/resources/fxml/AuditLogView.fxml
+-->
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane
+    styleClass="page-bg"
+    xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1"
+    fx:controller="com.restaurant.ui.fx.controller.AuditLogController">
+
+    <!-- ══════════════════════════════════════════════════════════
+         NORTH — Tiêu đề + bộ lọc
+    ══════════════════════════════════════════════════════════ -->
+    <top>
+        <VBox styleClass="top-bar" spacing="10">
+            <padding><Insets top="24" right="48" bottom="0" left="48"/></padding>
+
+            <!-- Title row -->
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Label text="🔐 Nhật ký bảo mật" styleClass="title-label"/>
+                <!-- Spacer -->
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="lblCount" text=""
+                       styleClass="count-label"/>
+            </HBox>
+
+            <!-- Filter row 1: action + date range -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Loại hành động:" styleClass="body-label"/>
+                <ComboBox fx:id="cmbAction" prefWidth="170" prefHeight="32"/>
+
+                <Label text="Từ ngày:" styleClass="body-label"/>
+                <DatePicker fx:id="dpFrom" prefWidth="135"/>
+
+                <Label text="Đến ngày:" styleClass="body-label"/>
+                <DatePicker fx:id="dpTo"   prefWidth="135"/>
+            </HBox>
+
+            <!-- Filter row 2: action buttons -->
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Button fx:id="btnRefresh"
+                        text="🔄 Tải lại"
+                        styleClass="btn-primary"
+                        onAction="#onRefresh"
+                        prefWidth="105" prefHeight="32"/>
+                <Button fx:id="btnExport"
+                        text="⬇ Xuất CSV"
+                        styleClass="btn-success"
+                        onAction="#onExportCsv"
+                        prefWidth="115" prefHeight="32"/>
+            </HBox>
+
+            <Separator/>
+        </VBox>
+    </top>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CENTER — TableView + Empty-state overlay (StackPane)
+    ══════════════════════════════════════════════════════════ -->
+    <center>
+        <StackPane>
+            <padding><Insets top="8" right="48" bottom="24" left="48"/></padding>
+
+            <!-- TableView -->
+            <TableView fx:id="tableView"
+                       styleClass="styled-table">
+                <!-- Tắt placeholder mặc định; chúng ta dùng VBox emptyState bên dưới -->
+                <placeholder><Label text=""/></placeholder>
+
+                <!-- Cột 1: ID -->
+                <columns>
+                    <TableColumn fx:id="colId"
+                                 text="ID"
+                                 prefWidth="55"
+                                 sortable="true"/>
+
+                    <!-- Cột 2: Hành động -->
+                    <TableColumn fx:id="colAction"
+                                 text="Hành động"
+                                 prefWidth="160"/>
+
+                    <!-- Cột 3: Actor -->
+                    <TableColumn fx:id="colActor"
+                                 text="Actor (User ID)"
+                                 prefWidth="115"/>
+
+                    <!-- Cột 4: Target -->
+                    <TableColumn fx:id="colTarget"
+                                 text="Target ID"
+                                 prefWidth="90"/>
+
+                    <!-- Cột 5: Kết quả — dùng ResultBadgeTableCell -->
+                    <TableColumn fx:id="colResult"
+                                 text="Kết quả"
+                                 prefWidth="100"/>
+
+                    <!-- Cột 6: Chi tiết -->
+                    <TableColumn fx:id="colDetail"
+                                 text="Chi tiết"
+                                 prefWidth="300"/>
+
+                    <!-- Cột 7: Thời gian -->
+                    <TableColumn fx:id="colTime"
+                                 text="Thời gian"
+                                 prefWidth="150"
+                                 sortable="true"/>
+                </columns>
+            </TableView>
+
+            <!-- Empty-state overlay — hiển thị khi không có dữ liệu -->
+            <VBox fx:id="emptyState"
+                  alignment="CENTER"
+                  spacing="12"
+                  visible="false"
+                  managed="false"
+                  mouseTransparent="true">
+                <Label text="🔍"  style="-fx-font-size: 40px;"/>
+                <Label text="Không có bản ghi nào"
+                       styleClass="title-label"
+                       style="-fx-text-fill: #9CA3AF;"/>
+                <Label text="Thử thay đổi bộ lọc hoặc khoảng thời gian"
+                       styleClass="body-label"
+                       style="-fx-text-fill: #9CA3AF;"/>
+            </VBox>
+
+        </StackPane>
+    </center>
+
+</BorderPane>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  ApproveRequestDialog.fxml — Phase 4
+  ─────────────────────────────────────────────────────────────────────────────
+  Dialog xác nhận phê duyệt đơn đăng ký nhà hàng.
+  Thông báo rõ rằng hệ thống sẽ tự động tạo tài khoản cho chủ nhà hàng.
+
+  Controller: ApproveRequestDialogController (in com.restaurant.ui.dialog)
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.ApproveRequestDialogController"
+      style="-fx-background-color: white;"
+      prefWidth="480" spacing="0">
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" prefHeight="56"
+          style="-fx-background-color: #16A34A; -fx-padding: 0 24 0 24;">
+        <Label text="✅  Xác nhận phê duyệt đơn đăng ký"
+               style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+    </HBox>
+
+    <!-- ── Body ─────────────────────────────────────────────────────────────── -->
+    <VBox spacing="16" style="-fx-padding: 24 24 16 24; -fx-background-color: white;">
+
+        <!-- Restaurant info summary -->
+        <VBox spacing="4"
+              style="-fx-background-color: #F0FDF4; -fx-border-color: #BBF7D0;
+                     -fx-border-radius: 8; -fx-background-radius: 8;
+                     -fx-padding: 12 16 12 16;">
+            <Label fx:id="lblRestaurantName" text="Tên nhà hàng"
+                   style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #14532D;"/>
+            <Label fx:id="lblOwnerName" text="Chủ: ..."
+                   style="-fx-font-size: 13px; -fx-text-fill: #15803D;"/>
+        </VBox>
+
+        <!-- Auto-create notice -->
+        <VBox spacing="6"
+              style="-fx-background-color: #FFF7ED; -fx-border-color: #FED7AA;
+                     -fx-border-radius: 8; -fx-background-radius: 8;
+                     -fx-padding: 12 16 12 16;">
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="ℹ" style="-fx-font-size: 16px; -fx-text-fill: #92400E;"/>
+                <Label text="Hệ thống sẽ tự động thực hiện:"
+                       style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #92400E;"/>
+            </HBox>
+            <VBox spacing="4" style="-fx-padding: 0 0 0 24;">
+                <Label text="• Tạo bản ghi nhà hàng mới (trạng thái ACTIVE)"
+                       style="-fx-font-size: 12px; -fx-text-fill: #B45309;"/>
+                <Label text="• Tạo tài khoản đăng nhập cho chủ nhà hàng (role: RESTAURANT_ADMIN)"
+                       style="-fx-font-size: 12px; -fx-text-fill: #B45309;"/>
+                <Label text="• Mật khẩu sử dụng như đã đăng ký trong đơn"
+                       style="-fx-font-size: 12px; -fx-text-fill: #B45309;"/>
+            </VBox>
+        </VBox>
+
+        <Label text="Thao tác này không thể hoàn tác. Bạn có chắc chắn muốn phê duyệt?"
+               wrapText="true"
+               style="-fx-font-size: 13px; -fx-text-fill: #374151;"/>
+    </VBox>
+
+    <!-- ── Footer ───────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_RIGHT" spacing="10" prefHeight="56"
+          style="-fx-border-color: #E2E8F0 transparent transparent transparent;
+                 -fx-padding: 0 24 0 24; -fx-background-color: white;">
+        <Button text="Hủy" onAction="#onCancel"
+                prefWidth="90" prefHeight="34"
+                style="-fx-background-color: white; -fx-border-color: #CBD5E1;
+                       -fx-border-radius: 6; -fx-background-radius: 6;
+                       -fx-font-size: 13px; -fx-cursor: hand;"/>
+        <Button text="✅  Phê duyệt" onAction="#onConfirm"
+                prefWidth="130" prefHeight="34"
+                style="-fx-background-color: #16A34A; -fx-text-fill: white;
+                       -fx-background-radius: 6; -fx-border-radius: 6;
+                       -fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+    </HBox>
+</VBox>

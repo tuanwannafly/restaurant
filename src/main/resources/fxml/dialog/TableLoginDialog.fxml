@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  TableLoginDialog.fxml — Đăng nhập nhanh dành riêng cho bàn ăn.
+  Khách tại bàn nhập mã đăng nhập và mật khẩu do admin cấp.
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.fx.controller.TableLoginDialogController"
+      spacing="16"
+      style="-fx-padding: 28; -fx-background-color: white; -fx-background-radius: 12;"
+      minWidth="340" maxWidth="340">
+
+    <!-- Header -->
+    <VBox spacing="4" alignment="CENTER">
+        <Label text="🍽 Đăng nhập bàn ăn"
+               style="-fx-font-size: 17; -fx-font-weight: bold;"/>
+        <Label text="Nhập thông tin tài khoản do nhà hàng cấp"
+               style="-fx-text-fill: #6B7280; -fx-font-size: 12;" wrapText="true"/>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Login ID -->
+    <VBox spacing="6">
+        <Label text="Mã đăng nhập bàn"
+               style="-fx-font-size: 12; -fx-font-weight: bold;"/>
+        <TextField fx:id="tfLoginId"
+                   promptText="VD: ban01"
+                   style="-fx-pref-height: 38; -fx-font-size: 13;"/>
+        <Label fx:id="errLoginId"
+               style="-fx-text-fill: #EF4444; -fx-font-size: 11;"
+               visible="false" managed="false"/>
+    </VBox>
+
+    <!-- Password -->
+    <VBox spacing="6">
+        <Label text="Mật khẩu"
+               style="-fx-font-size: 12; -fx-font-weight: bold;"/>
+        <PasswordField fx:id="pfPassword"
+                       promptText="Nhập mật khẩu"
+                       style="-fx-pref-height: 38; -fx-font-size: 13;"/>
+        <Label fx:id="errPassword"
+               style="-fx-text-fill: #EF4444; -fx-font-size: 11;"
+               visible="false" managed="false"/>
+    </VBox>
+
+    <!-- Error banner -->
+    <Label fx:id="lblError"
+           style="-fx-text-fill: #EF4444; -fx-font-size: 12;
+                  -fx-background-color: #FEF2F2; -fx-padding: 8 12;
+                  -fx-background-radius: 6;"
+           wrapText="true"
+           visible="false" managed="false"/>
+
+    <!-- Buttons -->
+    <HBox spacing="12" alignment="CENTER_RIGHT">
+        <Button text="Hủy" onAction="#onCancel"
+                style="-fx-background-color: #E5E7EB; -fx-pref-width: 80; -fx-cursor: hand;"/>
+        <Button fx:id="btnLogin"
+                text="ĐĂNG NHẬP"
+                onAction="#onLogin"
+                style="-fx-background-color: #F97316; -fx-text-fill: white;
+                       -fx-font-weight: bold; -fx-pref-width: 130; -fx-cursor: hand;"/>
+    </HBox>
+</VBox>

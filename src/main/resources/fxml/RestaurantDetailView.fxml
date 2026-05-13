@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.RestaurantDetailController"
+            styleClass="bg-page">
+
+    <!-- ── NORTH ──────────────────────────────────────────────────────────── -->
+    <top>
+        <VBox spacing="4">
+            <padding><Insets top="24" right="40" bottom="16" left="40"/></padding>
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <Button text="← Quay lại" styleClass="btn-outline"
+                        onAction="#handleBack" prefHeight="34"/>
+                <Label text="/" style="-fx-text-fill: #D1D5DB;"/>
+                <Label text="Nhà hàng" style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"/>
+                <Label text="/" style="-fx-text-fill: #D1D5DB;"/>
+                <Label text="Chi tiết" style="-fx-font-size: 13px; -fx-text-fill: #374151;"/>
+            </HBox>
+            <Label text="Chi tiết nhà hàng" styleClass="page-title"/>
+            <Separator>
+                <VBox.margin><Insets top="10"/></VBox.margin>
+            </Separator>
+        </VBox>
+    </top>
+
+    <!-- ── CENTER ─────────────────────────────────────────────────────────── -->
+    <center>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+                    style="-fx-background: transparent; -fx-background-color: transparent;
+                           -fx-border-color: transparent;">
+            <content>
+                <VBox alignment="TOP_LEFT">
+                    <padding><Insets top="8" right="40" bottom="32" left="40"/></padding>
+
+                    <!-- Card tổng quan -->
+                    <HBox spacing="24" VBox.vgrow="NEVER">
+                        <VBox.margin><Insets bottom="20"/></VBox.margin>
+
+                        <!-- Main info card -->
+                        <VBox HBox.hgrow="ALWAYS" spacing="0"
+                              style="-fx-background-color: white;
+                                     -fx-border-color: #E5E7EB;
+                                     -fx-border-radius: 12;
+                                     -fx-background-radius: 12;">
+                            <!-- Card header -->
+                            <HBox alignment="CENTER_LEFT" spacing="12"
+                                  style="-fx-background-color: #F8FAFC;
+                                         -fx-background-radius: 12 12 0 0;
+                                         -fx-border-color: transparent transparent #E5E7EB transparent;
+                                         -fx-border-width: 0 0 1 0;">
+                                <padding><Insets top="18" right="24" bottom="18" left="24"/></padding>
+                                <!-- Logo container: shows ImageView if logo exists, else emoji -->
+                                <StackPane prefWidth="52" prefHeight="52"
+                                           style="-fx-background-color: #F3F4F6;
+                                                  -fx-background-radius: 8;
+                                                  -fx-border-color: #E5E7EB;
+                                                  -fx-border-radius: 8;
+                                                  -fx-border-width: 1;">
+                                    <Label fx:id="lblLogoEmoji" text="🏪"
+                                           style="-fx-font-size: 22px;"/>
+                                    <ImageView fx:id="imgLogo"
+                                               fitWidth="52" fitHeight="52"
+                                               preserveRatio="false" smooth="true"
+                                               visible="false" managed="false"/>
+                                </StackPane>
+                                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                                    <Label fx:id="valName" text="—"
+                                           style="-fx-font-size: 18px; -fx-font-weight: bold;
+                                                  -fx-text-fill: #111827;"/>
+                                    <Label fx:id="valStatus" text="—"
+                                           style="-fx-font-size: 13px; -fx-font-weight: bold;"/>
+                                </VBox>
+                                <Button fx:id="btnEdit" text="✏  Chỉnh sửa"
+                                        styleClass="btn-primary" onAction="#handleEdit"
+                                        prefHeight="34"/>
+                            </HBox>
+
+                            <!-- Fields grid -->
+                            <GridPane hgap="0" vgap="0">
+                                <padding><Insets top="8" right="0" bottom="8" left="0"/></padding>
+                                <columnConstraints>
+                                    <ColumnConstraints prefWidth="180" minWidth="160"/>
+                                    <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                                </columnConstraints>
+
+                                <!-- Row helper: label | value with bottom divider -->
+                                <!-- Chủ nhà hàng -->
+                                <Label text="Chủ nhà hàng"
+                                       style="-fx-font-size: 13px; -fx-text-fill: #6B7280;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="0" GridPane.rowIndex="0">
+                                    <GridPane.margin><Insets top="10" right="16" bottom="10" left="24"/></GridPane.margin>
+                                </Label>
+                                <Label fx:id="valOwner" text="Đang tải..."
+                                       style="-fx-font-size: 14px; -fx-text-fill: #374151;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="1" GridPane.rowIndex="0">
+                                    <GridPane.margin><Insets top="10" bottom="10"/></GridPane.margin>
+                                </Label>
+
+                                <!-- Email -->
+                                <Label text="Email"
+                                       style="-fx-font-size: 13px; -fx-text-fill: #6B7280;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="0" GridPane.rowIndex="1">
+                                    <GridPane.margin><Insets top="10" right="16" bottom="10" left="24"/></GridPane.margin>
+                                </Label>
+                                <Label fx:id="valEmail" text="—"
+                                       style="-fx-font-size: 14px; -fx-text-fill: #374151;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="1" GridPane.rowIndex="1">
+                                    <GridPane.margin><Insets top="10" bottom="10"/></GridPane.margin>
+                                </Label>
+
+                                <!-- SĐT -->
+                                <Label text="Số điện thoại"
+                                       style="-fx-font-size: 13px; -fx-text-fill: #6B7280;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="0" GridPane.rowIndex="2">
+                                    <GridPane.margin><Insets top="10" right="16" bottom="10" left="24"/></GridPane.margin>
+                                </Label>
+                                <Label fx:id="valPhone" text="—"
+                                       style="-fx-font-size: 14px; -fx-text-fill: #374151;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="1" GridPane.rowIndex="2">
+                                    <GridPane.margin><Insets top="10" bottom="10"/></GridPane.margin>
+                                </Label>
+
+                                <!-- Địa chỉ -->
+                                <Label text="Địa chỉ"
+                                       style="-fx-font-size: 13px; -fx-text-fill: #6B7280;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="0" GridPane.rowIndex="3">
+                                    <GridPane.margin><Insets top="10" right="16" bottom="10" left="24"/></GridPane.margin>
+                                </Label>
+                                <Label fx:id="valAddress" text="—"
+                                       style="-fx-font-size: 14px; -fx-text-fill: #374151;
+                                              -fx-border-color: transparent transparent #F3F4F6 transparent;
+                                              -fx-border-width: 0 0 1 0;"
+                                       GridPane.columnIndex="1" GridPane.rowIndex="3">
+                                    <GridPane.margin><Insets top="10" bottom="10"/></GridPane.margin>
+                                </Label>
+
+                                <!-- Ngày tạo -->
+                                <Label text="Ngày tạo"
+                                       style="-fx-font-size: 13px; -fx-text-fill: #6B7280;"
+                                       GridPane.columnIndex="0" GridPane.rowIndex="4">
+                                    <GridPane.margin><Insets top="10" right="16" bottom="10" left="24"/></GridPane.margin>
+                                </Label>
+                                <Label fx:id="valCreatedAt" text="—"
+                                       style="-fx-font-size: 14px; -fx-text-fill: #374151;"
+                                       GridPane.columnIndex="1" GridPane.rowIndex="4">
+                                    <GridPane.margin><Insets top="10" bottom="10"/></GridPane.margin>
+                                </Label>
+                            </GridPane>
+                        </VBox>
+                    </HBox>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+</BorderPane>

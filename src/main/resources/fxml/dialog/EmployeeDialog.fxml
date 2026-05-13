@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  EmployeeDialog.fxml
+  Reusable modal for both ADD (item == null) and EDIT (item != null) modes.
+  Dynamic elements injected / shown by EmployeeDialogController:
+    • ID field is always read-only (auto-generated or locked)
+    • Role ComboBox row (rowRole) is shown only when canAssignRole == true
+    • Save button label changes between "Thêm" and "Lưu"
+-->
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.EmployeeDialogController"
+      style="-fx-background-color:white;"
+      prefWidth="520" spacing="0">
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" prefHeight="58"
+          style="-fx-background-color:#3B82F6;-fx-padding:0 24 0 24;">
+        <Label fx:id="lblTitle" text="Thêm nhân viên mới"
+               style="-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:white;"/>
+    </HBox>
+
+    <!-- ── Form body ────────────────────────────────────────────────────────── -->
+    <ScrollPane fitToWidth="true" style="-fx-background:white;-fx-background-color:white;"
+                VBox.vgrow="ALWAYS">
+        <GridPane fx:id="formGrid" hgap="12" vgap="6"
+                  style="-fx-background-color:white;-fx-padding:24 28 12 28;">
+            <columnConstraints>
+                <ColumnConstraints minWidth="110" maxWidth="130" halignment="RIGHT"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+
+            <!-- ID -->
+            <Label text="ID:" GridPane.columnIndex="0" GridPane.rowIndex="0"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <TextField fx:id="tfId" editable="false"
+                       GridPane.columnIndex="1" GridPane.rowIndex="0"
+                       style="-fx-background-color:#F1F5F9;-fx-border-color:#CBD5E1;
+                              -fx-border-radius:6;-fx-background-radius:6;
+                              -fx-font-size:13px;-fx-padding:6 10 6 10;"/>
+
+            <!-- Họ và tên -->
+            <Label text="Họ và tên *:" GridPane.columnIndex="0" GridPane.rowIndex="1"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <VBox GridPane.columnIndex="1" GridPane.rowIndex="1" spacing="2">
+                <TextField fx:id="tfName" promptText="Nhập họ và tên..."
+                           style="-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                                  -fx-background-radius:6;-fx-font-size:13px;
+                                  -fx-padding:6 10 6 10;"/>
+                <Label fx:id="errName" text="" managed="false" visible="false"
+                       style="-fx-font-size:11px;-fx-text-fill:#EF4444;"/>
+            </VBox>
+
+            <!-- CCCD -->
+            <Label text="CCCD:" GridPane.columnIndex="0" GridPane.rowIndex="2"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <TextField fx:id="tfCccd" promptText="12 chữ số"
+                       GridPane.columnIndex="1" GridPane.rowIndex="2"
+                       style="-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                              -fx-background-radius:6;-fx-font-size:13px;
+                              -fx-padding:6 10 6 10;"/>
+
+            <!-- SDT -->
+            <Label text="SDT *:" GridPane.columnIndex="0" GridPane.rowIndex="3"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <VBox GridPane.columnIndex="1" GridPane.rowIndex="3" spacing="2">
+                <TextField fx:id="tfPhone" promptText="0xxxxxxxxx"
+                           style="-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                                  -fx-background-radius:6;-fx-font-size:13px;
+                                  -fx-padding:6 10 6 10;"/>
+                <Label fx:id="errPhone" text="" managed="false" visible="false"
+                       style="-fx-font-size:11px;-fx-text-fill:#EF4444;"/>
+            </VBox>
+
+            <!-- Địa chỉ -->
+            <Label text="Địa chỉ:" GridPane.columnIndex="0" GridPane.rowIndex="4"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <TextField fx:id="tfAddress" promptText="Địa chỉ..."
+                       GridPane.columnIndex="1" GridPane.rowIndex="4"
+                       style="-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                              -fx-background-radius:6;-fx-font-size:13px;
+                              -fx-padding:6 10 6 10;"/>
+
+            <!-- Ngày vào làm -->
+            <Label text="Ngày vào làm:" GridPane.columnIndex="0" GridPane.rowIndex="5"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <DatePicker fx:id="dpStartDate"
+                        GridPane.columnIndex="1" GridPane.rowIndex="5"
+                        maxWidth="Infinity"
+                        style="-fx-font-size:13px;"/>
+
+            <!-- Role (visible only when canAssignRole) -->
+            <Label fx:id="lblRole" text="Role:" GridPane.columnIndex="0" GridPane.rowIndex="6"
+                   visible="false" managed="false"
+                   style="-fx-font-size:13px;-fx-text-fill:#374151;"/>
+            <ComboBox fx:id="cmbRole"
+                      GridPane.columnIndex="1" GridPane.rowIndex="6"
+                      maxWidth="Infinity"
+                      visible="false" managed="false"
+                      style="-fx-font-size:13px;"/>
+        </GridPane>
+    </ScrollPane>
+
+    <!-- ── Footer ───────────────────────────────────────────────────────────── -->
+    <HBox alignment="CENTER_RIGHT" spacing="10" prefHeight="56"
+          style="-fx-background-color:white;-fx-border-color:#E2E8F0 transparent transparent transparent;
+                 -fx-padding:0 24 0 24;">
+        <Button text="Hủy" onAction="#onCancel"
+                prefWidth="90" prefHeight="34"
+                style="-fx-background-color:white;-fx-border-color:#CBD5E1;-fx-border-radius:6;
+                       -fx-background-radius:6;-fx-font-size:13px;-fx-cursor:hand;"/>
+        <Button fx:id="btnSave" text="Thêm" onAction="#onSave"
+                prefWidth="100" prefHeight="34"
+                style="-fx-background-color:#3B82F6;-fx-text-fill:white;-fx-background-radius:6;
+                       -fx-border-radius:6;-fx-font-size:13px;-fx-cursor:hand;"/>
+    </HBox>
+</VBox>

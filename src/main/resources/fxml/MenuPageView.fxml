@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.MenuPageController"
+            styleClass="page-root">
+
+    <!-- ═══════════════════════════════════ HEADER ═══════════════════════════ -->
+    <top>
+        <HBox styleClass="top-bar" BorderPane.alignment="CENTER">
+            <!-- Left: logo + restaurant name -->
+            <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS">
+                <Label text="⛁" styleClass="logo-icon"/>
+                <Label text="SmartRestaurant" styleClass="logo-text"/>
+                <Label fx:id="lblRestaurantName" styleClass="restaurant-name"/>
+            </HBox>
+
+            <!-- Center: table badge -->
+            <HBox alignment="CENTER" HBox.hgrow="NEVER">
+                <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
+            </HBox>
+
+            <!-- Right: spacer -->
+            <HBox HBox.hgrow="ALWAYS"/>
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════ CENTER ═══════════════════════════ -->
+    <center>
+        <VBox spacing="0" styleClass="center-wrapper">
+
+            <!-- Search bar -->
+            <HBox styleClass="search-bar" alignment="CENTER">
+                <TextField fx:id="tfSearch"
+                           promptText="🔍  Tìm kiếm món ăn..."
+                           styleClass="search-field"
+                           maxWidth="420"/>
+            </HBox>
+
+            <!-- Category chips -->
+            <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="NEVER"
+                        styleClass="category-scroll">
+                <HBox fx:id="categoryBar" spacing="8" styleClass="category-bar">
+                    <padding><Insets top="8" right="20" bottom="8" left="20"/></padding>
+                </HBox>
+            </ScrollPane>
+
+            <!-- Menu grid -->
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="menu-scroll">
+                <StackPane>
+                    <Label fx:id="lblLoading" text="Đang tải thực đơn…"
+                           styleClass="text-secondary" visible="true"/>
+                    <FlowPane fx:id="menuGrid"
+                              hgap="12" vgap="12"
+                              styleClass="menu-grid">
+                        <padding><Insets top="16" right="20" bottom="20" left="20"/></padding>
+                    </FlowPane>
+                </StackPane>
+            </ScrollPane>
+        </VBox>
+    </center>
+
+    <!-- ═══════════════════════════════════ FOOTER ═══════════════════════════ -->
+    <bottom>
+        <HBox styleClass="bottom-bar" alignment="CENTER_LEFT">
+            <HBox alignment="CENTER_LEFT" spacing="16" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblSubtotal" text="Tạm tính: 0 đ" styleClass="label-body"/>
+                <Button fx:id="btnViewStatus"
+                        text="📋  Trạng thái đơn"
+                        styleClass="btn-ghost"
+                        onAction="#onViewStatus"/>
+            </HBox>
+            <Button fx:id="btnShowCart"
+                    text="🛒  Giỏ hàng (0 món)"
+                    styleClass="btn-primary"
+                    onAction="#onShowCart"/>
+        </HBox>
+    </bottom>
+</BorderPane>

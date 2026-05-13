@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import com.restaurant.ui.control.CleanField?>
+
+<!--
+  MyProfileDialog.fxml — Dialog "Hồ sơ của tôi"
+  Vị trí: src/main/resources/fxml/dialog/MyProfileDialog.fxml
+  Controller: com.restaurant.ui.fx.controller.ProfileController
+  Sử dụng trong ProfileController bằng FXMLLoader + Stage modalityType = APPLICATION_MODAL
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.ProfileController"
+            prefWidth="480" prefHeight="560"
+            styleClass="dialog-root"
+            stylesheets="@../../css/app.css">
+
+    <!-- ══════════════════════════════════════════════════════
+         HEADER
+         ══════════════════════════════════════════════════════ -->
+    <top>
+        <HBox styleClass="dialog-header" alignment="CENTER_LEFT"
+              spacing="0">
+            <padding><Insets top="18" right="28" bottom="18" left="28"/></padding>
+
+            <Label text="Hồ sơ của tôi" styleClass="dialog-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblRoleBadge" styleClass="role-badge"/>
+        </HBox>
+    </top>
+
+    <!-- ══════════════════════════════════════════════════════
+         TABS
+         ══════════════════════════════════════════════════════ -->
+    <center>
+        <TabPane fx:id="tabPane" tabClosingPolicy="UNAVAILABLE"
+                 styleClass="profile-tabs">
+
+            <!-- ── TAB 1: Thông tin cá nhân ─────────────────────────── -->
+            <Tab text="👤  Thông tin cá nhân" fx:id="tabProfile">
+                <VBox styleClass="tab-content" spacing="12">
+                    <padding><Insets top="20" right="36" bottom="8" left="36"/></padding>
+
+                    <!-- Form grid (editable fields) -->
+                    <GridPane hgap="12" vgap="12" styleClass="form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints minWidth="130" maxWidth="130"/>
+                            <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                        </columnConstraints>
+
+                        <!-- Họ và tên -->
+                        <Label text="Họ và tên" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="0"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfName"
+                                    GridPane.columnIndex="1" GridPane.rowIndex="0"
+                                    maxWidth="1.7976931348623157E308"/>
+
+                        <!-- Số điện thoại -->
+                        <Label text="Số điện thoại" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="1"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfPhone" promptText="Đang tải..."
+                                    GridPane.columnIndex="1" GridPane.rowIndex="1"
+                                    maxWidth="1.7976931348623157E308"/>
+
+                        <!-- Địa chỉ -->
+                        <Label text="Địa chỉ" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="2"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfAddress" promptText="Đang tải..."
+                                    GridPane.columnIndex="1" GridPane.rowIndex="2"
+                                    maxWidth="1.7976931348623157E308"/>
+                    </GridPane>
+
+                    <!-- Divider label -->
+                    <Label text="— Thông tin chỉ đọc —" styleClass="divider-label"/>
+
+                    <!-- Read-only fields -->
+                    <GridPane hgap="12" vgap="12" styleClass="form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints minWidth="130" maxWidth="130"/>
+                            <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                        </columnConstraints>
+
+                        <!-- Email -->
+                        <Label text="Email" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="0"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfEmail" editable="false"
+                                    styleClass="clean-field,readonly-field"
+                                    GridPane.columnIndex="1" GridPane.rowIndex="0"
+                                    maxWidth="1.7976931348623157E308"/>
+
+                        <!-- Nhà hàng -->
+                        <Label text="Nhà hàng" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="1"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfRestaurant" editable="false"
+                                    styleClass="clean-field,readonly-field"
+                                    GridPane.columnIndex="1" GridPane.rowIndex="1"
+                                    maxWidth="1.7976931348623157E308"/>
+
+                        <!-- Vai trò -->
+                        <Label text="Vai trò" styleClass="field-label"
+                               GridPane.columnIndex="0" GridPane.rowIndex="2"
+                               GridPane.valignment="CENTER"/>
+                        <CleanField fx:id="tfRole" editable="false"
+                                    styleClass="clean-field,readonly-field"
+                                    GridPane.columnIndex="1" GridPane.rowIndex="2"
+                                    maxWidth="1.7976931348623157E308"/>
+                    </GridPane>
+
+                    <!-- Spacer -->
+                    <Region VBox.vgrow="ALWAYS"/>
+
+                    <!-- Action row: status label + Save button -->
+                    <HBox alignment="CENTER_LEFT" spacing="8">
+                        <Label fx:id="lblProfileMsg" styleClass="msg-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="btnSaveProfile" text="💾 Lưu thay đổi"
+                                styleClass="btn-primary"
+                                onAction="#onSaveProfile"
+                                prefWidth="140"/>
+                    </HBox>
+                </VBox>
+            </Tab>
+
+            <!-- ── TAB 2: Đổi mật khẩu ──────────────────────────────── -->
+            <Tab text="🔒  Đổi mật khẩu" fx:id="tabPassword">
+                <VBox styleClass="tab-content" spacing="16">
+                    <padding><Insets top="24" right="36" bottom="8" left="36"/></padding>
+
+                    <!-- Mật khẩu hiện tại -->
+                    <VBox spacing="5">
+                        <Label text="Mật khẩu hiện tại" styleClass="field-label"/>
+                        <PasswordField fx:id="pfOldPw" styleClass="clean-field"
+                                       maxWidth="1.7976931348623157E308"/>
+                    </VBox>
+
+                    <!-- Mật khẩu mới -->
+                    <VBox spacing="5">
+                        <Label text="Mật khẩu mới  (tối thiểu 6 ký tự)" styleClass="field-label"/>
+                        <PasswordField fx:id="pfNewPw" styleClass="clean-field"
+                                       maxWidth="1.7976931348623157E308"/>
+                    </VBox>
+
+                    <!-- Xác nhận mật khẩu mới -->
+                    <VBox spacing="5">
+                        <Label text="Xác nhận mật khẩu mới" styleClass="field-label"/>
+                        <PasswordField fx:id="pfConfirmPw" styleClass="clean-field"
+                                       maxWidth="1.7976931348623157E308"/>
+                    </VBox>
+
+                    <!-- Action row -->
+                    <HBox alignment="CENTER_LEFT" spacing="8">
+                        <Label fx:id="lblPwMsg" styleClass="msg-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="btnChangePw" text="🔑 Đổi mật khẩu"
+                                styleClass="btn-primary"
+                                onAction="#onChangePassword"
+                                prefWidth="145"/>
+                    </HBox>
+
+                    <!-- Separator + Revoke all -->
+                    <Separator/>
+
+                    <Label text="Đăng xuất khỏi tất cả thiết bị sẽ xoá mọi phiên ghi nhớ đăng nhập."
+                           styleClass="hint-label" wrapText="true"/>
+
+                    <Button fx:id="btnRevokeAll"
+                            text="🔒 Đăng xuất tất cả thiết bị"
+                            styleClass="btn-outline"
+                            onAction="#onRevokeAllDevices"
+                            maxWidth="1.7976931348623157E308"/>
+                </VBox>
+            </Tab>
+
+        </TabPane>
+    </center>
+</BorderPane>

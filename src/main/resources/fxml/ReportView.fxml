@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<!--
+    ReportView.fxml  — Phase 11
+    Tương đương ReportPanel.java (Swing → JavaFX)
+    Controller: com.restaurant.ui.ReportController
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.ReportController"
+            style="-fx-background-color: #F8F9FA;">
+
+    <!-- ═══════════════════════════════════════════════════
+         TOP  —  title bar + filter bar
+    ═══════════════════════════════════════════════════ -->
+    <top>
+        <VBox style="-fx-padding: 24 48 0 48; -fx-background-color: #F8F9FA;">
+
+            <!-- Title row -->
+            <HBox alignment="CENTER_LEFT" spacing="12"
+                  style="-fx-padding: 0 0 12 0;">
+                <Label fx:id="lblTitle"
+                       text="Báo cáo sự cố"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 22px;
+                              -fx-font-weight: bold; -fx-text-fill: #111827;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <!-- Hidden for SUPER_ADMIN — controller sets managed/visible -->
+                <Button fx:id="btnAdd"
+                        text="＋ Gửi báo cáo"
+                        onAction="#openAddDialog"
+                        style="-fx-background-color: #3B82F6; -fx-text-fill: white;
+                               -fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                               -fx-font-weight: bold; -fx-background-radius: 8;
+                               -fx-cursor: hand; -fx-padding: 8 18 8 18;"/>
+            </HBox>
+
+            <!-- Filter bar — hidden for staff (non-manager) by controller -->
+            <HBox fx:id="filterBar" alignment="CENTER_LEFT" spacing="10"
+                  style="-fx-padding: 0 0 14 0;">
+                <Label text="Lọc theo trạng thái:"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                              -fx-text-fill: #6B7280;"/>
+                <ComboBox fx:id="cmbFilter"
+                          prefWidth="160"
+                          style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;"/>
+                <Label text="Tìm kiếm:"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                              -fx-text-fill: #6B7280;"/>
+                <TextField fx:id="searchField"
+                           promptText="Tìm tiêu đề..."
+                           prefWidth="220"
+                           style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                                  -fx-background-radius: 8; -fx-border-radius: 8;
+                                  -fx-border-color: #D1D5DB; -fx-padding: 6 10 6 10;"/>
+                <!-- Hint — only shown for SUPER_ADMIN -->
+                <Label fx:id="lblHint"
+                       text="💡 Double-click vào dòng để xem chi tiết và xử lý"
+                       visible="false" managed="false"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 11px;
+                              -fx-text-fill: #9CA3AF;"/>
+            </HBox>
+
+            <!-- Loading indicator -->
+            <HBox fx:id="loadingBar" alignment="CENTER_LEFT" spacing="8"
+                  visible="false" managed="false"
+                  style="-fx-padding: 0 0 8 0;">
+                <ProgressIndicator prefWidth="16" prefHeight="16"/>
+                <Label text="Đang tải dữ liệu..."
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 12px;
+                              -fx-text-fill: #6B7280;"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <!-- ═══════════════════════════════════════════════════
+         CENTER  —  TableView
+    ═══════════════════════════════════════════════════ -->
+    <center>
+        <TableView fx:id="tableView"
+                   style="-fx-padding: 8 48 24 48; -fx-background-color: transparent;">
+            <columns>
+                <!-- col widths set in controller to keep FXML clean -->
+                <TableColumn fx:id="colId"        text="ID"          prefWidth="55"/>
+                <TableColumn fx:id="colTitle"     text="Tiêu đề"     prefWidth="210"/>
+                <TableColumn fx:id="colType"      text="Loại"        prefWidth="100"/>
+                <TableColumn fx:id="colSeverity"  text="Mức độ"      prefWidth="110"/>
+                <TableColumn fx:id="colStatus"    text="Trạng thái"  prefWidth="120"/>
+                <TableColumn fx:id="colCreatedAt" text="Ngày tạo"    prefWidth="135"/>
+                <!--
+                    colExtra: hidden for STAFF.
+                    Header = "Nhà hàng" for SUPER_ADMIN, "Người tạo" for MANAGER
+                -->
+                <TableColumn fx:id="colExtra"     text="Nhà hàng"    prefWidth="155"/>
+            </columns>
+            <placeholder>
+                <Label text="Không có báo cáo nào"
+                       style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                              -fx-text-fill: #9CA3AF;"/>
+            </placeholder>
+        </TableView>
+    </center>
+
+</BorderPane>

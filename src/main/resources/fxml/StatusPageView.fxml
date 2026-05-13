@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.StatusPageController"
+            styleClass="page-root">
+
+    <top>
+        <HBox styleClass="top-bar" alignment="CENTER_LEFT">
+            <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS">
+                <Label text="⛁" styleClass="logo-icon"/>
+                <Label text="SmartRestaurant" styleClass="logo-text"/>
+            </HBox>
+            <Label text="Đơn hàng của bạn" styleClass="page-title" HBox.hgrow="ALWAYS"
+                   alignment="CENTER"/>
+            <HBox alignment="CENTER_RIGHT" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
+            </HBox>
+        </HBox>
+    </top>
+
+    <center>
+        <TableView fx:id="statusTable" styleClass="data-table">
+            <columns>
+                <TableColumn fx:id="colSTT"    text="STT"      prefWidth="60"/>
+                <TableColumn fx:id="colName"   text="Tên món"  prefWidth="320"/>
+                <TableColumn fx:id="colStatus" text="Trạng thái" prefWidth="180"/>
+            </columns>
+        </TableView>
+    </center>
+
+    <bottom>
+        <HBox styleClass="bottom-bar" alignment="CENTER">
+            <HBox alignment="CENTER_LEFT" spacing="16" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblTotal" text="Tổng cộng: đang tải..." styleClass="label-body"/>
+                <Button text="← Gọi thêm món" styleClass="btn-ghost"
+                        onAction="#onBackToMenu"/>
+            </HBox>
+            <Button text="💳  Yêu cầu thanh toán" styleClass="btn-primary"
+                    onAction="#onRequestPayment"/>
+        </HBox>
+    </bottom>
+</BorderPane>

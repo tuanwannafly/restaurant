@@ -126,7 +126,25 @@ public enum Permission {
      * trong khi VIEW_ORDER chỉ là quyền đọc danh sách đơn hàng tổng quát.
      * Nguyên tắc least-privilege: CASHIER không cần thấy toàn bộ order management.
      */
-    VIEW_CASHIER;
+    VIEW_CASHIER,
+
+    // ── Phase 7 additions ─────────────────────────────────────────────────────
+
+    /**
+     * Cho phép xem danh sách, xem chi tiết và phê duyệt / từ chối đơn đăng ký
+     * mở nhà hàng từ chủ nhà hàng ({@code RESTAURANT_REQUESTS}).
+     * <p>
+     * <b>Chỉ SUPER_ADMIN được cấp quyền này.</b>
+     * {@code RESTAURANT_ADMIN} và các role thấp hơn không có quyền này —
+     * luồng đăng ký là hành động hệ thống cấp nền tảng, không phải cấp nhà hàng.
+     * <p>
+     * Áp dụng cho: {@code RestaurantRequestDAO.findAll()}, {@code findById()},
+     * {@code findPending()}, {@code approve()}, {@code reject()},
+     * {@code countByStatus()}.
+     * <p>
+     * {@code submit()} <em>không</em> cần quyền này — là API public, không yêu cầu login.
+     */
+    REVIEW_RESTAURANT_REQUEST;
 
     // ── Role → Permission mapping ─────────────────────────────────────────────
 

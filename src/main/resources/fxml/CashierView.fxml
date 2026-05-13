@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  CashierView.fxml — Phase 10 · Thu ngân
+  ──────────────────────────────────────────────────────────────────────────────
+  Tương đương CashierPanel.java (Swing Phase 7C).
+
+  Layout tổng thể:
+    BorderPane
+    ├── NORTH  : titleBar  (tiêu đề + nút Làm mới)
+    └── CENTER : HBox 2 cột
+                  ├── Cột trái  — "Chờ thanh toán"  (amber header, #FFF8E1)
+                  └── Cột phải  — "Đang xử lý"      (green header, #E8F5E9)
+
+  Controller : com.restaurant.ui.fx.controller.CashierController
+  CSS        : /css/cashier.css   (thêm vào scene gốc hoặc khai báo riêng)
+
+  Lưu ý FXML path:
+    src/main/resources/fxml/CashierView.fxml
+-->
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.CashierController"
+            styleClass="cashier-root">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         NORTH — Thanh tiêu đề + nút Làm mới
+         ═══════════════════════════════════════════════════════════════════ -->
+    <top>
+        <HBox styleClass="title-bar" alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="12" right="24" bottom="12" left="24"/></padding>
+
+            <!-- Tiêu đề -->
+            <Label text="Thu ngân – Thanh toán" styleClass="title-label"/>
+
+            <!-- Spacer đẩy spinner + nút về phải -->
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- Spinner loading (ẩn mặc định, hiện khi doPoll/loadData chạy) -->
+            <Label fx:id="spinnerLabel" text="⟳" styleClass="spinner-label"
+                   visible="false" managed="false"/>
+
+            <!-- Nút Làm mới — gọi loadData() -->
+            <Button fx:id="btnRefresh" text="↻  Làm mới"
+                    styleClass="btn-primary" onAction="#onRefresh"
+                    prefWidth="110" prefHeight="34"/>
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CENTER — 2 cột Kanban
+         ═══════════════════════════════════════════════════════════════════ -->
+    <center>
+        <HBox spacing="16" styleClass="columns-wrapper">
+            <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+            <!-- ── Cột trái: Chờ thanh toán (amber) ── -->
+            <VBox HBox.hgrow="ALWAYS" spacing="12" styleClass="column-panel">
+                <!-- Header amber -->
+                <Label text="Chờ thanh toán"
+                       styleClass="column-header column-header-amber"
+                       maxWidth="Infinity" alignment="CENTER"/>
+
+                <!-- ScrollPane chứa danh sách card -->
+                <ScrollPane fx:id="pendingScroll"
+                            fitToWidth="true"
+                            hbarPolicy="NEVER"
+                            styleClass="column-scroll"
+                            VBox.vgrow="ALWAYS">
+                    <!--
+                      pendingContainer: các PaymentRequestCard sẽ được thêm động
+                      trong CashierController#rebuildPendingColumn().
+                      Mỗi card là Node load từ PaymentRequestCard.fxml.
+                    -->
+                    <VBox fx:id="pendingContainer" spacing="10" styleClass="card-container">
+                        <padding><Insets top="4" right="4" bottom="4" left="4"/></padding>
+                    </VBox>
+                </ScrollPane>
+            </VBox>
+
+            <!-- ── Cột phải: Đang xử lý (green) ── -->
+            <VBox HBox.hgrow="ALWAYS" spacing="12" styleClass="column-panel">
+                <!-- Header green -->
+                <Label text="Đang xử lý"
+                       styleClass="column-header column-header-green"
+                       maxWidth="Infinity" alignment="CENTER"/>
+
+                <ScrollPane fx:id="processingScroll"
+                            fitToWidth="true"
+                            hbarPolicy="NEVER"
+                            styleClass="column-scroll"
+                            VBox.vgrow="ALWAYS">
+                    <!--
+                      processingContainer: card xử lý được thêm động
+                      trong CashierController#rebuildProcessingColumn().
+                    -->
+                    <VBox fx:id="processingContainer" spacing="10" styleClass="card-container">
+                        <padding><Insets top="4" right="4" bottom="4" left="4"/></padding>
+                    </VBox>
+                </ScrollPane>
+            </VBox>
+        </HBox>
+    </center>
+
+</BorderPane>

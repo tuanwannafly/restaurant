@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  PaymentRequestCard.fxml — Phase 10 · Thu ngân
+  ──────────────────────────────────────────────────────────────────────────────
+  Card đại diện một PaymentRequest trong cột "Chờ thanh toán".
+  Tương đương CashierPanel#buildPendingCard(PaymentRequest) (Swing Phase 7C).
+
+  Layout:
+    VBox (card root, click → openPaymentDialog)
+    ├── lblTableName   — "Bàn 01"           (bold, TEXT_PRIMARY)
+    ├── HBox
+    │   ├── lblAmount  — "250.000đ"          (bold, PRIMARY color)
+    │   ├── lblSep     — " · "              (TEXT_SECONDARY)
+    │   └── lblMethod  — "Tiền mặt"         (TEXT_SECONDARY)
+    └── lblStatusPill  — "Chờ thanh toán"   (amber pill)
+
+  Cách dùng trong CashierController:
+    FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PaymentRequestCard.fxml"));
+    VBox card = loader.load();
+    // Sau đó gọi controller để bind dữ liệu:
+    // (hiện tại bind trực tiếp bằng fx:id lookup, không dùng sub-controller riêng)
+
+  Lưu ý FXML path:
+    src/main/resources/fxml/PaymentRequestCard.fxml
+-->
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:id="cardRoot"
+      spacing="8"
+      styleClass="payment-card payment-card-pending"
+      style="-fx-cursor: hand;">
+    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+
+    <!-- Tên bàn -->
+    <Label fx:id="lblTableName" text="Bàn --"
+           styleClass="card-table-name"/>
+
+    <!-- Hàng: số tiền · phương thức -->
+    <HBox spacing="0" alignment="CENTER_LEFT">
+        <Label fx:id="lblAmount"  text="0đ"       styleClass="card-amount"/>
+        <Label fx:id="lblSep"     text="  ·  "    styleClass="card-sep"/>
+        <Label fx:id="lblMethod"  text="Tiền mặt" styleClass="card-method"/>
+    </HBox>
+
+    <!-- Pill trạng thái amber -->
+    <Label fx:id="lblStatusPill" text="Chờ thanh toán"
+           styleClass="status-pill status-pill-amber"
+           maxWidth="140" alignment="CENTER"/>
+
+</VBox>

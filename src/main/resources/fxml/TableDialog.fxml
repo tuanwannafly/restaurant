@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.dialog.TableDialogController"
+      spacing="14" style="-fx-padding: 24; -fx-background-color: white;"
+      minWidth="360">
+
+    <Label fx:id="lblTitle" text="Thêm bàn mới"
+           style="-fx-font-size: 16; -fx-font-weight: bold;"/>
+
+    <VBox spacing="4">
+        <Label text="Tên bàn *"/>
+        <TextField fx:id="tfName" promptText="VD: Bàn 01"/>
+        <Label fx:id="errName" style="-fx-text-fill: red; -fx-font-size: 11;"/>
+    </VBox>
+
+    <VBox spacing="4">
+        <Label text="Sức chứa *"/>
+        <TextField fx:id="tfCapacity" promptText="VD: 4"/>
+        <Label fx:id="errCapacity" style="-fx-text-fill: red; -fx-font-size: 11;"/>
+    </VBox>
+
+    <VBox spacing="4">
+        <Label text="Trạng thái"/>
+        <ComboBox fx:id="cbStatus" maxWidth="Infinity"/>
+    </VBox>
+
+    <!-- ── Credentials section ── -->
+    <Separator/>
+    <Label text="Tài khoản đăng nhập bàn"
+           style="-fx-font-weight: bold; -fx-font-size: 13;"/>
+    <Label text="Khách tại bàn dùng thông tin này để đặt món."
+           style="-fx-text-fill: #6B7280; -fx-font-size: 11;" wrapText="true"/>
+
+    <VBox spacing="4">
+        <Label text="Mã đăng nhập *"/>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="tfLoginId" promptText="VD: ban01"
+                       HBox.hgrow="ALWAYS"/>
+            <Button text="Tự động" onAction="#onAutoGenLoginId"
+                    style="-fx-background-color: #E5E7EB; -fx-cursor: hand;"/>
+        </HBox>
+        <Label fx:id="errLoginId" style="-fx-text-fill: red; -fx-font-size: 11;"/>
+    </VBox>
+
+    <VBox spacing="4">
+        <Label fx:id="lblPasswordHint" text="Mật khẩu *"/>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="tfPassword" promptText="Tối thiểu 6 ký tự"
+                       HBox.hgrow="ALWAYS"/>
+            <Button text="Tạo ngẫu nhiên" onAction="#onAutoGenPassword"
+                    style="-fx-background-color: #E5E7EB; -fx-cursor: hand;"/>
+        </HBox>
+        <Label fx:id="errPassword" style="-fx-text-fill: red; -fx-font-size: 11;"/>
+    </VBox>
+
+    <HBox spacing="12" alignment="CENTER_RIGHT">
+        <Button text="Hủy" onAction="#onCancel"
+                style="-fx-background-color: #E5E7EB;"/>
+        <Button text="Lưu" onAction="#onSave"
+                style="-fx-background-color: #3B82F6; -fx-text-fill: white;"/>
+    </HBox>
+</VBox>

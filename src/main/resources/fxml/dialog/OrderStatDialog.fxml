@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.dialog.OrderStatController"
+            styleClass="dialog-root"
+            stylesheets="@../../css/style.css"
+            prefWidth="580" prefHeight="460">
+
+    <!-- ═══ TITLE ═══ -->
+    <top>
+        <VBox styleClass="dialog-header">
+            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+            <Label text="Thống kê đơn hàng" styleClass="page-title"/>
+        </VBox>
+    </top>
+
+    <!-- ═══ CONTENT ═══ -->
+    <center>
+        <VBox spacing="12">
+            <padding><Insets top="4" right="24" bottom="4" left="24"/></padding>
+
+            <!-- Stat cards row -->
+            <HBox fx:id="cardsBox" spacing="12">
+                <!-- Đang phục vụ -->
+                <VBox styleClass="stat-card stat-warning" HBox.hgrow="ALWAYS"
+                      alignment="CENTER" spacing="4">
+                    <Label fx:id="lblServing" text="0" styleClass="stat-value stat-value-warning"/>
+                    <Label text="Đang phục vụ" styleClass="stat-label"/>
+                </VBox>
+
+                <!-- Hoàn thành -->
+                <VBox styleClass="stat-card stat-success" HBox.hgrow="ALWAYS"
+                      alignment="CENTER" spacing="4">
+                    <Label fx:id="lblDone" text="0" styleClass="stat-value stat-value-success"/>
+                    <Label text="Hoàn thành" styleClass="stat-label"/>
+                </VBox>
+
+                <!-- Đã hủy -->
+                <VBox styleClass="stat-card stat-danger" HBox.hgrow="ALWAYS"
+                      alignment="CENTER" spacing="4">
+                    <Label fx:id="lblCancelled" text="0" styleClass="stat-value stat-value-danger"/>
+                    <Label text="Đã hủy" styleClass="stat-label"/>
+                </VBox>
+
+                <!-- Doanh thu -->
+                <VBox styleClass="stat-card stat-primary" HBox.hgrow="ALWAYS"
+                      alignment="CENTER" spacing="4">
+                    <Label fx:id="lblRevenue" text="0 đ" styleClass="stat-value stat-value-primary"/>
+                    <Label text="Doanh thu" styleClass="stat-label"/>
+                </VBox>
+            </HBox>
+
+            <!-- Orders table -->
+            <TableView fx:id="statTable" VBox.vgrow="ALWAYS"
+                       styleClass="styled-table"
+                       columnResizePolicy="TableView.CONSTRAINED_RESIZE_POLICY"
+                       prefHeight="260">
+                <columns>
+                    <TableColumn fx:id="colId"     text="ID"         prefWidth="80"/>
+                    <TableColumn fx:id="colTable"  text="Bàn"        prefWidth="100"/>
+                    <TableColumn fx:id="colTotal"  text="Tổng tiền"  prefWidth="130"
+                                 style="-fx-alignment: CENTER-RIGHT;"/>
+                    <TableColumn fx:id="colStatus" text="Trạng thái" prefWidth="140"
+                                 style="-fx-alignment: CENTER;"/>
+                    <TableColumn fx:id="colTime"   text="Thời gian"  prefWidth="150"/>
+                </columns>
+                <placeholder>
+                    <Label text="Không có dữ liệu" styleClass="table-placeholder"/>
+                </placeholder>
+            </TableView>
+        </VBox>
+    </center>
+
+    <!-- ═══ FOOTER ═══ -->
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" styleClass="dialog-footer">
+            <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
+            <Button text="Đóng" styleClass="btn-outline"
+                    prefWidth="90" prefHeight="36"
+                    onAction="#onClose"/>
+        </HBox>
+    </bottom>
+</BorderPane>

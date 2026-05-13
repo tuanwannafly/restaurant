@@ -717,7 +717,6 @@ public class OrderDAO {
             case "ACCEPTED":   return Order.OrderItem.ItemStatus.ACCEPTED;
             case "COOKING":    return Order.OrderItem.ItemStatus.COOKING;
             case "READY":      return Order.OrderItem.ItemStatus.READY;
-            case "DELIVERING": return Order.OrderItem.ItemStatus.DELIVERING;
             case "DELIVERED":  return Order.OrderItem.ItemStatus.DELIVERED;
             default:           return Order.OrderItem.ItemStatus.PENDING;
         }

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Rectangle?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.RestaurantDialogController"
+            prefWidth="600"
+            style="-fx-background-color: white;">
+
+    <!-- ── NORTH: Dialog title ─────────────────────────────────────────────── -->
+    <top>
+        <Label fx:id="lblTitle" text="Tạo / Cập nhật nhà hàng"
+               alignment="CENTER"
+               maxWidth="Infinity"
+               style="-fx-font-size: 18px; -fx-font-weight: bold;
+                      -fx-text-fill: #111827; -fx-alignment: center;">
+            <padding><Insets top="20" right="48" bottom="12" left="48"/></padding>
+        </Label>
+    </top>
+
+    <!-- ── CENTER: Scroll → Restaurant form + Admin section ──────────────── -->
+    <center>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+                    style="-fx-background: white; -fx-background-color: white;
+                           -fx-border-color: transparent;">
+            <content>
+                <VBox spacing="0" style="-fx-background-color: white;">
+
+                    <!-- ── Logo section ──────────────────────────────────────── -->
+                    <HBox alignment="CENTER_LEFT" spacing="16">
+                        <padding><Insets top="16" right="48" bottom="4" left="48"/></padding>
+
+                        <!-- Preview container (80×80, rounded 8px) -->
+                        <StackPane fx:id="logoContainer"
+                                   prefWidth="80" prefHeight="80"
+                                   style="-fx-background-color: #F3F4F6;
+                                          -fx-background-radius: 8;
+                                          -fx-border-color: #D1D5DB;
+                                          -fx-border-radius: 8;
+                                          -fx-border-width: 1;">
+                            <Label fx:id="lblLogoPlaceholder" text="🏪"
+                                   style="-fx-font-size: 28px;"/>
+                            <ImageView fx:id="imgLogoPreview"
+                                       fitWidth="80" fitHeight="80"
+                                       preserveRatio="false"
+                                       smooth="true"
+                                       visible="false" managed="false"/>
+                        </StackPane>
+
+                        <!-- Right side: label + hint + button -->
+                        <VBox spacing="6" alignment="CENTER_LEFT">
+                            <Label text="Logo nhà hàng"
+                                   style="-fx-font-size: 14px; -fx-font-weight: bold;
+                                          -fx-text-fill: #111827;"/>
+                            <Label text="PNG, JPG hoặc WEBP — tối đa 5 MB"
+                                   style="-fx-font-size: 12px; -fx-text-fill: #6B7280;"/>
+                            <Button fx:id="btnPickLogo" text="Chọn logo"
+                                    onAction="#handlePickLogo"
+                                    styleClass="btn-outline"
+                                    prefHeight="30"/>
+                        </VBox>
+                    </HBox>
+
+                    <!-- Separator under logo section -->
+                    <Region prefHeight="4"/>
+
+                    <!-- Restaurant form -->
+                    <GridPane fx:id="restaurantForm" hgap="8" vgap="12">
+                        <padding><Insets top="16" right="48" bottom="16" left="48"/></padding>
+                        <columnConstraints>
+                            <ColumnConstraints prefWidth="160" minWidth="140" halignment="RIGHT"/>
+                            <ColumnConstraints hgrow="ALWAYS" fillWidth="true" minWidth="280"/>
+                        </columnConstraints>
+
+                        <!-- Tên nhà hàng -->
+                        <Label text="Tên nhà hàng:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                        <TextField fx:id="txtName" prefHeight="34"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+
+                        <!-- Chủ nhà hàng -->
+                        <Label text="Chủ nhà hàng:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                        <TextField fx:id="txtOwner" prefHeight="34"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+                        <!-- Email -->
+                        <Label text="Email:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                        <TextField fx:id="txtEmail" prefHeight="34"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+                        <!-- SĐT -->
+                        <Label text="SĐT:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                        <TextField fx:id="txtPhone" prefHeight="34"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+
+                        <!-- Địa chỉ -->
+                        <Label text="Địa chỉ:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="4"/>
+                        <TextField fx:id="txtAddress" prefHeight="34"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="4"/>
+
+                        <!-- Ngày tạo -->
+                        <Label text="Ngày tạo:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="5"/>
+                        <TextField fx:id="txtCreatedDate" prefHeight="34" editable="false"
+                                   style="-fx-background-color: #F3F4F6;"
+                                   GridPane.columnIndex="1" GridPane.rowIndex="5"/>
+
+                        <!-- Trạng thái -->
+                        <Label text="Trạng thái:"
+                               style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                               GridPane.columnIndex="0" GridPane.rowIndex="6"/>
+                        <ComboBox fx:id="cboStatus" prefHeight="34" prefWidth="9999"
+                                  maxWidth="Infinity"
+                                  GridPane.columnIndex="1" GridPane.rowIndex="6"/>
+                    </GridPane>
+
+                    <!-- ── Admin section (chỉ hiển thị khi tạo mới) ──────── -->
+                    <VBox fx:id="adminSection" spacing="0"
+                          visible="false" managed="false">
+                        <padding><Insets top="0" right="48" bottom="12" left="48"/></padding>
+
+                        <!-- Titled border wrapper -->
+                        <VBox style="-fx-border-color: #D1D5DB;
+                                     -fx-border-radius: 6;
+                                     -fx-background-radius: 6;">
+
+                            <Label text="  Admin quản lý nhà hàng  "
+                                   style="-fx-font-size: 13px; -fx-font-weight: bold;
+                                          -fx-text-fill: #111827;
+                                          -fx-translate-y: -9;
+                                          -fx-background-color: white;
+                                          -fx-padding: 0 4 0 4;"/>
+
+                            <VBox spacing="6">
+                                <padding><Insets top="0" right="12" bottom="12" left="12"/></padding>
+
+                                <!-- ToggleGroup defined in controller -->
+                                <fx:define>
+                                    <ToggleGroup fx:id="adminGroup"/>
+                                </fx:define>
+
+                                <!-- Option: Skip -->
+                                <RadioButton fx:id="rbSkip"
+                                             text="Bỏ qua — sẽ gán admin sau"
+                                             toggleGroup="$adminGroup"
+                                             selected="true"
+                                             onAction="#onAdminModeChanged"
+                                             style="-fx-font-size: 14px;"/>
+
+                                <!-- Option: Existing admin -->
+                                <RadioButton fx:id="rbExisting"
+                                             text="Chọn từ danh sách admin có sẵn"
+                                             toggleGroup="$adminGroup"
+                                             onAction="#onAdminModeChanged"
+                                             style="-fx-font-size: 14px;"/>
+
+                                <!-- Existing admin panel -->
+                                <HBox fx:id="panelExisting" spacing="8" alignment="CENTER_LEFT"
+                                      visible="false" managed="false">
+                                    <padding><Insets top="4" right="0" bottom="4" left="24"/></padding>
+                                    <Label text="Chọn admin:" prefWidth="100"
+                                           style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
+                                    <ComboBox fx:id="cbAdmins" prefHeight="34"
+                                              HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                                </HBox>
+
+                                <!-- Option: New admin -->
+                                <RadioButton fx:id="rbNew"
+                                             text="Tạo admin mới ngay tại đây"
+                                             toggleGroup="$adminGroup"
+                                             onAction="#onAdminModeChanged"
+                                             style="-fx-font-size: 14px;"/>
+
+                                <!-- New admin panel -->
+                                <GridPane fx:id="panelNew" hgap="8" vgap="10"
+                                          visible="false" managed="false">
+                                    <padding><Insets top="4" right="0" bottom="4" left="24"/></padding>
+                                    <columnConstraints>
+                                        <ColumnConstraints prefWidth="120" halignment="RIGHT"/>
+                                        <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                                    </columnConstraints>
+
+                                    <Label text="Họ tên *:"
+                                           style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                           GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                                    <TextField fx:id="tfAdminName" prefHeight="34"
+                                               GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+
+                                    <Label text="Email *:"
+                                           style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                           GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                                    <TextField fx:id="tfAdminEmail" prefHeight="34"
+                                               GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+                                    <Label text="Mật khẩu *:"
+                                           style="-fx-font-size: 14px; -fx-text-fill: #111827;"
+                                           GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                                    <PasswordField fx:id="pfAdminPassword" prefHeight="34"
+                                                  GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+                                    <Label text="* Tài khoản sẽ có quyền RESTAURANT_ADMIN"
+                                           style="-fx-font-size: 12px; -fx-text-fill: #6B7280;"
+                                           GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+                                </GridPane>
+
+                            </VBox>
+                        </VBox>
+                    </VBox>
+
+                    <!-- Bottom padding -->
+                    <Region prefHeight="8"/>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+
+    <!-- ── SOUTH: Save | Cancel ────────────────────────────────────────────── -->
+    <bottom>
+        <HBox>
+            <padding><Insets top="12" right="48" bottom="20" left="48"/></padding>
+            <Button fx:id="btnSave" text="Lưu"
+                    styleClass="btn-primary" onAction="#handleSave"
+                    prefWidth="80" prefHeight="34"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnCancel" text="Hủy"
+                    styleClass="btn-outline" onAction="#handleCancel"
+                    prefWidth="80" prefHeight="34"/>
+        </HBox>
+    </bottom>
+</BorderPane>

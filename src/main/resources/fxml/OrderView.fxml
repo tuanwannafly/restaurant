@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.OrderController"
+            styleClass="page-bg"
+            stylesheets="@../css/style.css">
+
+    <!-- ═══ TOP BAR ═══ -->
+    <top>
+        <VBox spacing="0">
+            <!-- Title row -->
+            <HBox alignment="CENTER_LEFT" styleClass="top-bar">
+                <padding><Insets top="24" right="48" bottom="16" left="48"/></padding>
+                <Label text="Quản lý đơn hàng" styleClass="page-title" HBox.hgrow="ALWAYS"/>
+                <HBox spacing="8" alignment="CENTER_RIGHT">
+                    <Button fx:id="btnAddOrder" text="+ Tạo đơn mới"
+                            styleClass="btn-primary" onAction="#onAddOrder"
+                            prefWidth="140" prefHeight="36"/>
+                    <Button fx:id="btnStat" text="Xem thống kê"
+                            styleClass="btn-accent" onAction="#onOpenStat"
+                            prefWidth="150" prefHeight="36"/>
+                </HBox>
+            </HBox>
+
+            <!-- Filter bar -->
+            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="filter-bar">
+                <padding><Insets top="0" right="48" bottom="14" left="48"/></padding>
+                <TextField fx:id="searchField" promptText="🔍  Tìm kiếm đơn hàng..."
+                           prefWidth="260" prefHeight="34"
+                           styleClass="search-field"
+                           onKeyReleased="#onSearch"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <!-- ═══ TABLE ═══ -->
+    <center>
+        <VBox>
+            <padding><Insets top="0" right="48" bottom="24" left="48"/></padding>
+            <TableView fx:id="orderTable" VBox.vgrow="ALWAYS"
+                       styleClass="styled-table">
+
+                <!-- ID -->
+                <columns>
+                    <TableColumn fx:id="colId" text="ID" prefWidth="80"
+                                 style="-fx-alignment: CENTER-LEFT;"/>
+
+                    <!-- Bàn -->
+                    <TableColumn fx:id="colTable" text="Bàn" prefWidth="100"
+                                 style="-fx-alignment: CENTER-LEFT;"/>
+
+                    <!-- Tổng tiền -->
+                    <TableColumn fx:id="colTotal" text="Tổng tiền" prefWidth="130"
+                                 style="-fx-alignment: CENTER-RIGHT;"/>
+
+                    <!-- Trạng thái – dùng StatusBadgeTableCell -->
+                    <TableColumn fx:id="colStatus" text="Trạng thái" prefWidth="140"
+                                 style="-fx-alignment: CENTER;"/>
+
+                    <!-- Thời gian -->
+                    <TableColumn fx:id="colTime" text="Thời gian" prefWidth="150"
+                                 style="-fx-alignment: CENTER-LEFT;"/>
+
+                    <!-- Hành động -->
+                    <TableColumn fx:id="colAction" text="Hành động" prefWidth="260"
+                                 sortable="false"
+                                 style="-fx-alignment: CENTER;"/>
+                </columns>
+
+                <placeholder>
+                    <Label text="Không có đơn hàng nào" styleClass="table-placeholder"/>
+                </placeholder>
+            </TableView>
+        </VBox>
+    </center>
+</BorderPane>

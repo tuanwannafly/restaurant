@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+
+<!--
+  SimpleSpinner.fxml – placeholder root used by fx:include in KitchenView.fxml.
+  The actual spinner Node is a SimpleSpinnerFx instance injected
+  programmatically by KitchenController after FXML load.
+  We just provide a StackPane anchor so the include compiles cleanly.
+-->
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           prefWidth="20" prefHeight="20"
+           style="-fx-background-color: transparent;"/>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.CartPageController"
+            styleClass="page-root">
+
+    <!-- ═══════════════════════════════════ HEADER ═══════════════════════════ -->
+    <top>
+        <HBox styleClass="top-bar" alignment="CENTER_LEFT">
+            <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS">
+                <Label text="⛁" styleClass="logo-icon"/>
+                <Label text="SmartRestaurant" styleClass="logo-text"/>
+            </HBox>
+            <Label text="🛒  Giỏ hàng của bạn" styleClass="page-title" HBox.hgrow="ALWAYS"
+                   alignment="CENTER"/>
+            <HBox alignment="CENTER_RIGHT" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblTableBadge" text="Bàn —" styleClass="table-badge"/>
+            </HBox>
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════ CENTER ═══════════════════════════ -->
+    <center>
+        <TableView fx:id="cartTable" editable="true" styleClass="data-table">
+            <columns>
+                <TableColumn fx:id="colSTT"   text="STT"            prefWidth="60"/>
+                <TableColumn fx:id="colName"  text="Tên món"         prefWidth="240"/>
+                <TableColumn fx:id="colUnit"  text="Đơn giá (đ)"    prefWidth="140"/>
+                <TableColumn fx:id="colTotal" text="Thành tiền (đ)" prefWidth="150"/>
+                <TableColumn fx:id="colNote"  text="Ghi chú"        prefWidth="220" editable="true"/>
+                <TableColumn fx:id="colQty"   text="Số lượng"       prefWidth="160" editable="true"/>
+            </columns>
+        </TableView>
+    </center>
+
+    <!-- ═══════════════════════════════════ FOOTER ═══════════════════════════ -->
+    <bottom>
+        <HBox styleClass="bottom-bar" alignment="CENTER">
+            <HBox alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblCartTotal" text="Tổng cộng: 0 đ" styleClass="label-total"/>
+            </HBox>
+            <HBox alignment="CENTER_RIGHT" spacing="12">
+                <Button text="← Tiếp tục chọn món" styleClass="btn-ghost"
+                        onAction="#onBackToMenu"/>
+                <Button text="✅  Gửi món" styleClass="btn-primary"
+                        onAction="#onSendOrder"/>
+            </HBox>
+        </HBox>
+    </bottom>
+</BorderPane>

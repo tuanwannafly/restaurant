@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.Insets?>
+
+<!--
+    TopBarView.fxml
+    ───────────────
+    Embedded via <fx:include> in MainView.fxml.
+    Height: 52 px  |  Padding: 0 24px
+    Left:  logo mark (SVG-painted StackPane) + app name
+    Right: restaurant name · role badge · username menu button
+-->
+<HBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.restaurant.ui.TopBarController"
+      fx:id="topBarRoot"
+      styleClass="top-bar"
+      prefHeight="52"
+      alignment="CENTER_LEFT">
+
+    <padding>
+        <Insets left="24" right="24"/>
+    </padding>
+
+    <!-- ── Left: Logo mark + app name ──────────────────────────────────── -->
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <!-- Logo mark: painted in TopBarController#initialize() -->
+        <StackPane fx:id="logoMark"
+                   prefWidth="28" prefHeight="28"
+                   styleClass="logo-mark">
+            <Label text="SR" styleClass="logo-mark-text"/>
+        </StackPane>
+
+        <Label text="SmartRestaurant"
+               styleClass="app-name-label"/>
+    </HBox>
+
+    <!-- Spacer -->
+    <Region HBox.hgrow="ALWAYS"/>
+
+    <!-- ── Right: meta info + profile ───────────────────────────────────── -->
+    <HBox fx:id="rightSection"
+          alignment="CENTER_RIGHT"
+          spacing="10">
+
+        <!-- Restaurant name — populated in TopBarController -->
+        <Label fx:id="lblRestaurantName"
+               styleClass="restaurant-name-label"
+               visible="false" managed="false"/>
+
+        <!-- Separator dot -->
+        <Label fx:id="dotSeparator"
+               text="·"
+               styleClass="dot-separator"
+               visible="false" managed="false"/>
+
+        <!-- Role badge -->
+        <StackPane fx:id="roleBadgeContainer"
+                   styleClass="role-badge">
+            <Label fx:id="lblRoleBadge"
+                   styleClass="role-badge-text"/>
+        </StackPane>
+
+        <!-- Profile / username button — shown only if EDIT_OWN_PROFILE -->
+        <Button fx:id="btnProfile"
+                styleClass="profile-btn"
+                onAction="#handleProfileClick"
+                visible="false" managed="false"/>
+
+    </HBox>
+</HBox>

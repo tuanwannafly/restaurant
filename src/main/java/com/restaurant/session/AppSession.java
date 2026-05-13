@@ -37,12 +37,18 @@ public class AppSession {
     private String  userName;
     private String  userEmail;
     /**
-     * Tên role lưu đúng theo DB (SUPER_ADMIN | RESTAURANT_ADMIN | WAITER | CHEF | CASHIER).
+     * Tên role lưu đúng theo DB (SUPER_ADMIN | RESTAURANT_ADMIN | WAITER | CHEF | CASHIER | TABLET).
      * Có thể null sau khi logout.
      */
     private String  userRole;
     private long    restaurantId;
     private boolean loggedIn = false;
+
+    /**
+     * ID bàn liên kết với tài khoản TABLET.
+     * Null/0 với các role khác.
+     */
+    private String  tableId;
 
     /**
      * Session token hiện tại — được gán bởi {@code UserDAO.login()} ngay sau khi
@@ -64,6 +70,27 @@ public class AppSession {
     }
 
     // ── Đăng nhập / Đăng xuất ─────────────────────────────────────────────────
+
+    /**
+     * Đăng nhập dạng tablet — không có user thật, chỉ set restaurantId.
+     * Dùng khi tablet khách chạy ở kiosk mode (tablet.mode=true).
+     *
+     * <p>RbacGuard sẽ không có role hợp lệ → chỉ cho phép query không cần quyền.
+     * DAO như OrderDAO, MenuItemDAO vẫn hoạt động bình thường vì chỉ cần
+     * {@link #getRestaurantId()}.
+     *
+     * @param restaurantId ID nhà hàng từ tablet.properties
+     */
+    public void loginAsTablet(long restaurantId) {
+        this.restaurantId = restaurantId;
+        this.loggedIn     = true;
+        this.userRole     = "TABLET";
+        this.userName     = "Tablet";
+        this.userEmail    = null;
+        this.userId       = 0L;
+        this.sessionToken = null;
+        System.out.println("[AppSession] Logged in as TABLET, restaurantId=" + restaurantId);
+    }
 
     public void login(long userId, String name, String email, String role, long restaurantId) {
         this.userId       = userId;
@@ -145,6 +172,7 @@ public class AppSession {
         this.restaurantId = 0L;
         this.loggedIn     = false;
         this.sessionToken = null;
+        this.tableId      = null;
 
         notifyLogout();
     }
@@ -157,6 +185,17 @@ public class AppSession {
     public String  getUserEmail()    { return userEmail; }
     public String  getUserRole()     { return userRole; }
     public long    getRestaurantId() { return restaurantId; }
+
+    /**
+     * Trả về table_id của tài khoản TABLET.
+     * Null với các role khác.
+     */
+    public String  getTableId()      { return tableId; }
+
+    /**
+     * Gán table_id — được gọi từ {@code UserDAO.login()} nếu role là TABLET.
+     */
+    public void    setTableId(String tableId) { this.tableId = tableId; }
 
     // ── RBAC ──────────────────────────────────────────────────────────────────
 

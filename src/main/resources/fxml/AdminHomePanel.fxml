@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.fx.controller.AdminHomePanelController"
+            styleClass="admin-home-root"
+            style="-fx-background-color: #FFFFFF;">
+
+    <!-- ═══════════════════ TOP NAVBAR ═══════════════════ -->
+    <top>
+        <VBox styleClass="navbar" style="-fx-background-color: #FFFFFF; -fx-border-color: #E5E7EB; -fx-border-width: 0 0 1 0;">
+            <padding><Insets top="12" right="24" bottom="0" left="24"/></padding>
+
+            <!-- Row 1: Logo -->
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <Label text="🌐" style="-fx-font-size: 20px;"/>
+                <Label text="Tên hệ thống"
+                       style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2563EB;"/>
+            </HBox>
+
+            <!-- Row 2: Nav pills -->
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <padding><Insets top="10" bottom="0"/></padding>
+
+                <Button fx:id="btnHome"
+                        text="🏠  Home"
+                        onAction="#onHomeClicked"
+                        styleClass="nav-pill nav-pill-active"/>
+
+                <Button fx:id="btnManage"
+                        text="Quản lý doanh nghiệp"
+                        onAction="#onManageClicked"
+                        styleClass="nav-pill"/>
+
+                <Button fx:id="btnStats"
+                        text="Thống kê"
+                        onAction="#onStatsClicked"
+                        styleClass="nav-pill"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+    <center>
+        <BorderPane style="-fx-background-color: #FFFFFF;">
+
+            <center>
+                <VBox maxWidth="960" style="-fx-background-color: #FFFFFF;">
+                    <BorderPane.margin><Insets top="0" right="24" bottom="24" left="24"/></BorderPane.margin>
+                    <padding><Insets top="32" right="0" bottom="0" left="0"/></padding>
+
+                    <!-- Page title -->
+                    <Label text="Tổng quan"
+                           style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #111827; -fx-alignment: CENTER;"
+                           maxWidth="Infinity"/>
+
+                    <!-- Section header -->
+                    <Label text="Thống kê nhanh (hôm nay)"
+                           style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #111827;">
+                        <VBox.margin><Insets top="28" bottom="12"/></VBox.margin>
+                    </Label>
+
+                    <!-- Stats grid: label col + input col -->
+                    <GridPane hgap="12" vgap="14">
+                        <columnConstraints>
+                            <ColumnConstraints minWidth="240" prefWidth="240" maxWidth="280"/>
+                            <ColumnConstraints hgrow="ALWAYS" fillWidth="true"/>
+                        </columnConstraints>
+
+                        <!-- Row 0: active restaurants -->
+                        <Label text="Số doanh nghiệp đang hoạt động:"
+                               styleClass="stat-label"
+                               GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                        <TextField fx:id="fieldActiveRestaurants"
+                                   editable="false"
+                                   styleClass="stat-field"
+                                   GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                        <!-- Row 1: new restaurants -->
+                        <Label text="Số doanh nghiệp mới tạo :"
+                               styleClass="stat-label"
+                               GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                        <TextField fx:id="fieldNewRestaurants"
+                                   editable="false"
+                                   styleClass="stat-field"
+                                   GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                        <!-- Row 2: revenue -->
+                        <Label text="Doanh thu:"
+                               styleClass="stat-label"
+                               GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                        <TextField fx:id="fieldRevenueToday"
+                                   editable="false"
+                                   styleClass="stat-field"
+                                   GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+                        <!-- Row 3: orders -->
+                        <Label text="Số đơn hàng:"
+                               styleClass="stat-label"
+                               GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                        <TextField fx:id="fieldOrdersToday"
+                                   editable="false"
+                                   styleClass="stat-field"
+                                   GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+                    </GridPane>
+
+                </VBox>
+            </center>
+
+        </BorderPane>
+    </center>
+
+    <!-- ═══════════════════ BOTTOM: logout icon ═══════════════════ -->
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" style="-fx-background-color: #FFFFFF;">
+            <padding><Insets top="8" right="20" bottom="12" left="20"/></padding>
+            <Button fx:id="btnLogout"
+                    text="⊖"
+                    onAction="#onLogoutClicked"
+                    styleClass="logout-btn"
+                    style="-fx-font-size: 20px; -fx-background-color: transparent; -fx-border-color: transparent; -fx-cursor: hand; -fx-text-fill: #6B7280;"
+                    tooltip="Đăng xuất"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

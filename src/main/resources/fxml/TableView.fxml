@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<!--
+  TableView.fxml  —  Phase 5
+  Layout: BorderPane
+    TOP    : VBox  →  title-bar (label + add-btn) + filter-bar
+    CENTER : ScrollPane  →  TilePane (one card per TableItem)
+-->
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.restaurant.ui.TableController"
+            styleClass="page-root">
+
+    <!-- ═══════════════════════════  TOP  ═════════════════════════════════ -->
+    <top>
+        <VBox styleClass="page-header" spacing="0">
+            <padding><Insets top="24" right="48" bottom="0" left="48"/></padding>
+
+            <!-- ── Title bar ────────────────────────────────────────────── -->
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <padding><Insets bottom="14"/></padding>
+
+                <Label text="Quản lý bàn" styleClass="page-title"/>
+
+                <!-- search field sits in the middle-right area -->
+                <Region HBox.hgrow="ALWAYS"/>
+                <TextField fx:id="searchField"
+                           promptText="🔍  Tìm kiếm tên bàn…"
+                           prefWidth="220" prefHeight="36"
+                           styleClass="search-field"/>
+
+                <!-- ADD button — visibility toggled by RBAC in controller -->
+                <Button fx:id="btnAdd" text="＋  Thêm bàn"
+                        prefHeight="36"
+                        styleClass="btn-primary"
+                        onAction="#onAddTable"/>
+            </HBox>
+
+            <!-- ── Filter bar ────────────────────────────────────────────── -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <padding><Insets bottom="16"/></padding>
+
+                <Label text="Sức chứa:" styleClass="filter-label"/>
+                <ComboBox fx:id="capacityFilter"
+                          prefWidth="95" prefHeight="34"
+                          styleClass="filter-combo"
+                          onAction="#onFilterChanged"/>
+
+                <Label text="Trạng thái:" styleClass="filter-label"/>
+                <ComboBox fx:id="statusFilter"
+                          prefWidth="120" prefHeight="34"
+                          styleClass="filter-combo"
+                          onAction="#onFilterChanged"/>
+
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <!-- live result count badge -->
+                <Label fx:id="lblCount" styleClass="count-badge"/>
+            </HBox>
+
+            <!-- thin separator -->
+            <Separator styleClass="header-sep"/>
+        </VBox>
+    </top>
+
+    <!-- ══════════════════════════  CENTER  ═══════════════════════════════ -->
+    <center>
+        <ScrollPane fitToWidth="true"
+                    styleClass="cards-scroll"
+                    hbarPolicy="NEVER">
+
+            <!-- TilePane — cards injected by TableController.applyFilter() -->
+            <TilePane fx:id="tilePaneCards"
+                      hgap="18" vgap="18"
+                      prefTileWidth="172" prefTileHeight="200"
+                      styleClass="cards-tile">
+                <padding><Insets top="20" right="48" bottom="32" left="48"/></padding>
+            </TilePane>
+        </ScrollPane>
+    </center>
+
+</BorderPane>
