@@ -1,0 +1,95 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════════════
+# SmartRestaurant — Docker Compose
+#
+# Scale lên N instance:
+#   docker compose up --scale app=7 -d
+#
+# Mỗi container nhận:
+#   - WebSocket port riêng từ dải 8025-8035 (host) → 8080 (container)
+#   - VNC port riêng từ dải 5900-5910 (host)       → 5900 (container)
+#
+# Kết nối VNC để thấy GUI:
+#   Container 1: vnc://localhost:5900
+#   Container 2: vnc://localhost:5901
+#   ... (VNC viewer: TigerVNC, RealVNC, macOS Screen Sharing)
+#
+# Cấu hình DB: tạo file .env từ .env.example và điền thông tin
+# ═══════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── App instances (JavaFX + WebSocket server) ──────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    environment:
+      # ── Database ──────────────────────────────────
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DRIVER=${DB_DRIVER:-oracle.jdbc.OracleDriver}
+      - DB_POOL_MAX=${DB_POOL_MAX:-5}
+      - DB_POOL_MIN=${DB_POOL_MIN:-1}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-10000}
+
+      # ── Email ─────────────────────────────────────
+      - MAIL_FROM=${MAIL_FROM:-}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_SMTP_HOST=${MAIL_SMTP_HOST:-smtp.gmail.com}
+      - MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-587}
+
+      # ── App ───────────────────────────────────────
+      # WS_PORT cố định bên trong container (Docker tự map ra host port khác nhau)
+      - WS_PORT=8080
+      # INSTANCE_ID để trống → start.sh tự lấy từ hostname (Docker tự gán)
+      - INSTANCE_ID=
+
+      # ── VNC ───────────────────────────────────────
+      - VNC_PORT=5900
+      - VNC_ENABLED=${VNC_ENABLED:-true}
+      - VNC_PASSWORD=${VNC_PASSWORD:-}
+
+    ports:
+      # Host ports 8025–8035 → container port 8080 (WebSocket)
+      # Docker gán 1 host port / container theo thứ tự khi dùng --scale
+      - "8025-8035:8080"
+      # Host ports 5900–5910 → container port 5900 (VNC)
+      - "5900-5910:5900"
+
+    # ── Resource limits per container ─────────────
+    deploy:
+      resources:
+        limits:
+          memory: 512M     # JavaFX + Oracle pool ~200-300MB thực tế
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+
+    # ── Health check ──────────────────────────────
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'app.jar' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s    # Cho thời gian JavaFX + Oracle pool khởi động
+
+    restart: unless-stopped
+
+    # ── Logging ───────────────────────────────────
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ══════════════════════════════════════════════
+# Hướng dẫn dải port (nếu cần > 10 instance):
+#   ports:
+#     - "8025-8075:8080"   # cho 50 instance
+#     - "5900-5950:5900"
+# ══════════════════════════════════════════════

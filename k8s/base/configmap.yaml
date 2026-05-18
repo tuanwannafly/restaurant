@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smart-restaurant-config
+  labels:
+    app: smart-restaurant
+data:
+  DB_DRIVER:         "oracle.jdbc.OracleDriver"
+  DB_POOL_MAX:       "5"
+  DB_POOL_MIN:       "1"
+  DB_POOL_TIMEOUT:   "10000"
+  MAIL_SMTP_HOST:    "smtp.gmail.com"
+  MAIL_SMTP_PORT:    "587"
+  WS_PORT:           "8080"
+  VNC_ENABLED:       "false"   # Tắt VNC trong K8s (dùng kubectl logs/exec)

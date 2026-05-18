@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-restaurant
+  labels:
+    app: smart-restaurant
+spec:
+  replicas: 2                      # HPA sẽ điều chỉnh tự động
+  selector:
+    matchLabels:
+      app: smart-restaurant
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0            # Zero-downtime deploy
+  template:
+    metadata:
+      labels:
+        app: smart-restaurant
+      annotations:
+        # Prometheus scrape (nếu dùng micrometer/actuator sau này)
+        prometheus.io/scrape: "false"
+    spec:
+      # ── Graceful shutdown ────────────────────────────────────────────
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: app
+          image: smart-restaurant:latest     # Thay bằng registry thật: ghcr.io/org/smart-restaurant:sha
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: websocket
+              containerPort: 8080
+              protocol: TCP
+
+          # ── Env từ ConfigMap ────────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: smart-restaurant-config
+
+          # ── Env nhạy cảm từ Secret ──────────────────────────────────
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: smart-restaurant-secret
+                  key: DB_URL
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: smart-restaurant-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smart-restaurant-secret
+                  key: DB_PASSWORD
+            - name: MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: smart-restaurant-secret
+                  key: MAIL_USERNAME
+            - name: MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smart-restaurant-secret
+                  key: MAIL_PASSWORD
+            # INSTANCE_ID lấy từ Pod name (unique mỗi replica)
+            - name: INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+          # ── Resource limits (giống Docker Compose) ──────────────────
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+
+          # ── Liveness: restart nếu process chết ──────────────────────
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "app.jar"]
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+
+          # ── Readiness: chỉ route traffic khi app sẵn sàng ───────────
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # ── Startup: cho JavaFX + Oracle pool khởi động ─────────────
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12   # 12 × 5s = 60s tối đa
+
+      # ── Phân tán Pod ra nhiều Node ───────────────────────────────────
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: smart-restaurant
