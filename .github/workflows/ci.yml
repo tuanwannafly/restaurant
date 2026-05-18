@@ -1,0 +1,146 @@
+name: CI/CD — Build → SonarQube → Deploy K8s
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/smart-restaurant
+
+jobs:
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 1: Build + Test + SonarQube
+  # ════════════════════════════════════════════════════════════════════
+  build-and-analyze:
+    name: Build & SonarQube Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # SonarQube cần full history để tính blame
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # Cache SonarQube packages để tăng tốc
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Build, Test & Analyze with SonarQube
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN:  ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # e.g. https://sonarcloud.io
+        run: |
+          ./mvn verify sonar:sonar \
+            -Dsonar.projectKey=smart-restaurant \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
+            -Dsonar.pullrequest.branch=${{ github.head_ref }} \
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+
+      # Chặn merge PR nếu Quality Gate FAIL
+      - name: SonarQube Quality Gate Check
+        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 2: Build & Push Docker Image
+  # ════════════════════════════════════════════════════════════════════
+  docker-build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-analyze        # Chỉ build image khi Sonar PASS
+    if: github.ref == 'refs/heads/main'
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 3: Deploy lên Kubernetes (production)
+  # ════════════════════════════════════════════════════════════════════
+  deploy-k8s:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main'
+    environment: production         # Yêu cầu approval thủ công trên GitHub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Update image tag in kustomization
+        run: |
+          cd k8s/overlays/prod
+          # Dùng kustomize edit để cập nhật tag image mới nhất
+          kustomize edit set image smart-restaurant=${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+
+      - name: Deploy with Kustomize
+        run: |
+          kubectl apply -k k8s/overlays/prod
+          kubectl rollout status deployment/smart-restaurant \
+            -n smart-restaurant-prod \
+            --timeout=120s
+
+      - name: Verify deployment health
+        run: |
+          kubectl get pods -n smart-restaurant-prod -l app=smart-restaurant
+          kubectl get hpa  -n smart-restaurant-prod

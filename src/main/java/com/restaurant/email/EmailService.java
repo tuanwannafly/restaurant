@@ -64,38 +64,35 @@ public class EmailService {
      * Nạp cấu hình từ {@code email.properties} trong classpath.
      * Ném {@link RuntimeException} nếu file không tồn tại.
      */
-    private void loadConfig() {
+   private void loadConfig() {
+        // Tải email.properties làm fallback (nếu có)
+        Properties raw = new Properties();
         try (InputStream in = getClass().getClassLoader()
                 .getResourceAsStream("email.properties")) {
-
-            if (in == null) {
-                throw new RuntimeException(
-                        "[EmailService] Không tìm thấy email.properties trong classpath!");
+            if (in != null) {
+                raw.load(in);
             }
-
-            Properties raw = new Properties();
-            raw.load(in);
-
-            this.fromAddress = raw.getProperty("mail.from");
-            this.username    = raw.getProperty("mail.username");
-            this.password    = raw.getProperty("mail.password");
-
-            // Chỉ giữ lại các key cần thiết cho JavaMail Session
-            smtpProps = new Properties();
-            smtpProps.put("mail.smtp.host",             raw.getProperty("mail.smtp.host"));
-            smtpProps.put("mail.smtp.port",             raw.getProperty("mail.smtp.port"));
-            smtpProps.put("mail.smtp.auth",             raw.getProperty("mail.smtp.auth"));
-            smtpProps.put("mail.smtp.starttls.enable",  raw.getProperty("mail.smtp.starttls.enable"));
-            smtpProps.put("mail.smtp.connectiontimeout", CONNECT_TIMEOUT_MS);
-            smtpProps.put("mail.smtp.timeout",           IO_TIMEOUT_MS);
-            smtpProps.put("mail.smtp.writetimeout",      IO_TIMEOUT_MS);
-
-        } catch (RuntimeException e) {
-            throw e;
         } catch (Exception e) {
-            throw new RuntimeException(
-                    "[EmailService] Lỗi đọc cấu hình email: " + e.getMessage(), e);
+            LOGGER.log(Level.WARNING,
+                    "[EmailService] Không thể đọc email.properties — dùng env var", e);
         }
+ 
+        // Ưu tiên: env var → properties file
+        this.fromAddress = resolveEmail(raw, "MAIL_FROM",     "mail.from");
+        this.username    = resolveEmail(raw, "MAIL_USERNAME", "mail.username");
+        this.password    = resolveEmail(raw, "MAIL_PASSWORD", "mail.password");
+ 
+        String smtpHost = resolveEmailDefault(raw, "MAIL_SMTP_HOST", "mail.smtp.host", "smtp.gmail.com");
+        String smtpPort = resolveEmailDefault(raw, "MAIL_SMTP_PORT", "mail.smtp.port", "587");
+ 
+        smtpProps = new Properties();
+        smtpProps.put("mail.smtp.host",             smtpHost);
+        smtpProps.put("mail.smtp.port",             smtpPort);
+        smtpProps.put("mail.smtp.auth",             raw.getProperty("mail.smtp.auth", "true"));
+        smtpProps.put("mail.smtp.starttls.enable",  raw.getProperty("mail.smtp.starttls.enable", "true"));
+        smtpProps.put("mail.smtp.connectiontimeout", CONNECT_TIMEOUT_MS);
+        smtpProps.put("mail.smtp.timeout",           IO_TIMEOUT_MS);
+        smtpProps.put("mail.smtp.writetimeout",      IO_TIMEOUT_MS);
     }
 
     // -----------------------------------------------------------------------
@@ -109,6 +106,17 @@ public class EmailService {
                 return new PasswordAuthentication(username, password);
             }
         });
+    }
+    
+    private String resolveEmail(Properties props, String envKey, String propKey) {
+        String fromEnv = System.getenv(envKey);
+        if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.trim();
+        return props.getProperty(propKey);
+    }
+ 
+    private String resolveEmailDefault(Properties props, String envKey, String propKey, String defaultVal) {
+        String v = resolveEmail(props, envKey, propKey);
+        return (v != null && !v.isBlank()) ? v : defaultVal;
     }
 
     // -----------------------------------------------------------------------
