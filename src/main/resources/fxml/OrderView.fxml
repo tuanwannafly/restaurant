@@ -9,7 +9,7 @@
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.OrderController"
             styleClass="page-bg"
-            stylesheets="@../css/style.css">
+            stylesheets="@../css/app.css">
 
     <!-- ═══ TOP BAR ═══ -->
     <top>

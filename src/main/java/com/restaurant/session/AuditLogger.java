@@ -230,6 +230,45 @@ public final class AuditLogger {
         return false;
     }
 
+    // ── Business action helpers ───────────────────────────────────────────────
+
+    /** Ghi log mở bàn (tạo đơn hàng mới). */
+    public void logOpenTable(String tableId, String tableName, long orderId) {
+        log("OPEN_TABLE", orderId, "SUCCESS",
+            "Mở bàn " + tableName + " (table_id=" + tableId + ") → order_id=" + orderId);
+    }
+
+    /** Ghi log khách gửi yêu cầu thanh toán từ tablet. */
+    public void logRequestPayment(String orderId, String tableId, String method) {
+        log("REQUEST_PAYMENT", parseLong(orderId), "SUCCESS",
+            "Yêu cầu TT từ bàn table_id=" + tableId
+                + " | order_id=" + orderId + " | PTTT=" + method);
+    }
+
+    /** Ghi log thu ngân hoàn tất thanh toán. */
+    public void logPaymentComplete(String orderId, String tableId, String method) {
+        log("PAYMENT_COMPLETE", parseLong(orderId), "SUCCESS",
+            "Hoàn tất TT | order_id=" + orderId
+                + " | table_id=" + tableId + " | PTTT=" + method);
+    }
+
+    /** Ghi log thu ngân hoàn tất thanh toán thất bại. */
+    public void logPaymentFailed(String orderId, String reason) {
+        log("PAYMENT_COMPLETE", parseLong(orderId), "FAIL",
+            "Hoàn tất TT thất bại | order_id=" + orderId + " | lý do: " + reason);
+    }
+
+    /** Ghi log gọi món (gửi cart). */
+    public void logSendOrder(String orderId, String tableId, int itemCount, int round) {
+        log("SEND_ORDER", parseLong(orderId), "SUCCESS",
+            "Gọi món | order_id=" + orderId + " | table_id=" + tableId
+                + " | " + itemCount + " món | round=" + round);
+    }
+
+    private static long parseLong(String s) {
+        try { return Long.parseLong(s); } catch (Exception e) { return 0L; }
+    }
+
     // ── Read for SUPER_ADMIN ──────────────────────────────────────────────────
 
     /**
@@ -256,7 +295,24 @@ public final class AuditLogger {
                                              LocalDateTime fromTime,
                                              LocalDateTime toTime,
                                              int limit) {
-        return queryLogs(action, fromTime, toTime, Math.min(limit, 500));
+        return getFilteredLogs(action, fromTime, toTime, null, Math.min(limit, 500));
+    }
+
+    /**
+     * Lấy danh sách audit log với bộ lọc đầy đủ, bao gồm tìm kiếm từ khoá.
+     *
+     * @param action    lọc theo action (null = tất cả)
+     * @param fromTime  từ thời điểm (null = không giới hạn)
+     * @param toTime    đến thời điểm (null = không giới hạn)
+     * @param keyword   tìm trong cột detail (null = bỏ qua)
+     * @param limit     số bản ghi tối đa (tối đa 500)
+     */
+    public List<AuditEntry> getFilteredLogs(String action,
+                                             LocalDateTime fromTime,
+                                             LocalDateTime toTime,
+                                             String keyword,
+                                             int limit) {
+        return queryLogs(action, fromTime, toTime, keyword, Math.min(limit, 500));
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -295,10 +351,16 @@ public final class AuditLogger {
                                         LocalDateTime from,
                                         LocalDateTime to,
                                         int limit) {
+        return queryLogs(actionFilter, from, to, null, limit);
+    }
+
+    private List<AuditEntry> queryLogs(String actionFilter,
+                                        LocalDateTime from,
+                                        LocalDateTime to,
+                                        String keyword,
+                                        int limit) {
         List<AuditEntry> list = new ArrayList<>();
 
-        // Dùng ROW_NUMBER() thay vì cột log_id trực tiếp để tránh
-        // ORA-00904 khi schema chưa có cột log_id (hoặc cột có tên khác).
         StringBuilder sb = new StringBuilder("""
             SELECT ROW_NUMBER() OVER (ORDER BY logged_at DESC) AS log_id,
                    action, actor_user_id, target_id,
@@ -313,6 +375,8 @@ public final class AuditLogger {
             sb.append(" AND logged_at >= ?");
         if (to != null)
             sb.append(" AND logged_at <= ?");
+        if (keyword != null && !keyword.isBlank())
+            sb.append(" AND LOWER(detail) LIKE ?");
 
         sb.append(" ORDER BY logged_at DESC NULLS LAST");
         sb.append(" FETCH FIRST ").append(limit).append(" ROWS ONLY");
@@ -327,6 +391,8 @@ public final class AuditLogger {
                 ps.setTimestamp(idx++, Timestamp.valueOf(from));
             if (to != null)
                 ps.setTimestamp(idx++, Timestamp.valueOf(to));
+            if (keyword != null && !keyword.isBlank())
+                ps.setString(idx++, "%" + keyword.toLowerCase() + "%");
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {

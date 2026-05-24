@@ -51,7 +51,7 @@ module com.restaurant {
 
     // ── JDK utilities used by business logic ─────────────────────────────────
 
-    requires java.desktop;        // java.awt.* still used in non-UI utilities
+    requires java.desktop;        // java.awt.Desktop used in RestaurantRequestDetailController (open file with OS default app)
     requires java.prefs;          // TokenStorage (Preferences API)
 
     // =========================================================================

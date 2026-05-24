@@ -8,6 +8,10 @@ import java.util.concurrent.Executors;
 
 import com.restaurant.dao.KitchenDAO;
 import com.restaurant.model.Order;
+import com.restaurant.session.AppSession;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsEvent;
+import com.restaurant.websocket.WsTopic;
 
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -174,12 +178,53 @@ public class DeliveryCardController implements Initializable {
                 return null;
             }
         };
-        task.setOnSucceeded(e -> onRefresh.run());
+        task.setOnSucceeded(e -> {
+            broadcastDelivery(tickets);
+            onRefresh.run();
+        });
         task.setOnFailed(e   -> {
             btnDelivered.setDisable(false);
             showCardError("Lỗi cập nhật: " + task.getException().getMessage());
         });
         executor.submit(task);
+    }
+
+    // ─── Broadcast WS sau khi giao xong ──────────────────────────────────────
+
+    /**
+     * Broadcast WebSocket events sau khi phục vụ đánh dấu "Đã giao xong".
+     *
+     * <p>Học theo cơ chế {@code KitchenController.broadcastStatusChange()}:
+     * gửi {@link WsTopic#ORDERS} và {@link WsTopic#BADGE} cho toàn nhà hàng,
+     * cộng thêm topic riêng từng bàn bị ảnh hưởng ({@code WsTopic.forTable(id)}).
+     *
+     * <p>Nhờ đó {@link com.restaurant.ui.TableOrderStage#setupWsSubscription()}
+     * sẽ nhận event và dispatch đến {@link StatusPageController#refreshTable()}
+     * để màn hình tablet cập nhật ngay trạng thái "Đã nhận" mà không cần chờ
+     * fallback poll.</p>
+     *
+     * @param tickets danh sách ticket vừa được chuyển sang DELIVERED
+     */
+    private void broadcastDelivery(List<KitchenDAO.KitchenTicket> tickets) {
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+        RestaurantEventServer srv = RestaurantEventServer.getInstance();
+
+        // Broadcast ORDERS — TableOrderStage subscribe topic này để refresh
+        srv.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
+        srv.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
+
+        // Broadcast topic riêng từng bàn bị ảnh hưởng để refresh nhanh hơn
+        if (tickets != null) {
+            tickets.stream()
+                   .map(t -> t.tableId)
+                   .distinct()
+                   .forEach(tid -> {
+                       try {
+                           int tableIdInt = Integer.parseInt(tid);
+                           srv.broadcast(WsEvent.of(WsTopic.forTable(tableIdInt), restaurantId));
+                       } catch (NumberFormatException ignored) {}
+                   });
+        }
     }
 
     // ─── Error helper ─────────────────────────────────────────────────────────

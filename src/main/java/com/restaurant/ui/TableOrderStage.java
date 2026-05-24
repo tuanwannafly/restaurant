@@ -68,6 +68,14 @@ public class TableOrderStage extends Stage {
     /** Current navigation page key. */
     private String currentPage = PAGE_MENU;
 
+    /** Cờ đánh dấu thanh toán đã hoàn tất — ảnh hưởng trạng thái bàn khi đóng. */
+    private boolean paymentCompleted = false;
+
+    /** Gọi từ WaitingPageController khi xác nhận thanh toán hoàn tất. */
+    public void markPaymentCompleted() {
+        this.paymentCompleted = true;
+    }
+
     /** Cancel-token từ addEventHandler — để huỷ đăng ký khi đóng stage. */
     private Runnable cancelWsHandler;
 
@@ -216,7 +224,42 @@ public class TableOrderStage extends Stage {
     // ── Window lifecycle ───────────────────────────────────────────────────────
 
     private void setupCloseHandler() {
-        setOnCloseRequest(e -> cleanupPolls());
+        setOnCloseRequest(e -> closeWithCleanup());
+    }
+
+    /**
+     * Đóng màn hình tablet kèm dọn dẹp: cập nhật trạng thái bàn về AVAILABLE
+     * và huỷ WS/poll để tránh memory leak.
+     * <p>
+     * Gọi trực tiếp để đóng programmatically (ví dụ: nút đóng ẩn dành cho nhân viên).
+     * Cũng được gọi tự động khi nhấn nút X hoặc Alt+F4.
+     */
+    public void closeWithCleanup() {
+        // 1. Cập nhật trạng thái bàn trên background thread
+        //    - Thanh toán hoàn tất → DIRTY (cần dọn, nhân viên phục vụ sẽ thấy)
+        //    - Đóng không qua thanh toán (bấm X) → AVAILABLE (Rảnh)
+        final boolean wasPaid = paymentCompleted;
+        new Thread(() -> {
+            try {
+                long restaurantId = AppSession.getInstance().getRestaurantId();
+                com.restaurant.dao.TabletOrderDAO dao =
+                        new com.restaurant.dao.TabletOrderDAO(restaurantId);
+                if (wasPaid) {
+                    dao.markTableDirty(tableId);   // Bàn cần dọn
+                } else {
+                    dao.markTableAvailable(tableId); // Tablet đóng không thanh toán
+                }
+            } catch (Exception e) {
+                System.err.println("[TableOrderStage] closeWithCleanup updateStatus lỗi: "
+                        + e.getMessage());
+            }
+        }, "tablet-close-cleanup").start();
+
+        // 2. Huỷ WS handler và poll
+        cleanupPolls();
+
+        // 3. Đóng stage
+        close();
     }
 
     public void cleanupPolls() {
@@ -292,15 +335,40 @@ public class TableOrderStage extends Stage {
             if (ok) {
                 currentRound++;
                 cartItems.clear();
+                com.restaurant.session.AuditLogger.getInstance()
+                    .logSendOrder(orderId, tableId, snapshot.size(), round);
 
-                // Broadcast push đến tất cả màn hình nhân viên trong nhà hàng
+                // Broadcast push đến tất cả màn hình nhân viên trong nhà hàng.
+                //
+                // Multi-instance: nếu đây là tablet (Instance 2), WS server không
+                // bind được port → srv.isRunning() == false → srv.broadcast() sẽ
+                // gửi vào local server không có subscriber → không ai nhận.
+                // Cần relay qua client đến Instance 1's server (publishToServer).
                 try {
                     long rid = AppSession.getInstance().getRestaurantId();
                     RestaurantEventServer srv = RestaurantEventServer.getInstance();
-                    srv.broadcast(WsEvent.of(WsTopic.KITCHEN, rid));
-                    srv.broadcast(WsEvent.of(WsTopic.ORDERS,  rid));
-                    srv.broadcast(WsEvent.of(WsTopic.BADGE,   rid));
-                    srv.broadcast(WsEvent.of(WsTopic.forTable(Integer.parseInt(tableId)), rid));
+                    RestaurantEventClient cli = RestaurantEventClient.getInstance();
+                    final boolean serverDown  = !srv.isRunning();
+
+                    WsEvent kitchenEvt = WsEvent.of(WsTopic.KITCHEN, rid);
+                    WsEvent ordersEvt  = WsEvent.of(WsTopic.ORDERS,  rid);
+                    WsEvent badgeEvt   = WsEvent.of(WsTopic.BADGE,   rid);
+                    WsEvent tableEvt   = WsEvent.of(
+                            WsTopic.forTable(Integer.parseInt(tableId)), rid);
+
+                    // Broadcast locally (hiệu quả khi instance này là server)
+                    srv.broadcast(kitchenEvt);
+                    srv.broadcast(ordersEvt);
+                    srv.broadcast(badgeEvt);
+                    srv.broadcast(tableEvt);
+
+                    // Relay sang server thật nếu instance này không phải server
+                    if (serverDown) {
+                        cli.publishToServer(kitchenEvt);
+                        cli.publishToServer(ordersEvt);
+                        cli.publishToServer(badgeEvt);
+                        cli.publishToServer(tableEvt);
+                    }
                 } catch (Exception wsEx) {
                     System.err.println("[TableOrderStage] Broadcast lỗi: " + wsEx.getMessage());
                 }
@@ -321,13 +389,62 @@ public class TableOrderStage extends Stage {
     }
 
     /**
-     * Gửi yêu cầu thanh toán (log + gọi DAO khi sẵn).
+     * Gửi yêu cầu thanh toán từ tablet — chuyển đơn sang PAYMENT_REQUESTED.
+     * Chạy trên background thread để không block JavaFX thread.
+     *
+     * @param method     "cash" | "transfer" | "card" | "momo" | "vnpay"
+     * @param cashAmount số tiền khách đưa (chỉ có nghĩa khi method="cash"); có thể rỗng
      */
     public void submitPaymentRequest(String method, String cashAmount) {
-        System.out.printf("[TableOrderStage] Payment: orderId=%s method=%s%s%n",
-                orderId, method,
-                "cash".equals(method) ? " amount=" + cashAmount : "");
-        // TODO: gọi orderDAO.requestPayment(orderId, method, cashAmount)
+        // Chuẩn hoá method → DB format
+        String dbMethod;
+        switch (method == null ? "" : method.toLowerCase()) {
+            case "cash":     dbMethod = "CASH";          break;
+            case "transfer": dbMethod = "BANK_TRANSFER"; break;
+            case "card":     dbMethod = "CARD";          break;
+            case "momo":     dbMethod = "MOMO";          break;
+            case "vnpay":    dbMethod = "VNPAY";         break;
+            default:         dbMethod = "CASH";
+        }
+
+        final String finalMethod = dbMethod;
+        final String oid = orderId;
+
+        javafx.concurrent.Task<Boolean> task = new javafx.concurrent.Task<>() {
+            @Override protected Boolean call() {
+                return orderDAO.requestPayment(oid, finalMethod);
+            }
+        };
+        task.setOnSucceeded(e -> {
+            if (Boolean.TRUE.equals(task.getValue())) {
+                com.restaurant.session.AuditLogger.getInstance()
+                    .logRequestPayment(oid, tableId, finalMethod);
+                // Broadcast để CashierController nhận ngay yêu cầu thanh toán mới
+                try {
+                    long rid = AppSession.getInstance().getRestaurantId();
+                    RestaurantEventServer srv = RestaurantEventServer.getInstance();
+                    RestaurantEventClient cli = RestaurantEventClient.getInstance();
+                    WsEvent ordersEvt = WsEvent.of(WsTopic.ORDERS, rid);
+                    WsEvent badgeEvt  = WsEvent.of(WsTopic.BADGE,  rid);
+                    if (srv.isRunning()) {
+                        srv.broadcast(ordersEvt);
+                        srv.broadcast(badgeEvt);
+                    } else {
+                        cli.publishToServer(ordersEvt);
+                        cli.publishToServer(badgeEvt);
+                    }
+                } catch (Exception wsEx) {
+                    System.err.println("[TableOrderStage] broadcast payment-request lỗi: " + wsEx.getMessage());
+                }
+            } else {
+                System.err.println("[TableOrderStage] requestPayment không update được row — orderId=" + oid);
+            }
+        });
+        task.setOnFailed(e ->
+            System.err.println("[TableOrderStage] submitPaymentRequest lỗi: "
+                + task.getException().getMessage())
+        );
+        new Thread(task, "request-payment").start();
     }
 
     /**

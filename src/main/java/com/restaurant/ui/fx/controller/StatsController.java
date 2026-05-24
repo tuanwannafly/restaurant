@@ -23,8 +23,6 @@ import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
@@ -298,14 +296,20 @@ public class StatsController implements Initializable {
     }
 
     private void showWarning(String msg) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
-        alert.setTitle("Cảnh báo");
-        alert.showAndWait();
+        if (lblStatus != null) {
+            lblStatus.setText("⚠ " + msg);
+            lblStatus.setStyle("-fx-text-fill: #e6a817;");
+            lblStatus.setVisible(true);
+            lblStatus.setManaged(true);
+        }
     }
 
     private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
-        alert.setTitle("Lỗi");
-        alert.showAndWait();
+        if (lblStatus != null) {
+            lblStatus.setText("⛔ " + msg);
+            lblStatus.setStyle("-fx-text-fill: #e53935;");
+            lblStatus.setVisible(true);
+            lblStatus.setManaged(true);
+        }
     }
 }

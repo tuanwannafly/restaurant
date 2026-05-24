@@ -293,18 +293,28 @@ public class CashierController implements Initializable {
     // ─── moveToInProgress ────────────────────────────────────────────────────
 
     /**
-     * Callback từ {@link CashierPaymentDialogController} sau khi xác nhận:
-     * chuyển card từ cột "Chờ" sang cột "Đang xử lý".
+     * Callback từ dialog sau khi xác nhận:
+     * chuyển card sang cột "Đang xử lý" với payment method đã xác nhận.
      *
-     * @param req          PaymentRequest vừa xác nhận
-     * @param employeeName tên nhân viên thu ngân đã chọn
+     * @param req               PaymentRequest gốc
+     * @param employeeName      nhân viên được chọn
+     * @param paymentMethodName tên enum của phương thức thanh toán đã xác nhận
      */
-    public void moveToInProgress(PaymentRequest req, String employeeName) {
+    public void moveToInProgress(PaymentRequest req, String employeeName, String paymentMethodName) {
+        // Tạo bản sao với payment method đã được cashier xác nhận
+        PaymentRequest.PaymentMethod confirmedMethod;
+        try {
+            confirmedMethod = PaymentRequest.PaymentMethod.valueOf(paymentMethodName);
+        } catch (Exception e) {
+            confirmedMethod = req.paymentMethod;
+        }
+        PaymentRequest confirmed = req.withPaymentMethod(confirmedMethod);
+
         pendingList.removeIf(r -> r.orderId.equals(req.orderId));
         rebuildPendingColumn();
 
-        processingList.add(req);
-        addProcessingCard(req, employeeName);
+        processingList.add(confirmed);
+        addProcessingCard(confirmed, employeeName);
     }
 
     // ─── completePayment ─────────────────────────────────────────────────────
@@ -319,8 +329,59 @@ public class CashierController implements Initializable {
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() {
-                boolean ok = orderDAO.completeOrder(req.orderId);
-                if (ok) tableDAO.updateStatus(req.tableId, TableItem.Status.DIRTY);
+                String method = req.paymentMethod != null
+                    ? req.paymentMethod.name() : "CASH";
+                boolean ok = orderDAO.completeOrder(req.orderId, method);
+                if (ok) {
+                    com.restaurant.session.AuditLogger.getInstance()
+                        .logPaymentComplete(req.orderId, req.tableId, method);
+                    // Cập nhật trạng thái bàn → DIRTY; wrap try-catch để task
+                    // không fail nếu bàn đã được đổi trạng thái bởi tiến trình khác.
+                    try {
+                        tableDAO.updateStatus(req.tableId, TableItem.Status.DIRTY);
+                    } catch (Exception tableEx) {
+                        System.err.println("[CashierController] updateStatus lỗi (bỏ qua): "
+                            + tableEx.getMessage());
+                    }
+                    // Broadcast để TableController phía admin tự động refresh (TABLES)
+                    // VÀ để tablet WaitingPage nhận tín hiệu thanh toán hoàn tất (ORDERS + table topic)
+                    try {
+                        long rid = com.restaurant.session.AppSession.getInstance().getRestaurantId();
+                        com.restaurant.websocket.RestaurantEventServer srv =
+                            com.restaurant.websocket.RestaurantEventServer.getInstance();
+                        com.restaurant.websocket.RestaurantEventClient cli =
+                            com.restaurant.websocket.RestaurantEventClient.getInstance();
+
+                        com.restaurant.websocket.WsEvent tablesEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.TABLES, rid);
+                        com.restaurant.websocket.WsEvent ordersEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.ORDERS, rid);
+                        com.restaurant.websocket.WsEvent badgeEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.BADGE, rid);
+                        // Topic bàn riêng — tablet đang chờ trên topic này
+                        com.restaurant.websocket.WsEvent tableEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.forTable(
+                                    Integer.parseInt(req.tableId)), rid);
+
+                        if (srv.isRunning()) {
+                            srv.broadcast(tablesEvt);
+                            srv.broadcast(ordersEvt);
+                            srv.broadcast(badgeEvt);
+                            srv.broadcast(tableEvt);
+                        } else {
+                            cli.publishToServer(tablesEvt);
+                            cli.publishToServer(ordersEvt);
+                            cli.publishToServer(badgeEvt);
+                            cli.publishToServer(tableEvt);
+                        }
+                    } catch (Exception wsEx) {
+                        System.err.println("[CashierController] broadcast lỗi: " + wsEx.getMessage());
+                    }
+                }
                 return ok;
             }
         };
@@ -342,9 +403,19 @@ public class CashierController implements Initializable {
             }
         });
 
-        task.setOnFailed(e ->
+        task.setOnFailed(e -> {
+            Throwable ex = task.getException();
             System.err.println("[CashierController] completePayment lỗi: "
-                + task.getException().getMessage()));
+                + (ex != null ? ex.getMessage() : "unknown"));
+            com.restaurant.session.AuditLogger.getInstance()
+                .logPaymentFailed(req.orderId,
+                    ex != null ? ex.getMessage() : "unknown error");
+            ToastNotificationFx.showError(
+                getStage(),
+                "Lỗi hệ thống khi hoàn tất đơn #" + req.orderId
+                    + ".\nVui lòng thử lại hoặc liên hệ quản trị viên."
+            );
+        });
 
         Thread t = new Thread(task);
         t.setDaemon(true);
@@ -366,15 +437,14 @@ public class CashierController implements Initializable {
             Node root = loader.load();
 
             CashierPaymentDialogController ctrl = loader.getController();
-            ctrl.initData(req, employeeName -> {
-                // Callback: chạy trên JavaFX Application Thread
-                Platform.runLater(() -> moveToInProgress(req, employeeName));
+            // Callback nhận (employeeName, paymentMethodName)
+            ctrl.initData(req, (employeeName, paymentMethodName) -> {
+                Platform.runLater(() -> moveToInProgress(req, employeeName, paymentMethodName));
             });
 
             Stage dialog = new Stage();
             dialog.setTitle("Thanh toán – " + req.tableName);
             dialog.setResizable(false);
-            // Gắn vào scene gốc để dialog modal đúng
             dialog.initOwner(getStage());
             dialog.initModality(javafx.stage.Modality.APPLICATION_MODAL);
             dialog.setScene(new javafx.scene.Scene((javafx.scene.Parent) root));
@@ -471,10 +541,18 @@ public class CashierController implements Initializable {
         Label lblTableName = (Label) card.lookup("#lblTableName");
         Label lblAmount    = (Label) card.lookup("#lblAmount");
         Label lblMethod    = (Label) card.lookup("#lblMethod");
+        Label lblSep       = (Label) card.lookup("#lblSep");
 
         if (lblTableName != null) lblTableName.setText(req.tableName);
-        if (lblAmount    != null) lblAmount.setText(formatAmount(req.totalAmount) + "đ");
-        if (lblMethod    != null) lblMethod.setText(req.getPaymentMethodLabel());
+        if (lblAmount    != null) lblAmount.setText(formatAmount(req.getGrandTotal()) + "đ");
+        if (lblMethod    != null) {
+            // Hiện "Tiền mặt · 3 món" hoặc "Chuyển khoản · 3 món"
+            int itemCount = req.items != null ? req.items.size() : 0;
+            String suffix = itemCount > 0 ? " · " + itemCount + " món" : "";
+            lblMethod.setText(req.getPaymentMethodLabel() + suffix);
+        }
+        // Ẩn separator nếu không cần
+        if (lblSep != null) lblSep.setVisible(false);
     }
 
     /**
@@ -496,7 +574,7 @@ public class CashierController implements Initializable {
         lblTable.getStyleClass().add("card-table-name");
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
         javafx.scene.layout.HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-        Label lblAmount = new Label(formatAmount(req.totalAmount) + "đ");
+        Label lblAmount = new Label(formatAmount(req.getGrandTotal()) + "đ");
         lblAmount.getStyleClass().add("card-amount");
         headerRow.getChildren().addAll(lblTable, spacer, lblAmount);
 
@@ -555,32 +633,47 @@ public class CashierController implements Initializable {
     // ─── Static helpers (giống CashierPanel) ─────────────────────────────────
 
     /**
-     * Lọc order còn active (chưa COMPLETED / CANCELLED).
-     * Tương đương {@code CashierPanel#isActiveForCashier(Order)}.
+     * Chỉ hiện đơn có status {@code PAYMENT_REQUESTED} — khách đã bấm
+     * "Yêu cầu thanh toán" từ tablet và đang chờ thu ngân xử lý.
+     * Các đơn COOKING, DELIVERED... không thuộc trách nhiệm của cashier màn hình này.
      */
     private static boolean isActiveForCashier(Order o) {
-        Order.Status s = o.getStatus();
-        return s != Order.Status.COMPLETED
-            && s != Order.Status.CANCELLED
-            && s != Order.Status.DA_HUY
-            && s != Order.Status.HOAN_THANH;
+        return o.getStatus() == Order.Status.PAYMENT_REQUESTED;
     }
 
     /**
-     * Chuyển {@link Order} → {@link PaymentRequest}.
-     * Tương đương {@code CashierPanel#toPaymentRequest(Order)}.
+     * Chuyển {@link Order} → {@link PaymentRequest}, giữ items + paymentMethod.
      */
     private static PaymentRequest toPaymentRequest(Order o) {
         String tableName = (o.getTableName() != null && !o.getTableName().isBlank())
             ? "Bàn " + o.getTableName()
             : "Bàn #" + o.getTableId();
-        return new PaymentRequest(
+
+        // Map payment method từ DB string → enum
+        PaymentRequest.PaymentMethod method = parsePaymentMethod(o.getPaymentMethod());
+
+        PaymentRequest req = new PaymentRequest(
             o.getId(),
             o.getTableId(),
             tableName,
             o.getTotalAmount(),
-            PaymentRequest.PaymentMethod.CASH
+            method
         );
+        req.items       = new java.util.ArrayList<>(o.getItems());
+        req.createdTime = o.getCreatedTime();
+        return req;
+    }
+
+    /** Chuyển DB string → PaymentMethod enum, mặc định CASH nếu null/unknown. */
+    private static PaymentRequest.PaymentMethod parsePaymentMethod(String dbMethod) {
+        if (dbMethod == null) return PaymentRequest.PaymentMethod.CASH;
+        switch (dbMethod.toUpperCase()) {
+            case "BANK_TRANSFER": return PaymentRequest.PaymentMethod.BANK_TRANSFER;
+            case "CARD":          return PaymentRequest.PaymentMethod.CARD;
+            case "MOMO":          return PaymentRequest.PaymentMethod.MOMO;
+            case "VNPAY":         return PaymentRequest.PaymentMethod.VNPAY;
+            default:              return PaymentRequest.PaymentMethod.CASH;
+        }
     }
 
     /** Định dạng tiền VND (dấu phẩy/chấm theo locale vi_VN). */
@@ -594,7 +687,6 @@ public class CashierController implements Initializable {
 
     /**
      * DTO gọn mang thông tin một đơn hàng cần thanh toán.
-     * Mirror của {@code com.restaurant.ui.CashierPanel.PaymentRequest} (Swing).
      */
     public static class PaymentRequest {
 
@@ -610,12 +702,26 @@ public class CashierController implements Initializable {
             public String getLabel() { return label; }
         }
 
+        // ─── Core fields (final) ──────────────────────────────────────────────
         public final String        orderId;
         public final String        tableId;
         public final String        tableName;
-        public final double        totalAmount;
+        public final double        totalAmount;   // tổng từ DB (trước VAT nếu DB lưu net, hoặc grand total)
         public final PaymentMethod paymentMethod;
 
+        // ─── Extended fields ──────────────────────────────────────────────────
+        /** Danh sách món trong đơn — được set từ Order.getItems(). */
+        public java.util.List<com.restaurant.model.Order.OrderItem> items
+            = new java.util.ArrayList<>();
+
+        /** Giờ mở bàn / tạo đơn — hiển thị trên dialog. */
+        public String createdTime = "";
+
+        // ─── VAT ─────────────────────────────────────────────────────────────
+        /** VAT rate — 10% theo quy định Việt Nam hiện hành. */
+        public static final double VAT_RATE = 0.10;
+
+        // ─── Constructors ────────────────────────────────────────────────────
         public PaymentRequest(String orderId, String tableId, String tableName,
                               double totalAmount, PaymentMethod paymentMethod) {
             this.orderId       = orderId;
@@ -623,6 +729,57 @@ public class CashierController implements Initializable {
             this.tableName     = tableName;
             this.totalAmount   = totalAmount;
             this.paymentMethod = paymentMethod;
+        }
+
+        /** Tạo bản sao với payment method mới (dùng sau khi cashier xác nhận). */
+        public PaymentRequest withPaymentMethod(PaymentMethod m) {
+            PaymentRequest copy = new PaymentRequest(orderId, tableId, tableName, totalAmount, m);
+            copy.items       = this.items;
+            copy.createdTime = this.createdTime;
+            return copy;
+        }
+
+        // ─── Computed totals ─────────────────────────────────────────────────
+
+        /**
+         * Tạm tính = tổng (qty × đơn giá) các món.
+         * Nếu items rỗng, dùng totalAmount từ DB làm fallback.
+         */
+        public double getSubtotal() {
+            if (items == null || items.isEmpty()) return totalAmount;
+            return items.stream()
+                .mapToDouble(com.restaurant.model.Order.OrderItem::getSubtotal)
+                .sum();
+        }
+
+        /** VAT 10% = subtotal × 0.10. */
+        public double getVatAmount() {
+            return getSubtotal() * VAT_RATE;
+        }
+
+        /**
+         * Tổng cộng (đã gồm VAT).
+         * Ưu tiên dùng totalAmount từ DB nếu khớp, nếu không tính lại.
+         */
+        public double getGrandTotal() {
+            double computed = getSubtotal() + getVatAmount();
+            // Nếu DB total đã gồm VAT và gần bằng computed → dùng DB total (avoid rounding drift)
+            if (Math.abs(totalAmount - computed) < 1.0 && totalAmount > 0) return totalAmount;
+            return computed;
+        }
+
+        /**
+         * Tiền khách đưa ước tính (CASH) = làm tròn lên bội 50.000đ gần nhất.
+         * Ví dụ: 273.000đ → 300.000đ.
+         */
+        public long getCashReceived() {
+            double grand = getGrandTotal();
+            return (long) (Math.ceil(grand / 50_000.0) * 50_000);
+        }
+
+        /** Tiền thừa = tiền khách đưa − tổng cộng. */
+        public long getChange() {
+            return getCashReceived() - (long) getGrandTotal();
         }
 
         public String getPaymentMethodLabel() {

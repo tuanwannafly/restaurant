@@ -51,7 +51,17 @@
                 <DatePicker fx:id="dpTo"   prefWidth="135"/>
             </HBox>
 
-            <!-- Filter row 2: action buttons -->
+            <!-- Filter row 2: keyword search -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Tìm kiếm:" styleClass="body-label"/>
+                <javafx.scene.control.TextField
+                    fx:id="tfKeyword"
+                    promptText="Tìm trong chi tiết (email, bàn, order…)"
+                    prefWidth="340" prefHeight="32"
+                    onAction="#onRefresh"/>
+            </HBox>
+
+            <!-- Filter row 3: action buttons -->
             <HBox spacing="8" alignment="CENTER_LEFT">
                 <Button fx:id="btnRefresh"
                         text="🔄 Tải lại"

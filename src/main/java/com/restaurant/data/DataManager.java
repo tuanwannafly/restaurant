@@ -3,8 +3,6 @@ package com.restaurant.data;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.SwingWorker;
-
 import com.restaurant.dao.EmployeeDAO;
 import com.restaurant.dao.MenuItemDAO;
 import com.restaurant.dao.OrderDAO;
@@ -232,17 +230,6 @@ public class DataManager {
         checkSession();
         try { orderDAO.delete(id); }
         catch (Exception e) { System.err.println("[DataManager] deleteOrder lỗi: " + e.getMessage()); }
-    }
-
-    // ═══════════════════════════════════════════════════════
-    //  Async helper: chạy task trong background, sau đó gọi callback trên EDT
-    // ═══════════════════════════════════════════════════════
-
-    public static void runAsync(Runnable task, Runnable onDone) {
-        new SwingWorker<Void, Void>() {
-            @Override protected Void doInBackground() { task.run(); return null; }
-            @Override protected void done() { if (onDone != null) onDone.run(); }
-        }.execute();
     }
 
     // ═══════════════════════════════════════════════════════

@@ -34,6 +34,8 @@ public class Order {
         DELIVERING,
         /** Món đã giao đến bàn */
         DELIVERED,
+        /** Khách yêu cầu thanh toán — đang chờ thu ngân xử lý */
+        PAYMENT_REQUESTED,
         /** Đơn hàng hoàn thành, đã thanh toán */
         COMPLETED,
         /** Đơn hàng bị huỷ */
@@ -55,6 +57,13 @@ public class Order {
 
     /** Số điện thoại khách hàng – nullable */
     private String customerPhone;
+
+    /**
+     * Phương thức thanh toán – được set khi khách gửi yêu cầu thanh toán
+     * từ tablet. Giá trị: "CASH", "BANK_TRANSFER", "CARD", "MOMO", "VNPAY".
+     * Nullable – null nghĩa là chưa xác định.
+     */
+    private String paymentMethod;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
@@ -107,6 +116,9 @@ public class Order {
     public String getCustomerPhone()               { return customerPhone; }
     public void   setCustomerPhone(String v)       { this.customerPhone = v; }
 
+    public String getPaymentMethod()               { return paymentMethod; }
+    public void   setPaymentMethod(String v)       { this.paymentMethod = v; }
+
     // ─── Display helper ───────────────────────────────────────────────────────
 
     public String getStatusDisplay() {
@@ -123,6 +135,7 @@ public class Order {
             case READY:        return "Sẵn sàng";
             case DELIVERING:   return "Đang giao";
             case DELIVERED:    return "Đã giao";
+            case PAYMENT_REQUESTED: return "Chờ thanh toán";
             case COMPLETED:    return "Hoàn thành";
             case CANCELLED:    return "Đã hủy";
             default:           return "";

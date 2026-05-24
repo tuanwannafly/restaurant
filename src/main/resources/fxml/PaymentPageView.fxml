@@ -62,7 +62,7 @@
             <HBox alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
                 <Button text="← Quay lại" styleClass="btn-ghost" onAction="#onBack"/>
             </HBox>
-            <Button text="✅  Gửi yêu cầu" styleClass="btn-primary" onAction="#onSubmit"/>
+            <Button fx:id="btnSubmit" text="✅  Gửi yêu cầu" styleClass="btn-primary" onAction="#onSubmit"/>
         </HBox>
     </bottom>
 </BorderPane>

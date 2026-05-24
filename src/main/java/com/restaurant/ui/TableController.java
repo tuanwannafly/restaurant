@@ -16,6 +16,8 @@ import com.restaurant.session.RbacGuard;
 import com.restaurant.ui.dialog.OpenTableDialogController;
 import com.restaurant.ui.dialog.PaymentDialogController;
 import com.restaurant.ui.dialog.TableDialogController;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.WsTopic;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -65,6 +67,9 @@ public class TableController implements Initializable {
     private final List<TableItem> allItems       = new ArrayList<>();
     private final List<TableItem> displayedItems = new ArrayList<>();
 
+    /** Token để huỷ đăng ký WS handler khi controller bị huỷ. */
+    private Runnable cancelWsHandler;
+
     // ─── Initializable ────────────────────────────────────────────────────────
 
     @Override
@@ -73,6 +78,35 @@ public class TableController implements Initializable {
         setupSearchListener();
         applyRbac();
         loadData();
+        setupWsSubscription();
+        // Polling fallback: làm mới trạng thái bàn mỗi 8 giây
+        // (bổ sung cho WS để đảm bảo luôn cập nhật dù WS gặp vấn đề)
+        javafx.application.Platform.runLater(() ->
+            com.restaurant.ui.fx.util.PollManagerFx.getInstance().register(
+                "table_status_poll", this::loadData, 8_000)
+        );
+    }
+
+    // ─── WebSocket subscription ────────────────────────────────────────────────
+
+    /**
+     * Subscribe WsTopic.TABLES: mỗi khi có thay đổi trạng thái bàn (tablet mở,
+     * thanh toán xong…), server broadcast → TableController gọi loadData() tự động.
+     */
+    private void setupWsSubscription() {
+        long myRid = com.restaurant.session.AppSession.getInstance().getRestaurantId();
+        boolean isSuperAdmin = RbacGuard.getInstance().isSuperAdmin();
+        RestaurantEventClient ws = RestaurantEventClient.getInstance();
+
+        cancelWsHandler = ws.addEventHandler(event -> {
+            if (event == null) return;
+            if (!WsTopic.TABLES.equals(event.getTopic())) return;
+            // SUPER_ADMIN nhận mọi event; nhà hàng chỉ nhận event của mình
+            if (!isSuperAdmin && event.getRestaurantId() != myRid) return;
+            Platform.runLater(this::loadData);
+        });
+
+        ws.subscribe(WsTopic.TABLES);
     }
 
     // ─── Setup ────────────────────────────────────────────────────────────────
