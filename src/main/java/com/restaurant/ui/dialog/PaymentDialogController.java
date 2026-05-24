@@ -279,7 +279,32 @@ public class PaymentDialogController implements Initializable {
             @Override
             protected Boolean call() {
                 boolean ok1 = orderDAO.completeOrder(orderId);
-                boolean ok2 = tableDAO.updateStatus(tableId, TableItem.Status.DIRTY);
+                boolean ok2 = true;
+                try {
+                    ok2 = tableDAO.updateStatus(tableId, TableItem.Status.DIRTY);
+                } catch (Exception tableEx) {
+                    // Bàn đã đổi trạng thái bởi tiến trình khác — không block thanh toán
+                    System.err.println("[PaymentDialogController] updateStatus lỗi (bỏ qua): "
+                            + tableEx.getMessage());
+                }
+                if (ok1) {
+                    // Broadcast để TableController phía admin tự động refresh
+                    try {
+                        long rid = com.restaurant.session.AppSession.getInstance().getRestaurantId();
+                        com.restaurant.websocket.WsEvent evt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.TABLES, rid);
+                        com.restaurant.websocket.RestaurantEventServer srv =
+                            com.restaurant.websocket.RestaurantEventServer.getInstance();
+                        if (srv.isRunning()) {
+                            srv.broadcast(evt);
+                        } else {
+                            com.restaurant.websocket.RestaurantEventClient.getInstance().publishToServer(evt);
+                        }
+                    } catch (Exception wsEx) {
+                        System.err.println("[PaymentDialogController] broadcast TABLES lỗi: " + wsEx.getMessage());
+                    }
+                }
                 return ok1 && ok2;
             }
         };

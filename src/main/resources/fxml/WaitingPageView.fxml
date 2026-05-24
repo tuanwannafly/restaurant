@@ -28,7 +28,8 @@
     <center>
         <!-- Centered card -->
         <StackPane>
-            <VBox alignment="CENTER" spacing="20" styleClass="waiting-card"
+            <!-- Waiting card (hiện khi đang chờ) -->
+            <VBox fx:id="waitingCard" alignment="CENTER" spacing="20" styleClass="waiting-card"
                   maxWidth="480" maxHeight="300">
                 <!-- Spinner icon -->
                 <Label fx:id="lblIcon" text="⏳" styleClass="waiting-icon"/>
@@ -41,6 +42,16 @@
 
                 <Label text="Vui lòng chờ trong giây lát."
                        styleClass="label-hint"/>
+            </VBox>
+
+            <!-- Thank-you card (hiện sau khi thanh toán hoàn tất) -->
+            <VBox fx:id="thankYouCard" alignment="CENTER" spacing="20" styleClass="waiting-card"
+                  maxWidth="480" maxHeight="340" visible="false" managed="false">
+                <Label text="✅" styleClass="waiting-icon"/>
+                <Label text="Cảm ơn quý khách!" styleClass="waiting-title"/>
+                <Label fx:id="lblRestaurantName" text="" styleClass="waiting-sub"
+                       wrapText="true" maxWidth="300" alignment="CENTER"/>
+                <Label text="Hẹn gặp lại quý khách!" styleClass="label-hint"/>
             </VBox>
         </StackPane>
     </center>

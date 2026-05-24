@@ -1,0 +1,185 @@
+/*
+ * cashier.css — Phase 10 · Thu ngân
+ * Đặt vào: src/main/resources/css/cashier.css
+ * Khai báo trong CashierView.fxml: stylesheets="@../css/cashier.css"
+ */
+
+/* ═══════════════════════════════════════════
+   ROOT / LAYOUT
+   ═══════════════════════════════════════════ */
+
+.cashier-root {
+    -fx-background-color: #F8FAFC;
+}
+
+/* ── Title bar (NORTH) ── */
+.title-bar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 4, 0, 0, 2);
+}
+
+.title-label {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0F172A;
+}
+
+/* ── Spinner ── */
+.spinner-label {
+    -fx-font-size: 18px;
+    -fx-text-fill: #2563EB;
+}
+
+/* ═══════════════════════════════════════════
+   COLUMNS WRAPPER
+   ═══════════════════════════════════════════ */
+
+.columns-wrapper {
+    -fx-background-color: #F1F5F9;
+}
+
+.column-panel {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 6, 0, 0, 2);
+}
+
+/* ── Column headers ── */
+.column-header {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 10 16 10 16;
+    -fx-background-radius: 10 10 0 0;
+}
+
+.column-header-amber {
+    -fx-background-color: #D97706;
+}
+
+.column-header-green {
+    -fx-background-color: #16A34A;
+}
+
+/* ── ScrollPane ── */
+.column-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.column-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.card-container {
+    -fx-background-color: transparent;
+}
+
+/* ═══════════════════════════════════════════
+   PAYMENT CARDS
+   ═══════════════════════════════════════════ */
+
+.payment-card {
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.07), 4, 0, 0, 2);
+}
+
+/* Cột trái — Chờ thanh toán (amber) */
+.payment-card-pending {
+    -fx-background-color: #FFFBEB;
+    -fx-border-color: #FCD34D;
+}
+
+.payment-card-pending:hover {
+    -fx-background-color: #FEF3C7;
+    -fx-border-color: #F59E0B;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.12), 8, 0, 0, 3);
+}
+
+/* Cột phải — Đang xử lý (green) */
+.payment-card-processing {
+    -fx-background-color: #F0FDF4;
+    -fx-border-color: #86EFAC;
+}
+
+/* ── Card text labels ── */
+.card-table-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1E293B;
+}
+
+.card-amount {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1D4ED8;
+}
+
+.card-sep {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 13px;
+}
+
+.card-method {
+    -fx-text-fill: #64748B;
+    -fx-font-size: 13px;
+}
+
+/* ── Status pill ── */
+.status-pill {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-background-radius: 20;
+    -fx-padding: 3 10 3 10;
+}
+
+.status-pill-amber {
+    -fx-background-color: #D97706;
+}
+
+.status-pill-green {
+    -fx-background-color: #16A34A;
+}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════ */
+
+.btn-success-full {
+    -fx-background-color: #16A34A;
+    -fx-background-radius: 8;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+
+.btn-success-full:hover {
+    -fx-background-color: #15803D;
+}
+
+.btn-success-full:pressed {
+    -fx-background-color: #166534;
+}
+
+/* ═══════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════ */
+
+.empty-state-label {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 13px;
+    -fx-font-style: italic;
+    -fx-padding: 24 16 24 16;
+}

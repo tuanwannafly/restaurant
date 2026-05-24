@@ -53,14 +53,45 @@ public class OrderDAO {
     private long rid()             { return AppSession.getInstance().getRestaurantId(); }
     private boolean isSuperAdmin() { return RbacGuard.getInstance().isSuperAdmin(); }
 
+    // ─── Auto-migration: thêm cột payment_method nếu chưa có ─────────────────
+
+    /**
+     * Tự động thêm cột {@code payment_method} vào bảng {@code orders} nếu chưa tồn tại.
+     * Chạy một lần duy nhất (double-checked locking).
+     * An toàn với Oracle: ORA-01430 (column already exists) bị bỏ qua.
+     */
+    private static volatile boolean _colChecked = false;
+
+    private void ensurePaymentMethodColumn() {
+        if (_colChecked) return;
+        synchronized (OrderDAO.class) {
+            if (_colChecked) return;
+            try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
+                 java.sql.Statement  stmt = conn.createStatement()) {
+                stmt.execute("ALTER TABLE orders ADD (payment_method VARCHAR2(20))");
+                System.out.println("[OrderDAO] Đã thêm cột payment_method vào bảng orders.");
+            } catch (java.sql.SQLException e) {
+                // ORA-01430 = column already exists → hoàn toàn bình thường
+                if (!e.getMessage().contains("ORA-01430")) {
+                    System.err.println("[OrderDAO] ensurePaymentMethodColumn lỗi: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                System.err.println("[OrderDAO] ensurePaymentMethodColumn lỗi kết nối: " + e.getMessage());
+            } finally {
+                _colChecked = true;
+            }
+        }
+    }
+
     // ─── READ ─────────────────────────────────────────────────────────────────
 
     public List<Order> getAll() {
+        ensurePaymentMethodColumn();
         List<Order> list = new ArrayList<>();
         String sql = isSuperAdmin()
             ? """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
-                     o.customer_name, o.customer_phone,
+                     o.customer_name, o.customer_phone, o.payment_method,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -68,7 +99,7 @@ public class OrderDAO {
               """
             : """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
-                     o.customer_name, o.customer_phone,
+                     o.customer_name, o.customer_phone, o.payment_method,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -101,10 +132,11 @@ public class OrderDAO {
      * @return {@link Order} nếu tìm thấy; {@code null} nếu không tồn tại hoặc lỗi
      */
     public Order findById(String orderId) {
+        ensurePaymentMethodColumn();
         String sql = isSuperAdmin()
             ? """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
-                     o.customer_name, o.customer_phone,
+                     o.customer_name, o.customer_phone, o.payment_method,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -112,7 +144,7 @@ public class OrderDAO {
               """
             : """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
-                     o.customer_name, o.customer_phone,
+                     o.customer_name, o.customer_phone, o.payment_method,
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
@@ -512,17 +544,60 @@ public class OrderDAO {
 
     // ─── COMPLETE ORDER ───────────────────────────────────────────────────────
 
-    public boolean completeOrder(String orderId) {
+    /**
+     * Hoàn tất thanh toán — set COMPLETED, lưu payment_method, ghi completed_at.
+     *
+     * @param orderId       ID đơn hàng
+     * @param paymentMethod phương thức thanh toán đã dùng ("CASH", "BANK_TRANSFER", …)
+     * @return true nếu update thành công
+     */
+    public boolean completeOrder(String orderId, String paymentMethod) {
         String sql = isSuperAdmin()
-            ? "UPDATE orders SET status = 'COMPLETED', completed_at = SYSTIMESTAMP WHERE order_id = ?"
-            : "UPDATE orders SET status = 'COMPLETED', completed_at = SYSTIMESTAMP WHERE order_id = ? AND restaurant_id = ?";
+            ? "UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP, payment_method=? WHERE order_id=?"
+            : "UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP, payment_method=? WHERE order_id=? AND restaurant_id=?";
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, parseLongOrDefault(orderId, 0));
-            if (!isSuperAdmin()) ps.setLong(2, rid());
+            ps.setString(1, paymentMethod);
+            ps.setLong(2, parseLongOrDefault(orderId, 0));
+            if (!isSuperAdmin()) ps.setLong(3, rid());
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             System.err.println("[OrderDAO] completeOrder lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Overload giữ backward-compat — payment_method = NULL. */
+    public boolean completeOrder(String orderId) {
+        return completeOrder(orderId, null);
+    }
+
+    // ─── REQUEST PAYMENT ─────────────────────────────────────────────────────
+
+    /**
+     * Tablet gọi khi khách bấm "Gửi yêu cầu thanh toán".
+     * Chuyển đơn sang {@code PAYMENT_REQUESTED}, lưu payment_method.
+     *
+     * <p>Sau khi gọi method này, {@link #getPaymentRequestedCount} tăng lên
+     * và {@code CashierController} sẽ nhận push event qua WebSocket / poll
+     * để hiển thị card trong cột "Chờ thanh toán".</p>
+     *
+     * @param orderId       ID đơn hàng
+     * @param paymentMethod "CASH" | "BANK_TRANSFER" | "CARD" | "MOMO" | "VNPAY"
+     * @return true nếu update thành công
+     */
+    public boolean requestPayment(String orderId, String paymentMethod) {
+        String sql = isSuperAdmin()
+            ? "UPDATE orders SET status='PAYMENT_REQUESTED', payment_method=? WHERE order_id=?"
+            : "UPDATE orders SET status='PAYMENT_REQUESTED', payment_method=? WHERE order_id=? AND restaurant_id=?";
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, paymentMethod);
+            ps.setLong(2, parseLongOrDefault(orderId, 0));
+            if (!isSuperAdmin()) ps.setLong(3, rid());
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] requestPayment lỗi: " + e.getMessage());
             return false;
         }
     }
@@ -615,7 +690,7 @@ public class OrderDAO {
             createdAt = ts.toLocalDateTime().toString().replace("T", " ");
             if (createdAt.length() > 16) createdAt = createdAt.substring(0, 16);
         }
-        return new Order(
+        Order o = new Order(
                 String.valueOf(rs.getLong("order_id")),
                 String.valueOf(rs.getLong("table_id")),
                 rs.getString("table_number"),
@@ -626,6 +701,8 @@ public class OrderDAO {
                 safeGetString(rs, "customer_name"),
                 safeGetString(rs, "customer_phone")
         );
+        o.setPaymentMethod(safeGetString(rs, "payment_method"));
+        return o;
     }
 
     private List<Order.OrderItem> getOrderItems(Connection conn, long orderId) throws SQLException {
@@ -678,36 +755,38 @@ public class OrderDAO {
     private String toDbStatus(Order.Status s) {
         if (s == null) return "PENDING";
         switch (s) {
-            case PENDING:      return "PENDING";
-            case ACCEPTED:     return "ACCEPTED";
-            case COOKING:      return "COOKING";
-            case READY:        return "READY";
-            case DELIVERING:   return "DELIVERING";
-            case DELIVERED:    return "DELIVERED";
-            case COMPLETED:    return "COMPLETED";
-            case CANCELLED:    return "CANCELLED";
-            case DANG_PHUC_VU: return "PENDING";
-            case HOAN_THANH:   return "COMPLETED";
-            case DA_HUY:       return "CANCELLED";
-            default:           return "PENDING";
+            case PENDING:            return "PENDING";
+            case ACCEPTED:           return "ACCEPTED";
+            case COOKING:            return "COOKING";
+            case READY:              return "READY";
+            case DELIVERING:         return "DELIVERING";
+            case DELIVERED:          return "DELIVERED";
+            case PAYMENT_REQUESTED:  return "PAYMENT_REQUESTED";
+            case COMPLETED:          return "COMPLETED";
+            case CANCELLED:          return "CANCELLED";
+            case DANG_PHUC_VU:       return "PENDING";
+            case HOAN_THANH:         return "COMPLETED";
+            case DA_HUY:             return "CANCELLED";
+            default:                 return "PENDING";
         }
     }
 
     private Order.Status fromDbStatus(String s) {
         if (s == null) return Order.Status.PENDING;
         switch (s) {
-            case "PENDING":         return Order.Status.PENDING;
+            case "PENDING":           return Order.Status.PENDING;
             case "ACCEPTED":
-            case "CONFIRMED":       return Order.Status.ACCEPTED;
-            case "COOKING":         return Order.Status.COOKING;
-            case "READY":           return Order.Status.READY;
-            case "DELIVERING":      return Order.Status.DELIVERING;
+            case "CONFIRMED":         return Order.Status.ACCEPTED;
+            case "COOKING":           return Order.Status.COOKING;
+            case "READY":             return Order.Status.READY;
+            case "DELIVERING":        return Order.Status.DELIVERING;
             case "DELIVERED":
-            case "SERVED":          return Order.Status.DELIVERED;
-            case "COMPLETED":       return Order.Status.COMPLETED;
-            case "CANCELLED":       return Order.Status.CANCELLED;
+            case "SERVED":            return Order.Status.DELIVERED;
+            case "PAYMENT_REQUESTED": return Order.Status.PAYMENT_REQUESTED;
+            case "COMPLETED":         return Order.Status.COMPLETED;
+            case "CANCELLED":         return Order.Status.CANCELLED;
             case "IN_PROGRESS":
-            default:                return Order.Status.PENDING;
+            default:                  return Order.Status.PENDING;
         }
     }
 

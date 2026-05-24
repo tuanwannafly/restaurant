@@ -18,6 +18,8 @@ import com.restaurant.model.MenuItem;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsEvent;
 import com.restaurant.websocket.WsTopic;
 
 import javafx.application.Platform;
@@ -429,6 +431,40 @@ public class KitchenController implements Initializable {
     // ─── Card builder ─────────────────────────────────────────────────────────
 
     /**
+     * Broadcast WS events sau khi bếp cập nhật trạng thái món.
+     *
+     * <p>Gửi {@link WsTopic#ORDERS} và topic riêng của từng bàn bị ảnh hưởng
+     * để {@code TableOrderStage} (tablet) tự động refresh trạng thái món ăn.</p>
+     *
+     * <p>Vì {@code KitchenController} luôn chạy trên Instance 1 (instance sở hữu
+     * WS server), có thể gọi {@link RestaurantEventServer#broadcast} trực tiếp
+     * mà không cần relay qua {@code publishToServer}.</p>
+     *
+     * @param tickets danh sách ticket vừa được cập nhật trạng thái
+     */
+    private void broadcastStatusChange(List<KitchenTicket> tickets) {
+        long restaurantId = AppSession.getInstance().getRestaurantId();
+        RestaurantEventServer srv = RestaurantEventServer.getInstance();
+
+        // Broadcast ORDERS — TableOrderStage subscribe topic này để refresh
+        srv.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
+        srv.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
+
+        // Broadcast topic riêng từng bàn bị ảnh hưởng để refresh nhanh hơn
+        if (tickets != null) {
+            tickets.stream()
+                   .map(t -> t.tableId)
+                   .distinct()
+                   .forEach(tid -> {
+                       try {
+                           int tableIdInt = Integer.parseInt(tid);
+                           srv.broadcast(WsEvent.of(WsTopic.forTable(tableIdInt), restaurantId));
+                       } catch (NumberFormatException ignored) {}
+                   });
+        }
+    }
+
+    /**
      * Load {@code KitchenTicketCard.fxml}, bind dữ liệu rồi trả về root Node.
      */
     private Node buildCard(String itemName,
@@ -443,11 +479,11 @@ public class KitchenController implements Initializable {
             if (isPending) {
                 ctrl.bindPending(itemName, tickets,
                         () -> openDetailDialog(itemName, tickets, true),
-                        this::doPoll);
+                        () -> { doPoll(); broadcastStatusChange(tickets); });
             } else {
                 ctrl.bindCooking(itemName, tickets,
                         () -> openDetailDialog(itemName, tickets, false),
-                        this::doPoll);
+                        () -> { doPoll(); broadcastStatusChange(tickets); });
             }
 
             return root;

@@ -1,6 +1,7 @@
 package com.restaurant.ui.fx.controller;
 
 import com.restaurant.ui.TableOrderStage;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
@@ -19,8 +20,12 @@ public class PaymentPageController extends BasePageController {
     @FXML private ToggleButton  tbCash;
     @FXML private VBox          cashPanel;
     @FXML private TextField     tfCashAmount;
+    @FXML private Button        btnSubmit;
 
     private String selectedMethod = "transfer";
+
+    /** Tổng đơn hiện tại — cập nhật bởi syncTotal(). 0 = chưa có món. */
+    private double currentTotal = 0;
 
     @FXML
     private void initialize() {
@@ -60,9 +65,13 @@ public class PaymentPageController extends BasePageController {
 
     private void syncTotal() {
         stage.loadOrderItems(items -> {
-            double total = items.stream()
+            currentTotal = items.stream()
                     .mapToDouble(com.restaurant.model.Order.OrderItem::getSubtotal).sum();
-            lblTotal.setText("Tổng cộng: " + fmt(total) + " đ");
+            lblTotal.setText("Tổng cộng: " + fmt(currentTotal) + " đ");
+            // Chỉ cho phép submit khi tổng đơn > 0
+            if (btnSubmit != null) {
+                btnSubmit.setDisable(currentTotal <= 0);
+            }
         });
     }
 
@@ -89,6 +98,16 @@ public class PaymentPageController extends BasePageController {
 
     @FXML
     private void onSubmit() {
+        if (currentTotal <= 0) {
+            // Không cho phép gửi yêu cầu thanh toán nếu đơn trống
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.WARNING,
+                    "Đơn hàng chưa có món nào.\nVui lòng chọn món trước khi thanh toán.",
+                    javafx.scene.control.ButtonType.OK);
+            alert.setHeaderText(null);
+            alert.showAndWait();
+            return;
+        }
         String cash = tfCashAmount.getText().trim();
         stage.submitPaymentRequest(selectedMethod, cash);
         stage.navigateTo(TableOrderStage.PAGE_WAITING);

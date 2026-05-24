@@ -159,8 +159,8 @@ public class TableDAO {
         switch (s) {
             case BAN:       return "OCCUPIED";
             case DAT_TRUOC: return "RESERVED";
-            case DIRTY:     return "DIRTY";
-            case CLEANING:  return "CLEANING";
+            case DIRTY:     return "OUT_OF_SERVICE";   // DB constraint không có DIRTY
+            case CLEANING:  return "OUT_OF_SERVICE";   // DB constraint không có CLEANING
             case RANH:
             default:        return "AVAILABLE";
         }

@@ -8,7 +8,7 @@
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.dialog.OrderDetailController"
             styleClass="dialog-root"
-            stylesheets="@../../css/style.css"
+            stylesheets="@../../css/app.css"
             prefWidth="560">
 
     <!-- ═══ TITLE ═══ -->

@@ -11,7 +11,6 @@ import com.restaurant.session.RefreshTokenService;
 import com.restaurant.session.TabletSession;
 import com.restaurant.session.TokenStorage;
 import com.restaurant.ui.TableOrderStage;
-import com.restaurant.websocket.WsEvent;
 import com.restaurant.ui.fx.controller.LoginController;
 import com.restaurant.ui.fx.controller.MainController;
 import com.restaurant.ui.fx.util.FxUtils;
@@ -198,6 +197,7 @@ public class Main extends Application {
         RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
         wsClient.connect();
         wsClient.subscribe(WsTopic.forTable(Integer.parseInt(tablet.getTableId())));
+        // Lưu ý: admin side nhận thay đổi trạng thái bàn qua Oracle DCN → WS broadcast tự động
 
         // Mở màn hình đặt món full-screen
         TableOrderStage orderStage = new TableOrderStage(
@@ -207,8 +207,7 @@ public class Main extends Application {
         );
         orderStage.setFullScreen(true);
         orderStage.setFullScreenExitHint("");
-        // Chặn tắt cửa sổ để tablet luôn ở màn hình đặt món
-        orderStage.setOnCloseRequest(e -> e.consume());
+        // TableOrderStage.setupCloseHandler() xử lý đóng cửa sổ + cập nhật trạng thái bàn
         orderStage.show();
 
         primaryStage.close();
@@ -310,14 +309,19 @@ public class Main extends Application {
      * <ol>
      *   <li>Inject {@link PollManagerFx.BadgeUpdater} vào PollManagerFx
      *       (giữ nguyên như cũ).</li>
+     *   <li>Đặt {@link RestaurantEventServer#setOnStartCallback} để chỉ instance bind
+     *       port thành công mới khởi động {@link OracleDcnBridge}.</li>
      *   <li>Khởi động {@link RestaurantEventServer} tại port 8025.</li>
      *   <li>Kết nối {@link RestaurantEventClient} và subscribe 4 topic:
      *       BADGE, KITCHEN, ORDERS, REQUEST_LIST.</li>
      *   <li>Đăng ký {@code onEvent} handler → gọi
      *       {@link PollManagerFx#refreshBadgesAsync()} ngay khi nhận push.</li>
-     *   <li>Khởi động {@link OracleDcnBridge} (fallback-safe nếu thiếu privilege).</li>
      *   <li>Gọi {@link PollManagerFx#refreshBadgesAsync()} một lần ngay để load badge ban đầu.</li>
      * </ol>
+     *
+     * <p><b>Multi-instance:</b> nếu 2 instance cùng chạy, instance 2 không bind được port
+     * → callback không chạy → DCN không start trên instance 2 → tránh hoàn toàn
+     * race condition "publishToServer() gọi khi client chưa connect".
      */
     private void openMainView(Stage stage) {
         MainController controller = new MainController();
@@ -350,16 +354,41 @@ public class Main extends Application {
         //            → Platform.runLater → onEvent handler (FX thread)
         //              → PollManagerFx.refreshBadgesAsync() → BadgeUpdater
         //
-        //  (1) Khởi động WebSocket server nội bộ
+        //  (1) Đặt callback TRƯỚC khi start server.
+        //      Oracle DCN chỉ khởi động nếu instance này bind được cổng 8025.
+        //      Instance 2 (cổng bị chiếm) → onStart() không bao giờ được gọi
+        //      → DCN không start → instance 2 chỉ là WS client thuần tuý.
+        //
+        //  Tại sao quan trọng:
+        //    - Nếu cả 2 instance đều start DCN, cả 2 đều nhận callback từ Oracle.
+        //    - Instance 2 sẽ gọi client.publishToServer() nhưng client chưa chắc
+        //      đã connect xong (async) → event bị drop (race condition).
+        //    - Với cách này: chỉ instance 1 (server) có DCN → broadcast đến mọi
+        //      subscriber kể cả client của instance 2 → instance 2 nhận đủ event.
+        RestaurantEventServer.getInstance().setOnStartCallback(() -> {
+            System.out.println("[Main] WS server bind thành công — khởi động Oracle DCN.");
+            try {
+                OracleDcnBridge.getInstance().start();
+            } catch (Exception dcnEx) {
+                System.err.println("[Main] OracleDcnBridge không thể start: "
+                        + dcnEx.getMessage());
+            }
+        });
+
+        //  (2) Khởi động WebSocket server nội bộ.
+        //      Nếu cổng bị chiếm (instance 2), lỗi được bắt và log — callback không chạy.
         try {
             RestaurantEventServer.getInstance().start();
         } catch (Exception wsServerEx) {
-            System.err.println("[Main] WS server không thể start: " + wsServerEx.getMessage()
-                    + " — badge sẽ không nhận push.");
+            System.err.println("[Main] WS server không thể start (cổng đã được dùng bởi "
+                    + "instance khác — instance này chạy ở chế độ client-only): "
+                    + wsServerEx.getMessage());
         }
 
-        //  (2) Kết nối client và subscribe tất cả topic cần thiết.
+        //  (3) Kết nối client và subscribe tất cả topic cần thiết.
         //      connect() non-blocking — onOpen() gửi SUB frames sau khi handshake xong.
+        //      Cả 2 instance đều kết nối → instance 1's server nhận và relay event
+        //      đến tất cả subscriber (kể cả client của instance 2).
         RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
         wsClient.connect();
         wsClient.subscribe(
@@ -369,19 +398,10 @@ public class Main extends Application {
                 WsTopic.REQUEST_LIST
         );
 
-        //  (3) Mọi push event → kích hoạt badge refresh ngay lập tức.
+        //  (4) Mọi push event → kích hoạt badge refresh ngay lập tức.
         //      addEventHandler() trả về cancel token — không cần lưu vì badge refresh
         //      tồn tại suốt vòng đời app. Handler luôn chạy trên FX thread.
         wsClient.addEventHandler(event -> PollManagerFx.getInstance().refreshBadgesAsync());
-
-        //  (4) Khởi động Oracle DCN bridge.
-        //      Fallback-safe: nếu thiếu privilege hoặc Oracle < 11g → log warning,
-        //      không crash, PollManagerFx vẫn có thể dùng register() thủ công nếu cần.
-        try {
-            OracleDcnBridge.getInstance().start();
-        } catch (Exception dcnEx) {
-            System.err.println("[Main] OracleDcnBridge không thể start: " + dcnEx.getMessage());
-        }
 
         //  (5) Load badge ngay lập tức (không chờ push đầu tiên từ Oracle).
         PollManagerFx.getInstance().refreshBadgesAsync();
@@ -441,12 +461,13 @@ public class Main extends Application {
         RestaurantEventClient wsClient = RestaurantEventClient.getInstance();
         wsClient.connect();
         wsClient.subscribe(WsTopic.forTable(Integer.parseInt(tableId)));
+        // Lưu ý: admin side nhận thay đổi trạng thái bàn qua Oracle DCN → WS broadcast tự động
 
         // Mở màn hình đặt món full-screen
         TableOrderStage orderStage = new TableOrderStage(tableId, order.getId(), tableName);
         orderStage.setFullScreen(true);
         orderStage.setFullScreenExitHint("");
-        orderStage.setOnCloseRequest(e -> e.consume()); // chặn tắt cửa sổ
+        // TableOrderStage.setupCloseHandler() xử lý đóng cửa sổ + cập nhật trạng thái bàn
         orderStage.show();
 
         loginStage.close();

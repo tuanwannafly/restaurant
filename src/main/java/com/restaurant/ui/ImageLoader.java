@@ -1,32 +1,30 @@
 package com.restaurant.ui;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.InputStream;
-import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-import javax.imageio.ImageIO;
-
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
- * ImageLoader — Phase 6A (JavaFX port)
+ * ImageLoader — pure JavaFX implementation (no java.awt / javax.imageio).
  *
- * <p>Utility class that loads images asynchronously using JavaFX {@link Task},
- * so the Application Thread (AT) is never blocked.
+ * <p>Loads images asynchronously so the FX Application Thread is never blocked.
  *
  * <p>Features:
  * <ul>
  *   <li>Loads from HTTP/HTTPS URLs <em>or</em> local file paths.</li>
- *   <li>In-memory LRU-like cache backed by a {@link ConcurrentHashMap}.</li>
- *   <li>Shows a grey placeholder immediately; swaps to the real image when ready.</li>
+ *   <li>In-memory cache backed by a {@link ConcurrentHashMap}.</li>
+ *   <li>Shows a grey placeholder immediately; swaps to real image when ready.</li>
  *   <li>Falls back to the placeholder silently on any load failure.</li>
  *   <li>{@link #invalidate(String)} and {@link #clearCache()} for cache management.</li>
  * </ul>
@@ -43,60 +41,47 @@ public final class ImageLoader {
     public static final int IMG_H = 120;
 
     // ── Cache ─────────────────────────────────────────────────────────────────
-    /** urlOrPath → Image (JavaFX Image, created on AT or loaded from background). */
     private static final Map<String, Image> cache = new ConcurrentHashMap<>();
 
     // ── Placeholder ───────────────────────────────────────────────────────────
-    /** Lazy singleton; created once on first use. */
     private static volatile Image placeholder;
 
-    /**
-     * Background thread pool — daemon threads so they don't prevent JVM exit.
-     */
+    // ── Thread pool ───────────────────────────────────────────────────────────
     private static final ExecutorService executor = Executors.newFixedThreadPool(
         3, r -> { Thread t = new Thread(r, "img-loader"); t.setDaemon(true); return t; });
 
-    // ── Private constructor ───────────────────────────────────────────────────
     private ImageLoader() {}
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
      * Load an image from {@code urlOrPath} into {@code target} asynchronously.
+     * The target is set to the placeholder immediately, then swapped to the
+     * loaded image on the FX Application Thread when ready.
      *
-     * <p>The target's image is set to the placeholder immediately, then swapped
-     * to the loaded image on the Application Thread when the background task
-     * completes.
-     *
-     * @param urlOrPath HTTP/HTTPS URL or local file path (absolute or relative)
-     * @param target    {@link ImageView} to receive the loaded image
+     * @param urlOrPath HTTP/HTTPS URL or local file path
+     * @param target    {@link ImageView} to receive the image
      */
     public static void loadAsync(String urlOrPath, ImageView target) {
-        // null / blank → show placeholder
         if (urlOrPath == null || urlOrPath.isBlank()) {
             target.setImage(getPlaceholder());
             return;
         }
 
-        // Cache hit → show immediately
         Image cached = cache.get(urlOrPath);
         if (cached != null) {
             target.setImage(cached);
             return;
         }
 
-        // Show placeholder while loading
         target.setImage(getPlaceholder());
 
-        // Build and submit background task
         Task<Image> task = buildLoadTask(urlOrPath);
-
         task.setOnSucceeded(e -> {
             Image img = task.getValue();
             cache.put(urlOrPath, img);
             target.setImage(img);
         });
-
         task.setOnFailed(e -> {
             System.err.println("[ImageLoader] Không load được ảnh: "
                 + urlOrPath + " — " + task.getException().getMessage());
@@ -107,12 +92,11 @@ public final class ImageLoader {
     }
 
     /**
-     * Variant that calls a {@link Consumer} with the loaded {@link Image}
-     * instead of setting it on an {@link ImageView} directly.
-     * Useful when you need to apply the image to multiple targets.
+     * Variant that delivers the loaded {@link Image} to a {@link Consumer}
+     * instead of setting it directly on an {@link ImageView}.
      *
-     * @param urlOrPath  HTTP/HTTPS URL or local file path
-     * @param onLoaded   callback invoked on the Application Thread with the result
+     * @param urlOrPath HTTP/HTTPS URL or local file path
+     * @param onLoaded  callback invoked on the FX Application Thread
      */
     public static void loadAsync(String urlOrPath, Consumer<Image> onLoaded) {
         if (urlOrPath == null || urlOrPath.isBlank()) {
@@ -127,13 +111,11 @@ public final class ImageLoader {
         }
 
         Task<Image> task = buildLoadTask(urlOrPath);
-
         task.setOnSucceeded(e -> {
             Image img = task.getValue();
             cache.put(urlOrPath, img);
             onLoaded.accept(img);
         });
-
         task.setOnFailed(e -> {
             System.err.println("[ImageLoader] Không load được ảnh: "
                 + urlOrPath + " — " + task.getException().getMessage());
@@ -143,86 +125,51 @@ public final class ImageLoader {
         executor.submit(task);
     }
 
-    /**
-     * Remove a single entry from the cache.
-     * Call this after updating a menu item's {@code imageUrl}.
-     *
-     * @param urlOrPath cache key to remove
-     */
+    /** Remove a single entry from the cache (e.g., after updating an image URL). */
     public static void invalidate(String urlOrPath) {
         if (urlOrPath != null) cache.remove(urlOrPath);
     }
 
-    /**
-     * Flush the entire image cache.
-     * Call when performing a full menu reload (e.g., restaurant switch).
-     */
+    /** Flush the entire image cache (e.g., on restaurant switch). */
     public static void clearCache() {
         cache.clear();
     }
 
-    // ── Background task builder ───────────────────────────────────────────────
+    // ── Background task ───────────────────────────────────────────────────────
 
     /**
-     * Builds a {@link Task} that reads the image from a URL or local file,
-     * then scales it to {@link #IMG_W} × {@link #IMG_H} using AWT for quality,
-     * and returns a JavaFX {@link Image}.
+     * Builds a {@link Task} that loads the image using JavaFX {@link Image}.
+     * Converts local file paths to {@code file:} URIs automatically.
      */
     private static Task<Image> buildLoadTask(String urlOrPath) {
         return new Task<>() {
             @Override
             protected Image call() throws Exception {
-                // ① Read raw BufferedImage via AWT (supports more formats)
-                BufferedImage raw;
-                if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
-                    try (InputStream is = new URL(urlOrPath).openStream()) {
-                        raw = ImageIO.read(is);
-                    }
-                } else {
-                    raw = ImageIO.read(new File(urlOrPath));
+                String uri = toUri(urlOrPath);
+                // JavaFX Image loads synchronously here (on background thread).
+                // preserveRatio=true, smooth=true, backgroundLoading=false because
+                // we are already on a background thread — no need to double-defer.
+                Image img = new Image(uri, IMG_W, IMG_H, true, true, false);
+                if (img.isError()) {
+                    throw new IllegalStateException(
+                        "JavaFX Image error: " + img.getException().getMessage());
                 }
-
-                if (raw == null) {
-                    throw new IllegalStateException("ImageIO.read() trả về null cho: " + urlOrPath);
-                }
-
-                // ② Scale using AWT (SCALE_SMOOTH) — better quality than JavaFX default
-                java.awt.Image scaled = raw.getScaledInstance(IMG_W, IMG_H, java.awt.Image.SCALE_SMOOTH);
-                java.awt.image.BufferedImage out =
-                    new java.awt.image.BufferedImage(IMG_W, IMG_H, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                java.awt.Graphics2D g2 = out.createGraphics();
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                                    java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                g2.drawImage(scaled, 0, 0, null);
-                g2.dispose();
-
-                // ③ Convert AWT BufferedImage → JavaFX WritableImage
-                return awtToFX(out);
+                return img;
             }
         };
     }
 
-    // ── AWT → JavaFX image conversion ────────────────────────────────────────
-
-    /**
-     * Converts an AWT {@link BufferedImage} to a JavaFX {@link Image}
-     * by writing it to a byte array and reading it back with JavaFX.
-     */
-    private static Image awtToFX(BufferedImage awtImage) throws Exception {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        ImageIO.write(awtImage, "png", baos);
-        try (java.io.ByteArrayInputStream bais =
-                 new java.io.ByteArrayInputStream(baos.toByteArray())) {
-            return new Image(bais);
+    /** Converts a local path to a {@code file:} URI; leaves HTTP(S) URLs unchanged. */
+    private static String toUri(String urlOrPath) {
+        if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")
+                || urlOrPath.startsWith("file:")) {
+            return urlOrPath;
         }
+        return new File(urlOrPath).toURI().toString();
     }
 
     // ── Placeholder ───────────────────────────────────────────────────────────
 
-    /**
-     * Returns a 120×120 light-grey placeholder image with a centred 🍽 emoji.
-     * Created lazily (once) using AWT, then cached in the static field.
-     */
     private static Image getPlaceholder() {
         if (placeholder == null) {
             synchronized (ImageLoader.class) {
@@ -234,36 +181,21 @@ public final class ImageLoader {
         return placeholder;
     }
 
+    /**
+     * Builds a simple light-grey {@link WritableImage} as a fallback placeholder.
+     * Pure JavaFX — no AWT required.
+     */
     private static Image buildPlaceholder() {
-        BufferedImage img = new BufferedImage(IMG_W, IMG_H, BufferedImage.TYPE_INT_ARGB);
-        java.awt.Graphics2D g2 = img.createGraphics();
+        WritableImage img = new WritableImage(IMG_W, IMG_H);
+        PixelWriter pw = img.getPixelWriter();
 
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                            java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
-                            java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        // Light-grey rounded background
-        g2.setColor(new java.awt.Color(0xF3F4F6));
-        g2.fillRoundRect(0, 0, IMG_W, IMG_H, 16, 16);
-
-        // Plate emoji centred
-        String emoji = "🍽";
-        java.awt.Font font = new java.awt.Font("Segoe UI Emoji", java.awt.Font.PLAIN, 36);
-        g2.setFont(font);
-        g2.setColor(new java.awt.Color(0xD1D5DB));
-        java.awt.FontMetrics fm = g2.getFontMetrics();
-        int ex = (IMG_W - fm.stringWidth(emoji)) / 2;
-        int ey = (IMG_H + fm.getAscent() - fm.getDescent()) / 2;
-        g2.drawString(emoji, ex, ey);
-
-        g2.dispose();
-
-        try {
-            return awtToFX(img);
-        } catch (Exception e) {
-            // Absolute fallback — transparent 1×1 image
-            return new Image(new java.io.ByteArrayInputStream(new byte[0]));
+        // Fill with light-grey (#F3F4F6)
+        int grey = 0xFFF3F4F6;
+        for (int y = 0; y < IMG_H; y++) {
+            for (int x = 0; x < IMG_W; x++) {
+                pw.setArgb(x, y, grey);
+            }
         }
+        return img;
     }
 }

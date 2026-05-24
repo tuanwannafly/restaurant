@@ -34,6 +34,12 @@ public final class WsTopic {
     /** Waiter request list — restaurant_requests thay đổi. */
     public static final String REQUEST_LIST = "request_list";
 
+    /**
+     * Trạng thái bàn thay đổi — broadcast mỗi khi bàn chuyển AVAILABLE/OCCUPIED/DIRTY…
+     * {@code TableController} subscribe topic này để tự động gọi {@code loadData()}.
+     */
+    public static final String TABLES = "tables";
+
     // ── Dynamic per-table topic ───────────────────────────────────────────────
 
     /**

@@ -8,6 +8,10 @@ import java.sql.Timestamp;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Order;
+import com.restaurant.websocket.RestaurantEventClient;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsEvent;
+import com.restaurant.websocket.WsTopic;
 
 /**
  * DAO cho tablet khách — không phụ thuộc AppSession hay RbacGuard.
@@ -61,6 +65,9 @@ public class TabletOrderDAO {
     /**
      * Lấy order đang active của bàn (status khác COMPLETED và CANCELLED).
      * Nếu chưa có order → tạo mới tự động với status PENDING.
+     * <p>
+     * <b>Quan trọng:</b> Sau khi lấy hoặc tạo order, cập nhật trạng thái bàn
+     * thành OCCUPIED ngay lập tức để admin thấy "Bàn đang có khách".
      *
      * @param tableId ID bàn
      * @return Order đang active, hoặc null nếu lỗi DB
@@ -87,6 +94,8 @@ public class TabletOrderDAO {
                 if (rs.next()) {
                     Order o = mapOrder(rs);
                     System.out.println("[TabletOrderDAO] Found active order: " + o.getId());
+                    // Khách mở tablet lại → đảm bảo bàn hiển thị OCCUPIED cho admin
+                    markTableOccupied(tableId);
                     return o;
                 }
             }
@@ -97,7 +106,119 @@ public class TabletOrderDAO {
 
         // 2. Chưa có order → tạo mới PENDING
         System.out.println("[TabletOrderDAO] No active order, creating new for table " + tableId);
-        return createPendingOrder(tableId);
+        Order newOrder = createPendingOrder(tableId);
+        if (newOrder != null) {
+            // Khách ngồi vào bàn lần đầu → đánh dấu bàn OCCUPIED cho admin
+            markTableOccupied(tableId);
+            // Ghi audit log mở bàn
+            com.restaurant.session.AuditLogger.getInstance()
+                .logOpenTable(tableId, getTableName(tableId), Long.parseLong(newOrder.getId()));
+        }
+        return newOrder;
+    }
+
+    /**
+     * Cập nhật trạng thái bàn thành OCCUPIED trong DB.
+     * Gọi ngay khi khách mở tablet để admin thấy "Bàn đang có khách" realtime.
+     * <p>
+     * Không ném exception — lỗi chỉ được log vì đây là side-effect, không
+     * ảnh hưởng đến luồng đặt món của khách.
+     *
+     * @param tableId ID bàn cần cập nhật
+     */
+    /**
+     * Cập nhật trạng thái bàn thành OUT_OF_SERVICE (Cần dọn) sau khi thanh toán xong.
+     * Chỉ cập nhật nếu bàn đang OCCUPIED — an toàn khi gọi song song với cashier.
+     */
+    public void markTableDirty(String tableId) {
+        String sql = """
+            UPDATE restaurant_tables
+               SET status = 'OUT_OF_SERVICE'
+             WHERE table_id = ?
+               AND restaurant_id = ?
+               AND status = 'OCCUPIED'
+            """;
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, Long.parseLong(tableId));
+            ps.setLong(2, restaurantId);
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                System.out.println("[TabletOrderDAO] Bàn " + tableId + " → OUT_OF_SERVICE (cần dọn)");
+                broadcastTableChange();
+            }
+        } catch (Exception e) {
+            System.err.println("[TabletOrderDAO] markTableDirty lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Chỉ reset nếu bàn đang OCCUPIED — không ảnh hưởng trạng thái DIRTY/CLEANING.
+     *
+     * @param tableId ID bàn cần cập nhật
+     */
+    public void markTableAvailable(String tableId) {
+        String sql = """
+            UPDATE restaurant_tables
+               SET status = 'AVAILABLE'
+             WHERE table_id = ?
+               AND restaurant_id = ?
+               AND status = 'OCCUPIED'
+            """;
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, Long.parseLong(tableId));
+            ps.setLong(2, restaurantId);
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                System.out.println("[TabletOrderDAO] Bàn " + tableId + " → AVAILABLE (tablet đóng)");
+                broadcastTableChange();
+            }
+        } catch (Exception e) {
+            System.err.println("[TabletOrderDAO] markTableAvailable lỗi: " + e.getMessage());
+        }
+    }
+
+    private void markTableOccupied(String tableId) {
+        String sql = """
+            UPDATE restaurant_tables
+               SET status = 'OCCUPIED'
+             WHERE table_id = ?
+               AND restaurant_id = ?
+               AND status IN ('AVAILABLE', 'RESERVED')
+            """;
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, Long.parseLong(tableId));
+            ps.setLong(2, restaurantId);
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                System.out.println("[TabletOrderDAO] Bàn " + tableId + " → OCCUPIED");
+                broadcastTableChange();
+            }
+        } catch (Exception e) {
+            System.err.println("[TabletOrderDAO] markTableOccupied lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Broadcast WsEvent topic TABLES để admin side (TableController) tự động refresh.
+     * An toàn: lỗi chỉ được log, không ném exception.
+     */
+    private void broadcastTableChange() {
+        try {
+            WsEvent evt = WsEvent.of(WsTopic.TABLES, restaurantId);
+            RestaurantEventServer srv = RestaurantEventServer.getInstance();
+            if (srv.isRunning()) {
+                // Instance này là server (admin) → broadcast trực tiếp
+                srv.broadcast(evt);
+            } else {
+                // Instance này là tablet → relay đến admin server qua WS client
+                RestaurantEventClient.getInstance().publishToServer(evt);
+            }
+        } catch (Exception e) {
+            System.err.println("[TabletOrderDAO] broadcastTableChange lỗi: " + e.getMessage());
+        }
     }
 
     /**

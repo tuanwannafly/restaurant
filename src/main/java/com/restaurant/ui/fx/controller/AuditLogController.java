@@ -48,8 +48,10 @@ public class AuditLogController {
     // ── Hằng số ───────────────────────────────────────────────────────────────
 
     private static final String[] ACTION_OPTIONS = {
-        "Tất cả", "LOGIN", "LOGOUT", "CHANGE_PASSWORD", "CHANGE_ROLE",
-        "DELETE_EMPLOYEE", "DELETE_RESTAURANT", "ACCOUNT_LOCKED"
+        "Tất cả",
+        "LOGIN", "LOGOUT", "CHANGE_PASSWORD", "ACCOUNT_LOCKED",
+        "OPEN_TABLE", "SEND_ORDER", "REQUEST_PAYMENT", "PAYMENT_COMPLETE",
+        "CHANGE_ROLE", "DELETE_EMPLOYEE", "DELETE_RESTAURANT"
     };
 
     private static final DateTimeFormatter DT_FMT  =
@@ -62,6 +64,7 @@ public class AuditLogController {
     @FXML private ComboBox<String> cmbAction;
     @FXML private DatePicker       dpFrom;
     @FXML private DatePicker       dpTo;
+    @FXML private javafx.scene.control.TextField tfKeyword;
 
     @FXML private Button btnRefresh;
     @FXML private Button btnExport;
@@ -119,7 +122,7 @@ public class AuditLogController {
 
         colAction.setCellValueFactory(c ->
             new ReadOnlyStringWrapper(c.getValue().action));
-        colAction.setCellFactory(col -> centeredStringCell());
+        colAction.setCellFactory(col -> actionBadgeCell());
 
         colActor.setCellValueFactory(c -> {
             Long actor = c.getValue().actorUserId;
@@ -187,6 +190,7 @@ public class AuditLogController {
         String        actionFilter = buildActionFilter();
         LocalDateTime from         = toStartOfDay(dpFrom.getValue());
         LocalDateTime to           = toEndOfDay(dpTo.getValue());
+        String        keyword      = tfKeyword != null ? tfKeyword.getText().trim() : null;
 
         // Loading state
         btnRefresh.setDisable(true);
@@ -197,7 +201,7 @@ public class AuditLogController {
             @Override
             protected List<AuditEntry> call() {
                 return AuditLogger.getInstance()
-                        .getFilteredLogs(actionFilter, from, to, 500);
+                        .getFilteredLogs(actionFilter, from, to, keyword, 500);
             }
         };
 
@@ -311,6 +315,47 @@ public class AuditLogController {
     // ═════════════════════════════════════════════════════════════════════════
     // Helpers
     // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * TableCell hiển thị action dưới dạng pill badge màu sắc.
+     */
+    private static TableCell<AuditEntry, String> actionBadgeCell() {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(String action, boolean empty) {
+                super.updateItem(action, empty);
+                if (empty || action == null) { setGraphic(null); setText(null); return; }
+                javafx.scene.control.Label badge = new javafx.scene.control.Label(action);
+                badge.setStyle(
+                    "-fx-background-radius: 6;" +
+                    "-fx-padding: 2 8 2 8;" +
+                    "-fx-font-size: 11px;" +
+                    "-fx-font-weight: bold;" +
+                    actionBadgeStyle(action));
+                setGraphic(badge);
+                setText(null);
+                setAlignment(javafx.geometry.Pos.CENTER);
+            }
+        };
+    }
+
+    private static String actionBadgeStyle(String action) {
+        if (action == null) return "-fx-background-color:#E5E7EB;-fx-text-fill:#374151;";
+        return switch (action) {
+            case "LOGIN"             -> "-fx-background-color:#D1FAE5;-fx-text-fill:#065F46;";
+            case "LOGOUT"            -> "-fx-background-color:#E0F2FE;-fx-text-fill:#0369A1;";
+            case "CHANGE_PASSWORD"   -> "-fx-background-color:#FEF3C7;-fx-text-fill:#92400E;";
+            case "CHANGE_ROLE"       -> "-fx-background-color:#FFEDD5;-fx-text-fill:#9A3412;";
+            case "ACCOUNT_LOCKED"    -> "-fx-background-color:#FEE2E2;-fx-text-fill:#991B1B;";
+            case "DELETE_EMPLOYEE",
+                 "DELETE_RESTAURANT" -> "-fx-background-color:#FCA5A5;-fx-text-fill:#7F1D1D;";
+            case "OPEN_TABLE"        -> "-fx-background-color:#DCFCE7;-fx-text-fill:#166534;";
+            case "SEND_ORDER"        -> "-fx-background-color:#E0E7FF;-fx-text-fill:#3730A3;";
+            case "REQUEST_PAYMENT"   -> "-fx-background-color:#EDE9FE;-fx-text-fill:#5B21B6;";
+            case "PAYMENT_COMPLETE"  -> "-fx-background-color:#A7F3D0;-fx-text-fill:#064E3B;";
+            default -> "-fx-background-color:#F3F4F6;-fx-text-fill:#374151;";
+        };
+    }
 
     /**
      * Tạo TableCell&lt;AuditEntry, String&gt; với nội dung căn giữa theo chiều ngang.

@@ -11,11 +11,12 @@ import java.util.Map;
 
 import com.restaurant.db.DBConnection;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 
 /**
  * DAO thống kê doanh thu, top món, trạng thái bàn.
- * Chỉ RESTAURANT_ADMIN trở lên mới được gọi các method này.
+ * Yêu cầu quyền {@link Permission#VIEW_STATS} (RESTAURANT_ADMIN, CASHIER).
  */
 public class StatsDAO {
 
@@ -42,16 +43,16 @@ public class StatsDAO {
 
     // ── Guard helper ───────────────────────────────────────────────────────────
 
-    private void requireManager() {
-        if (!RbacGuard.getInstance().isManagerOrAbove()) {
-            throw new SecurityException("Chỉ quản lý mới xem được thống kê");
+    private void requireViewStats() {
+        if (!RbacGuard.getInstance().can(Permission.VIEW_STATS)) {
+            throw new SecurityException("Bạn không có quyền xem thống kê");
         }
     }
 
     // ── Method 1: getRevenue ───────────────────────────────────────────────────
 
     public RevenueStats getRevenue(LocalDate from, LocalDate to) {
-        requireManager();
+        requireViewStats();
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
@@ -93,7 +94,7 @@ public class StatsDAO {
     // ── Method 2: getTopItems ─────────────────────────────────────────────────
 
     public List<TopItem> getTopItems(LocalDate from, LocalDate to, int limit) {
-        requireManager();
+        requireViewStats();
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
@@ -151,7 +152,7 @@ public class StatsDAO {
      * @return {@link TableStats} – không bao giờ null
      */
     public TableStats getTableStats() {
-        requireManager();
+        requireViewStats();
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
 

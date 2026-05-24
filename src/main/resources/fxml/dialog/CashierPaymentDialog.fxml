@@ -4,7 +4,9 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
@@ -13,120 +15,183 @@
 <!--
   CashierPaymentDialog.fxml — Phase 10 · Thu ngân – Dialog thanh toán
   ──────────────────────────────────────────────────────────────────────────────
-  Tương đương dialog/CashierPaymentDialog.java (Swing Phase 5D).
-
-  Hiển thị khi thu ngân click vào card "Chờ thanh toán" trong CashierView.
-
-  Layout:
+  Layout thực tế nhà hàng:
     BorderPane
-    ├── NORTH  : header PRIMARY (tên bàn căn giữa, chữ trắng)
-    ├── CENTER : body VBox
-    │              ├── lblMethodInfo   — "Phương thức: Tiền mặt (Tiền khách đưa: …)"
-    │              ├── lblTotal        — "Tổng cộng: 250.000đ"
-    │              └── HBox staffRow   — "Tên nhân viên:" + cbEmployee
-    └── SOUTH  : footer HBox
-                    ├── btnPrint  [In hóa đơn]  (outline)
-                    ├── btnBack   [←]            (text-icon)
-                    ├── Region (spacer)
-                    └── btnConfirm [Thực hiện]  (PRIMARY fill)
+    ├── NORTH  : header (tên bàn + giờ mở bàn)
+    ├── CENTER : ScrollPane → VBox
+    │              ├── itemsContainer (danh sách món)
+    │              ├── Separator
+    │              ├── lblSubtotal / lblVat / lblGrandTotal
+    │              ├── Separator
+    │              ├── cbMethod (phương thức thanh toán)
+    │              ├── cashPanel (tiền mặt: tiền nhận + tiền thừa)
+    │              ├── Separator
+    │              └── cbEmployee (nhân viên thu ngân)
+    └── SOUTH  : footer [In hóa đơn] [←] [spacer] [Thực hiện]
 
-  Controller : com.restaurant.ui.fx.controller.CashierPaymentDialogController
-  Dùng trong: CashierController#openPaymentDialog()
-              → new Stage(), load fxml, stage.showAndWait()
-
-  Lưu ý FXML path:
-    src/main/resources/fxml/dialog/CashierPaymentDialog.fxml
+  Controller : CashierPaymentDialogController
 -->
 
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.restaurant.ui.fx.controller.CashierPaymentDialogController"
             styleClass="dialog-root"
-            prefWidth="500" prefHeight="420">
+            prefWidth="520" prefHeight="640">
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         NORTH — Header PRIMARY (xanh dương), tên bàn căn giữa
-         ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════ NORTH — Header ═══════════════════════════════ -->
     <top>
-        <HBox styleClass="dialog-header" alignment="CENTER" prefHeight="72">
-            <!--
-              lblTableName: được set động bởi
-              CashierPaymentDialogController#initData(PaymentRequest)
-            -->
+        <VBox styleClass="dialog-header" alignment="CENTER" prefHeight="80">
             <Label fx:id="lblTableName" text="Bàn --"
                    styleClass="dialog-header-title"/>
-        </HBox>
+            <Label fx:id="lblCreatedTime" text=""
+                   style="-fx-text-fill: rgba(255,255,255,0.75); -fx-font-size: 12px;"/>
+        </VBox>
     </top>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         CENTER — Body: thông tin thanh toán + chọn nhân viên
-         ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════ CENTER — Body ════════════════════════════════ -->
     <center>
-        <VBox spacing="12" styleClass="dialog-body">
-            <padding><Insets top="28" right="32" bottom="8" left="32"/></padding>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                    styleClass="edge-to-edge" style="-fx-background-color: transparent;">
+            <VBox spacing="0" styleClass="dialog-body">
+                <padding><Insets top="20" right="28" bottom="8" left="28"/></padding>
 
-            <!-- Phương thức thanh toán + ước tính tiền thối -->
-            <Label fx:id="lblMethodInfo"
-                   text="Phương thức thanh toán: --"
-                   styleClass="dialog-info-bold"
-                   wrapText="true"/>
+                <!-- ── Tiêu đề danh sách món ── -->
+                <HBox alignment="CENTER_LEFT" style="-fx-padding: 0 0 6 0;">
+                    <Label text="DANH SÁCH MÓN"
+                           style="-fx-font-size: 11px; -fx-font-weight: bold;
+                                  -fx-text-fill: #64748b; -fx-letter-spacing: 0.5px;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <!-- Header cột -->
+                    <Label text="Số lượng · Đơn giá"
+                           style="-fx-font-size: 11px; -fx-text-fill: #94a3b8; -fx-min-width:130;"/>
+                    <Label text="Thành tiền"
+                           style="-fx-font-size: 11px; -fx-text-fill: #94a3b8; -fx-min-width:90; -fx-alignment: CENTER_RIGHT;"/>
+                </HBox>
 
-            <!-- Tổng cộng -->
-            <Label fx:id="lblTotal"
-                   text="Tổng cộng: 0đ"
-                   styleClass="dialog-info"/>
+                <!-- ── Danh sách món (build động bởi controller) ── -->
+                <VBox fx:id="itemsContainer" spacing="0"
+                      style="-fx-border-color: #e2e8f0; -fx-border-radius: 8;
+                             -fx-background-color: #f8fafc; -fx-background-radius: 8;
+                             -fx-padding: 10 12 10 12;"/>
 
-            <!-- Khoảng cách -->
-            <Region prefHeight="8"/>
+                <Region prefHeight="14"/>
+                <Separator styleClass="dialog-separator"/>
+                <Region prefHeight="10"/>
 
-            <!-- Hàng chọn nhân viên -->
-            <HBox spacing="12" alignment="CENTER_LEFT">
-                <Label text="Tên nhân viên:" styleClass="dialog-info"/>
+                <!-- ── Tạm tính / VAT / Tổng cộng ── -->
+                <HBox alignment="CENTER_LEFT" style="-fx-padding: 3 0 3 0;">
+                    <Label text="Tạm tính" style="-fx-text-fill: #475569; -fx-font-size: 13px;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblSubtotal" text="0đ"
+                           style="-fx-text-fill: #475569; -fx-font-size: 13px;"/>
+                </HBox>
 
-                <!--
-                  cbEmployee: được populate bởi
-                  CashierPaymentDialogController#loadEmployeesAsync()
-                  Lọc Employee.Role.THU_NGAN từ EmployeeDAO.
-                  Disabled khi đang load; enabled sau khi load xong.
-                -->
-                <ComboBox fx:id="cbEmployee"
-                          promptText="Chọn nhân viên"
-                          prefWidth="200" prefHeight="32"
-                          styleClass="employee-combo"
-                          disable="true"/>
-            </HBox>
+                <HBox alignment="CENTER_LEFT" style="-fx-padding: 3 0 3 0;">
+                    <Label text="VAT (10%)" style="-fx-text-fill: #64748b; -fx-font-size: 13px;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblVat" text="0đ"
+                           style="-fx-text-fill: #64748b; -fx-font-size: 13px;"/>
+                </HBox>
 
-        </VBox>
+                <Region prefHeight="4"/>
+                <Separator styleClass="dialog-separator"/>
+                <Region prefHeight="6"/>
+
+                <HBox alignment="CENTER_LEFT" style="-fx-padding: 4 0 4 0;">
+                    <Label text="TỔNG CỘNG"
+                           style="-fx-text-fill: #0f172a; -fx-font-size: 15px;
+                                  -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblGrandTotal" text="0đ"
+                           style="-fx-text-fill: #1d4ed8; -fx-font-size: 18px;
+                                  -fx-font-weight: bold;"/>
+                </HBox>
+
+                <Region prefHeight="14"/>
+                <Separator styleClass="dialog-separator"/>
+                <Region prefHeight="12"/>
+
+                <!-- ── Phương thức thanh toán ── -->
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="Phương thức:"
+                           style="-fx-font-size: 13px; -fx-text-fill: #374151;
+                                  -fx-font-weight: bold; -fx-min-width: 110;"/>
+                    <ComboBox fx:id="cbMethod"
+                              prefWidth="180" prefHeight="32"
+                              styleClass="employee-combo"/>
+                </HBox>
+
+                <Region prefHeight="10"/>
+
+                <!-- ── Panel tiền mặt (ẩn khi không dùng CASH) ── -->
+                <VBox fx:id="cashPanel" spacing="8" visible="true" managed="true"
+                      style="-fx-background-color: #f0fdf4; -fx-background-radius: 8;
+                             -fx-border-color: #bbf7d0; -fx-border-radius: 8;
+                             -fx-padding: 12 14 12 14;">
+
+                    <HBox spacing="12" alignment="CENTER_LEFT">
+                        <Label text="Tiền khách đưa:"
+                               style="-fx-font-size: 13px; -fx-text-fill: #374151;
+                                      -fx-min-width: 120;"/>
+                        <TextField fx:id="tfCashReceived"
+                                   prefWidth="140" prefHeight="32"
+                                   style="-fx-font-size: 13px;"/>
+                        <Label text="đ" style="-fx-text-fill: #374151;"/>
+                    </HBox>
+
+                    <HBox spacing="12" alignment="CENTER_LEFT">
+                        <Label text="Tiền thừa:"
+                               style="-fx-font-size: 13px; -fx-text-fill: #374151;
+                                      -fx-min-width: 120;"/>
+                        <Label fx:id="lblChange" text="--"
+                               style="-fx-font-size: 14px; -fx-font-weight: bold;
+                                      -fx-text-fill: #16a34a;"/>
+                    </HBox>
+                </VBox>
+
+                <Region prefHeight="14"/>
+                <Separator styleClass="dialog-separator"/>
+                <Region prefHeight="12"/>
+
+                <!-- ── Nhân viên thu ngân ── -->
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="Nhân viên:"
+                           style="-fx-font-size: 13px; -fx-text-fill: #374151;
+                                  -fx-font-weight: bold; -fx-min-width: 110;"/>
+                    <ComboBox fx:id="cbEmployee"
+                              promptText="Chọn nhân viên"
+                              prefWidth="200" prefHeight="32"
+                              styleClass="employee-combo"
+                              disable="true"/>
+                </HBox>
+
+                <Region prefHeight="16"/>
+            </VBox>
+        </ScrollPane>
     </center>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         SOUTH — Footer: nút hành động
-         ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════ SOUTH — Footer ═══════════════════════════════ -->
     <bottom>
         <VBox>
             <Separator styleClass="dialog-separator"/>
             <HBox spacing="8" alignment="CENTER_LEFT" styleClass="dialog-footer">
                 <padding><Insets top="12" right="24" bottom="16" left="24"/></padding>
 
-                <!-- In hóa đơn (stub Phase 10F) -->
-                <Button fx:id="btnPrint" text="In hóa đơn"
+                <Button fx:id="btnPrint" text="🖨 In hóa đơn"
                         styleClass="btn-outline"
-                        prefWidth="110" prefHeight="34"
+                        prefWidth="120" prefHeight="36"
                         onAction="#onPrint"/>
 
-                <!-- Quay lại / đóng dialog -->
                 <Button fx:id="btnBack" text="←"
                         styleClass="btn-text-icon"
-                        prefWidth="36" prefHeight="34"
+                        prefWidth="36" prefHeight="36"
                         onAction="#onBack"/>
 
-                <!-- Spacer -->
                 <Region HBox.hgrow="ALWAYS"/>
 
-                <!-- Xác nhận thanh toán → validate → callback onConfirm -->
-                <Button fx:id="btnConfirm" text="Thực hiện"
+                <Button fx:id="btnConfirm" text="✓  Xác nhận thanh toán"
                         styleClass="btn-primary"
-                        prefWidth="110" prefHeight="34"
+                        prefWidth="170" prefHeight="36"
                         onAction="#onConfirm"
                         defaultButton="true"/>
             </HBox>

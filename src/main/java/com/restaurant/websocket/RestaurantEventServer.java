@@ -98,6 +98,18 @@ public final class RestaurantEventServer extends WebSocketServer {
     /** True khi server đã bind thành công và đang chạy. */
     private volatile boolean serverRunning = false;
 
+    /**
+     * Callback chạy một lần duy nhất ngay sau khi server bind thành công.
+     *
+     * <p>Mục đích: chỉ instance nào sở hữu WS Server (bind thành công) mới
+     * được khởi động Oracle DCN. Instance không bind được (port đã chiếm) sẽ
+     * không bao giờ gọi callback này → DCN không bao giờ start trên instance 2.</p>
+     *
+     * <p>Set trước khi gọi {@link #start()} để đảm bảo callback được gọi
+     * đúng thời điểm ngay sau {@link #onStart()}.</p>
+     */
+    private volatile Runnable onStartCallback;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     private RestaurantEventServer(int port) {
@@ -159,11 +171,42 @@ public final class RestaurantEventServer extends WebSocketServer {
         LOGGER.log(Level.WARNING, "[WsServer] Lỗi WebSocket từ " + addr, ex);
     }
 
+    /**
+     * Đặt callback được gọi một lần duy nhất ngay sau khi server bind cổng thành công.
+     *
+     * <p>Gọi phương thức này TRƯỚC khi {@link #start()} để đảm bảo callback được
+     * thực thi đúng thời điểm.
+     *
+     * <p>Ví dụ điển hình — chỉ start Oracle DCN khi instance này sở hữu WS server:
+     * <pre>{@code
+     * RestaurantEventServer.getInstance().setOnStartCallback(() ->
+     *     OracleDcnBridge.getInstance().start()
+     * );
+     * RestaurantEventServer.getInstance().start();
+     * }</pre>
+     *
+     * @param callback Runnable sẽ chạy trên WS server thread ngay sau khi bind.
+     *                 Có thể {@code null} để xóa callback đã đặt trước đó.
+     */
+    public void setOnStartCallback(Runnable callback) {
+        this.onStartCallback = callback;
+    }
+
     @Override
     public void onStart() {
         serverRunning = true;
         LOGGER.info("[WsServer] Server khởi động thành công tại cổng "
                 + getAddress().getPort());
+        // Kích hoạt callback — chỉ instance bind thành công mới chạy đến đây,
+        // nên đây là điểm an toàn duy nhất để start Oracle DCN.
+        Runnable cb = onStartCallback;
+        if (cb != null) {
+            try {
+                cb.run();
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "[WsServer] onStartCallback ném ngoại lệ.", e);
+            }
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
