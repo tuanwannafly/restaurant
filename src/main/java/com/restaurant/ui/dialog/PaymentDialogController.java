@@ -231,7 +231,11 @@ public class PaymentDialogController implements Initializable {
         };
 
         task.setOnSucceeded(e -> {
-            List<Order.OrderItem> items = task.getValue();
+            // [FIX] Loại bỏ món CANCELLED khỏi danh sách hiển thị và tính tiền
+            List<Order.OrderItem> items = task.getValue().stream()
+                    .filter(i -> i.getItemStatus()
+                            != Order.OrderItem.ItemStatus.CANCELLED)
+                    .collect(java.util.stream.Collectors.toList());
             tvItems.getItems().setAll(items);
             populateTotal(items);
             btnConfirm.setDisable(items.isEmpty());
@@ -247,7 +251,10 @@ public class PaymentDialogController implements Initializable {
     }
 
     private void populateTotal(List<Order.OrderItem> items) {
+        // [FIX] Chỉ tính các món chưa bị hủy — CANCELLED không được cộng vào tổng
         double total = items.stream()
+                .filter(i -> i.getItemStatus()
+                        != Order.OrderItem.ItemStatus.CANCELLED)
                 .mapToDouble(Order.OrderItem::getSubtotal)
                 .sum();
         lblTotal.setText(formatPrice(total) + " ₫");

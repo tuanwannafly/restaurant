@@ -1,9 +1,13 @@
 package com.restaurant.ui.fx.controller;
 
 import com.restaurant.ui.TableOrderStage;
-import javafx.application.Platform;
+
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.VBox;
 
 /**
@@ -65,10 +69,13 @@ public class PaymentPageController extends BasePageController {
 
     private void syncTotal() {
         stage.loadOrderItems(items -> {
+            // [FIX] Chỉ tính các món chưa bị hủy — CANCELLED không được cộng vào tổng
             currentTotal = items.stream()
-                    .mapToDouble(com.restaurant.model.Order.OrderItem::getSubtotal).sum();
+                    .filter(i -> i.getItemStatus()
+                            != com.restaurant.model.Order.OrderItem.ItemStatus.CANCELLED)
+                    .mapToDouble(com.restaurant.model.Order.OrderItem::getSubtotal)
+                    .sum();
             lblTotal.setText("Tổng cộng: " + fmt(currentTotal) + " đ");
-            // Chỉ cho phép submit khi tổng đơn > 0
             if (btnSubmit != null) {
                 btnSubmit.setDisable(currentTotal <= 0);
             }

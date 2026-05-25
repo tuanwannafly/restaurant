@@ -25,9 +25,11 @@
     <center>
         <TableView fx:id="statusTable" styleClass="data-table">
             <columns>
-                <TableColumn fx:id="colSTT"    text="STT"      prefWidth="60"/>
-                <TableColumn fx:id="colName"   text="Tên món"  prefWidth="320"/>
-                <TableColumn fx:id="colStatus" text="Trạng thái" prefWidth="180"/>
+                <TableColumn fx:id="colSTT"    text="STT"         prefWidth="55"/>
+                <TableColumn fx:id="colName"   text="Tên món"     prefWidth="270"/>
+                <TableColumn fx:id="colStatus" text="Trạng thái"  prefWidth="150"/>
+                <!-- colAction: nút Hủy món — chỉ hiển thị khi PENDING/ACCEPTED -->
+                <TableColumn fx:id="colAction" text=""             prefWidth="120"/>
             </columns>
         </TableView>
     </center>

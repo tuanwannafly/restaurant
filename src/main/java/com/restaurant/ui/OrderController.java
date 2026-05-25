@@ -1,13 +1,20 @@
 package com.restaurant.ui;
 
+import java.net.URL;
+import java.text.NumberFormat;
+import java.util.List;
+import java.util.Locale;
+import java.util.ResourceBundle;
+
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.Order;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.Permission;
 import com.restaurant.ui.dialog.OrderDetailController;
-import com.restaurant.ui.dialog.OrderStatController;
+import com.restaurant.websocket.RestaurantEventServer;
+import com.restaurant.websocket.WsEvent;
+import com.restaurant.websocket.WsTopic;
 
-import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -19,17 +26,18 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.net.URL;
-import java.text.NumberFormat;
-import java.util.List;
-import java.util.Locale;
-import java.util.ResourceBundle;
 
 public class OrderController implements Initializable {
 
@@ -48,11 +56,12 @@ public class OrderController implements Initializable {
 
     // ─── State ───────────────────────────────────────────────────────────────
 
-    private final OrderDAO                dao     = new OrderDAO();
-    private final ObservableList<Order>   allItems = FXCollections.observableArrayList();
-    private       FilteredList<Order>     filtered;
+    private final OrderDAO              dao      = new OrderDAO();
+    private final ObservableList<Order> allItems = FXCollections.observableArrayList();
+    private       FilteredList<Order>   filtered;
 
     private boolean canDelete = false;
+    private long    restaurantId;
 
     private static final NumberFormat NF =
         NumberFormat.getNumberInstance(new Locale("vi", "VN"));
@@ -61,6 +70,7 @@ public class OrderController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        restaurantId = AppSession.getInstance().getRestaurantId();
         applyPermissions();
         setupColumns();
         loadData();
@@ -71,7 +81,7 @@ public class OrderController implements Initializable {
     private void applyPermissions() {
         AppSession session = AppSession.getInstance();
         boolean canAdd = session.hasPermission(Permission.ADD_ORDER);
-        canDelete       = session.hasPermission(Permission.DELETE_ORDER);
+        canDelete      = session.hasPermission(Permission.DELETE_ORDER);
         btnAddOrder.setVisible(canAdd);
         btnAddOrder.setManaged(canAdd);
     }
@@ -101,7 +111,6 @@ public class OrderController implements Initializable {
             return cell;
         });
 
-        // Colored status badge
         colStatus.setCellValueFactory(data ->
             new javafx.beans.property.SimpleStringProperty(
                 data.getValue().getStatusDisplay()));
@@ -111,7 +120,6 @@ public class OrderController implements Initializable {
             new javafx.beans.property.SimpleStringProperty(data.getValue().getCreatedTime()));
         colTime.setCellFactory(col -> centeredOrderCell());
 
-        // Action buttons cell
         colAction.setCellFactory(col -> new ActionCell());
     }
 
@@ -135,9 +143,7 @@ public class OrderController implements Initializable {
     // ─── Search / filter ──────────────────────────────────────────────────────
 
     @FXML
-    private void onSearch() {
-        applyFilter();
-    }
+    private void onSearch() { applyFilter(); }
 
     private void applyFilter() {
         if (filtered == null) return;
@@ -182,27 +188,44 @@ public class OrderController implements Initializable {
 
     // ─── Action handlers ──────────────────────────────────────────────────────
 
+    /**
+     * Xoá đơn hàng hoàn toàn khỏi DB (cả orders lẫn order_items).
+     * Sau khi xoá, broadcast KITCHEN để màn hình bếp tự refresh —
+     * các món của đơn này sẽ biến mất ngay lập tức.
+     */
     private void handleDelete(Order order) {
         if (!canDelete) return;
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
             "Xóa đơn hàng \"" + order.getId() + "\"?",
             ButtonType.YES, ButtonType.NO);
-        confirm.setTitle("Xác nhận");
+        confirm.setTitle("Xác nhận xóa");
         confirm.setHeaderText(null);
         confirm.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.YES) {
-                Task<Void> task = new Task<>() {
-                    @Override protected Void call() {
-                        dao.delete(order.getId());
-                        return null;
-                    }
-                };
-                task.setOnSucceeded(e -> loadData());
-                new Thread(task, "order-delete").start();
-            }
+            if (btn != ButtonType.YES) return;
+            Task<Void> task = new Task<>() {
+                @Override protected Void call() {
+                    dao.delete(order.getId());
+                    return null;
+                }
+            };
+            task.setOnSucceeded(e -> {
+                loadData();
+                broadcastKitchenAndOrders(); // bếp tự refresh, món biến mất
+            });
+            task.setOnFailed(e ->
+                System.err.println("[OrderController] handleDelete lỗi: "
+                        + task.getException().getMessage()));
+            new Thread(task, "order-delete").start();
         });
     }
 
+    /**
+     * Cập nhật trạng thái đơn hàng.
+     *
+     * - "Đã hủy" → gọi {@code dao.cancelOrder()} để cập nhật cả order_items
+     *   và broadcast bếp (món biến mất khỏi màn hình bếp ngay lập tức).
+     * - Các trạng thái khác → gọi {@code dao.update()} bình thường.
+     */
     private void handleStatusUpdate(Order order) {
         String[] statuses = {"Đang phục vụ", "Hoàn thành", "Đã hủy"};
         ChoiceDialog<String> dialog = new ChoiceDialog<>(order.getStatusDisplay(), statuses);
@@ -210,8 +233,32 @@ public class OrderController implements Initializable {
         dialog.setHeaderText(null);
         dialog.setContentText("Chọn trạng thái mới:");
         dialog.showAndWait().ifPresent(chosen -> {
-            Order.Status newStatus = chosen.equals("Đang phục vụ") ? Order.Status.DANG_PHUC_VU
-                : chosen.equals("Hoàn thành") ? Order.Status.HOAN_THANH : Order.Status.DA_HUY;
+
+            if ("Đã hủy".equals(chosen)) {
+                // Dùng cancelOrder: cập nhật cả order_items + giữ đơn trong DB
+                Task<Boolean> task = new Task<>() {
+                    @Override protected Boolean call() {
+                        return dao.cancelOrder(order.getId(), "Huỷ từ màn hình quản lý đơn hàng");
+                    }
+                };
+                task.setOnSucceeded(e -> {
+                    if (Boolean.TRUE.equals(task.getValue())) {
+                        loadData();
+                        broadcastKitchenAndOrders(); // bếp tự refresh
+                    } else {
+                        showAlert("Không thể huỷ đơn ở trạng thái hiện tại.");
+                    }
+                });
+                task.setOnFailed(e ->
+                    System.err.println("[OrderController] cancelOrder lỗi: "
+                            + task.getException().getMessage()));
+                new Thread(task, "order-cancel").start();
+                return;
+            }
+
+            // Đang phục vụ / Hoàn thành → update bình thường
+            Order.Status newStatus = "Đang phục vụ".equals(chosen)
+                    ? Order.Status.DANG_PHUC_VU : Order.Status.HOAN_THANH;
             order.setStatus(newStatus);
             Task<Void> task = new Task<>() {
                 @Override protected Void call() {
@@ -219,7 +266,13 @@ public class OrderController implements Initializable {
                     return null;
                 }
             };
-            task.setOnSucceeded(e -> loadData());
+            task.setOnSucceeded(e -> {
+                loadData();
+                broadcastKitchenAndOrders();
+            });
+            task.setOnFailed(e ->
+                System.err.println("[OrderController] handleStatusUpdate lỗi: "
+                        + task.getException().getMessage()));
             new Thread(task, "order-update").start();
         });
     }
@@ -230,8 +283,11 @@ public class OrderController implements Initializable {
                 getClass().getResource("/fxml/dialog/OrderDetailDialog.fxml"));
             Parent root = loader.load();
             OrderDetailController ctrl = loader.getController();
+            ctrl.setOnCancelledCallback(() -> {
+                loadData();
+                broadcastKitchenAndOrders();
+            });
             ctrl.setOrder(order);
-
             Stage stage = new Stage();
             stage.setTitle("Chi tiết đơn hàng");
             stage.initModality(Modality.APPLICATION_MODAL);
@@ -241,6 +297,25 @@ public class OrderController implements Initializable {
             stage.showAndWait();
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    // ─── WebSocket broadcast ──────────────────────────────────────────────────
+
+    /**
+     * Gửi KITCHEN + ORDERS event để:
+     * - KitchenController.doPoll() → refresh bếp (món đã huỷ/xoá biến mất)
+     * - OrderController ở màn hình khác tự reload danh sách
+     */
+    private void broadcastKitchenAndOrders() {
+        try {
+            RestaurantEventServer srv = RestaurantEventServer.getInstance();
+            if (srv != null && srv.isRunning()) {
+                srv.broadcast(WsEvent.of(WsTopic.KITCHEN, restaurantId));
+                srv.broadcast(WsEvent.of(WsTopic.ORDERS,  restaurantId));
+            }
+        } catch (Exception e) {
+            System.err.println("[OrderController] broadcastKitchenAndOrders lỗi: " + e.getMessage());
         }
     }
 
@@ -285,12 +360,10 @@ public class OrderController implements Initializable {
                 box.getChildren().add(btnDel);
             }
 
-            Button btnUpd = actionButton("✏ Cập nhật", "btn-primary-sm");
-            btnUpd.setOnAction(e -> handleStatusUpdate(order));
-
+            Button btnUpd  = actionButton("✏ Cập nhật",   "btn-primary-sm");
             Button btnView = actionButton("👁 Xem chi tiết", "btn-accent-sm");
+            btnUpd .setOnAction(e -> handleStatusUpdate(order));
             btnView.setOnAction(e -> handleViewDetail(order));
-
             box.getChildren().addAll(btnUpd, btnView);
             setGraphic(box);
         }
@@ -301,6 +374,7 @@ public class OrderController implements Initializable {
             return b;
         }
     }
+
     private static TableCell<Order, String> centeredOrderCell() {
         TableCell<Order, String> cell = new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {

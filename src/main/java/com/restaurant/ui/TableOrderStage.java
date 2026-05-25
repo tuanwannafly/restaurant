@@ -61,7 +61,7 @@ public class TableOrderStage extends Stage {
 
     // ── Shared state (read by controllers via getStage()) ──────────────────────
     private final String tableId;
-    private final String orderId;
+    private       String orderId;   // non-final — có thể reset sau khi đơn bị hủy
     private final String tableName;
     private final String restaurantName;
 
@@ -291,21 +291,105 @@ public class TableOrderStage extends Stage {
     private void setupWsSubscription() {
         RestaurantEventClient ws = RestaurantEventClient.getInstance();
 
-        // Subscribe ORDERS (trạng thái order_items) và topic riêng của bàn
+        // Subscribe ORDERS và topic riêng của bàn
         ws.subscribe(WsTopic.ORDERS, wsTableTopic);
 
-        // Handler dispatch: chỉ xử lý event liên quan đến đơn/bàn này
         cancelWsHandler = ws.addEventHandler(event -> {
             if (event == null) return;
             String topic = event.getTopic();
             if (!WsTopic.ORDERS.equals(topic) && !wsTableTopic.equals(topic)) return;
 
             if (PAGE_STATUS.equals(currentPage)) {
+                // Refresh danh sách món — StatusPageController tự phát hiện
+                // nếu đơn bị hủy và sẽ hiện alert + navigate về menu
                 getStatusController().refreshTable();
             } else if (PAGE_WAITING.equals(currentPage)) {
                 getWaitingController().checkOrderCompleted();
+            } else {
+                // Đang ở MENU hoặc CART — kiểm tra xem đơn có bị hủy không
+                checkIfOrderCancelledAndNotify();
             }
         });
+    }
+
+    /**
+     * Kiểm tra xem đơn hiện tại có còn active không.
+     * Nếu đơn đã bị hủy (bởi admin/nhân viên), hiển thị thông báo cho khách
+     * và quay về trang menu.
+     *
+     * <p>Gọi khi nhận ORDERS WsEvent trong khi đang ở trang MENU hoặc CART.
+     * Chạy trên FX thread (đảm bảo bởi RestaurantEventClient).
+     */
+    private void checkIfOrderCancelledAndNotify() {
+        checkOrderActive(isDone -> {
+            if (isDone && !paymentCompleted) {
+                showCancelledAlertThenReset();
+            }
+        });
+    }
+
+    /**
+     * Hiển thị thông báo đơn bị hủy, sau đó tạo đơn mới và về trang menu.
+     * Gọi từ {@link #checkIfOrderCancelledAndNotify()} và
+     * {@link StatusPageController} khi phát hiện toàn bộ món bị hủy.
+     */
+    public void showCancelledAlertThenReset() {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.WARNING);
+        alert.setTitle("Đơn hàng đã bị hủy");
+        alert.setHeaderText("Đơn hàng của bạn đã bị hủy");
+        alert.setContentText(
+            "Đơn hàng của bạn vừa bị hủy bởi nhân viên.\n" +
+            "Vui lòng liên hệ nhân viên để biết thêm chi tiết\n" +
+            "hoặc đặt lại đơn mới."
+        );
+        alert.getButtonTypes().setAll(javafx.scene.control.ButtonType.OK);
+        alert.showAndWait();
+        resetToNewOrder();
+    }
+
+    /**
+     * Tạo đơn hàng mới sau khi đơn cũ bị hủy.
+     * <ol>
+     *   <li>Xoá giỏ hàng hiện tại.</li>
+     *   <li>Reset round counter về 1.</li>
+     *   <li>Gọi {@code TabletOrderDAO.getOrCreateActiveOrder()} để tạo PENDING mới.</li>
+     *   <li>Cập nhật {@code orderId} → các lần gọi {@code sendOrder()} sau sẽ
+     *       ghi vào đơn mới.</li>
+     *   <li>Chuyển về trang menu để khách đặt lại.</li>
+     * </ol>
+     */
+    private void resetToNewOrder() {
+        // Xoá cart và reset round ngay trên FX thread
+        cartItems.clear();
+        currentRound = 1;
+
+        // Tạo đơn mới trên background thread
+        javafx.concurrent.Task<String> task = new javafx.concurrent.Task<>() {
+            @Override protected String call() {
+                long restaurantId = AppSession.getInstance().getRestaurantId();
+                com.restaurant.dao.TabletOrderDAO dao =
+                        new com.restaurant.dao.TabletOrderDAO(restaurantId);
+                Order newOrder = dao.getOrCreateActiveOrder(tableId);
+                return newOrder != null ? newOrder.getId() : null;
+            }
+        };
+        task.setOnSucceeded(e -> {
+            String newOrderId = task.getValue();
+            if (newOrderId != null) {
+                orderId = newOrderId;
+                System.out.println("[TableOrderStage] resetToNewOrder: đơn mới orderId=" + newOrderId);
+            } else {
+                System.err.println("[TableOrderStage] resetToNewOrder: không tạo được đơn mới");
+            }
+            navigateTo(PAGE_MENU);
+        });
+        task.setOnFailed(e -> {
+            System.err.println("[TableOrderStage] resetToNewOrder lỗi: "
+                    + task.getException().getMessage());
+            navigateTo(PAGE_MENU);
+        });
+        new Thread(task, "reset-new-order").start();
     }
 
     // ── Order logic (gọi từ CartPageController) ────────────────────────────────
