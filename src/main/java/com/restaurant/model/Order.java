@@ -159,6 +159,7 @@ public class Order {
             CANCELLED
         }
 
+        private String     orderItemId;   // PK của order_items — dùng để hủy món riêng lẻ
         private String     menuItemId;
         private String     menuItemName;
         private int        quantity;
@@ -189,6 +190,9 @@ public class Order {
 
         // ── Getters / Setters ──────────────────────────────────────────────────
 
+        public String     getOrderItemId()                   { return orderItemId; }
+        public void       setOrderItemId(String v)           { this.orderItemId = v; }
+
         public String     getMenuItemId()                    { return menuItemId; }
         public void       setMenuItemId(String v)            { this.menuItemId = v; }
 
@@ -203,6 +207,11 @@ public class Order {
         public ItemStatus getItemStatus()                    { return itemStatus; }
         public void       setItemStatus(ItemStatus v)        {
             this.itemStatus = (v != null) ? v : ItemStatus.PENDING;
+        }
+
+        /** Tiện ích: món có thể bị hủy từ tablet (chưa vào bếp nấu). */
+        public boolean isCancellableByCustomer() {
+            return itemStatus == ItemStatus.PENDING || itemStatus == ItemStatus.ACCEPTED;
         }
     }
 }

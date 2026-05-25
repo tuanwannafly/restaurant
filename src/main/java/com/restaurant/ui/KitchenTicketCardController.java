@@ -16,7 +16,9 @@ import com.restaurant.model.Order;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
@@ -58,6 +60,7 @@ public class KitchenTicketCardController implements Initializable {
     @FXML private Label  staffLabel;
     @FXML private Button btnStartCooking;
     @FXML private Button btnMarkReady;
+    @FXML private Button btnRejectItem;
 
     // ─── State ────────────────────────────────────────────────────────────────
 
@@ -105,9 +108,10 @@ public class KitchenTicketCardController implements Initializable {
         staffLabel.setVisible(false);
         staffLabel.setManaged(false);
 
-        // Hiện nút Bắt đầu nấu
+        // Hiện nút Bắt đầu nấu và Không nhận món
         showButton(btnStartCooking);
         hideButton(btnMarkReady);
+        showButton(btnRejectItem);
 
         if (onClick != null) {
             cardRoot.setOnMouseClicked(e -> {
@@ -159,9 +163,10 @@ public class KitchenTicketCardController implements Initializable {
         staffLabel.setVisible(true);
         staffLabel.setManaged(true);
 
-        // Hiện nút Hoàn thành
+        // Hiện nút Hoàn thành và Không nhận món
         hideButton(btnStartCooking);
         showButton(btnMarkReady);
+        showButton(btnRejectItem);
 
         if (onClick != null) {
             cardRoot.setOnMouseClicked(e -> {
@@ -198,6 +203,31 @@ public class KitchenTicketCardController implements Initializable {
     private void onMarkReady() {
         if (currentTickets == null || currentTickets.isEmpty()) return;
         updateAllTickets(Order.OrderItem.ItemStatus.READY, btnMarkReady);
+    }
+
+    /**
+     * Xử lý click "Không nhận món": hủy tất cả tickets trong nhóm.
+     * Bếp dùng khi không thể chế biến món (hết nguyên liệu, sự cố, ...).
+     * Tablet sẽ nhận WS event ORDERS và hiển thị "Đã hủy" cho khách.
+     */
+    @FXML
+    private void onRejectItem() {
+        if (currentTickets == null || currentTickets.isEmpty()) return;
+
+        // Xác nhận trước khi hủy — tránh bấm nhầm
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Xác nhận không nhận món");
+        confirm.setHeaderText(null);
+        confirm.setContentText(
+            "Bếp không thể chế biến món \"" + itemNameLabel.getText() + "\"?\n" +
+            "Món sẽ bị hủy và khách hàng sẽ được thông báo."
+        );
+        confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                updateAllTickets(Order.OrderItem.ItemStatus.CANCELLED, btnRejectItem);
+            }
+        });
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

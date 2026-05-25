@@ -16,28 +16,10 @@ import com.restaurant.session.AuditLogger;
 import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 
-/**
- * DAO thao tác bảng ORDERS + ORDER_ITEMS trong Oracle DB.
- *
- * Phase 7D: bổ sung:
- * <ul>
- *   <li>{@link CartEntry} – DTO gọn cho giỏ hàng</li>
- *   <li>{@link #openTable(String, long)} – mở bàn nhanh cho test / cashier</li>
- *   <li>{@link #findById(String)} – tìm order theo ID</li>
- *   <li>{@link #closeOrder(String, Order.Status)} – đóng đơn với status bất kỳ</li>
- *   <li>{@link #getItemStatus(String)} – lấy status của 1 order_item</li>
- *   <li>{@link #getPaymentRequestedCount(long)} – badge Thu ngân</li>
- *   <li>{@link #addOrderItems(String, List, int)} overload nhận {@link CartEntry}</li>
- * </ul>
- */
 public class OrderDAO {
 
     // ─── CartEntry DTO ────────────────────────────────────────────────────────
 
-    /**
-     * DTO đơn giản đại diện một món trong giỏ hàng khi gọi
-     * {@link #addOrderItems(String, List, int)}.
-     */
     public static class CartEntry {
         public final String menuItemId;
         public final int    quantity;
@@ -55,13 +37,8 @@ public class OrderDAO {
     private long rid()             { return AppSession.getInstance().getRestaurantId(); }
     private boolean isSuperAdmin() { return RbacGuard.getInstance().isSuperAdmin(); }
 
-    // ─── Auto-migration: thêm cột payment_method nếu chưa có ─────────────────
+    // ─── Auto-migration: payment_method ──────────────────────────────────────
 
-    /**
-     * Tự động thêm cột {@code payment_method} vào bảng {@code orders} nếu chưa tồn tại.
-     * Chạy một lần duy nhất (double-checked locking).
-     * An toàn với Oracle: ORA-01430 (column already exists) bị bỏ qua.
-     */
     private static volatile boolean _colChecked = false;
 
     private void ensurePaymentMethodColumn() {
@@ -71,16 +48,43 @@ public class OrderDAO {
             try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
                  java.sql.Statement  stmt = conn.createStatement()) {
                 stmt.execute("ALTER TABLE orders ADD (payment_method VARCHAR2(20))");
-                System.out.println("[OrderDAO] Đã thêm cột payment_method vào bảng orders.");
             } catch (java.sql.SQLException e) {
-                // ORA-01430 = column already exists → hoàn toàn bình thường
-                if (!e.getMessage().contains("ORA-01430")) {
+                if (!e.getMessage().contains("ORA-01430"))
                     System.err.println("[OrderDAO] ensurePaymentMethodColumn lỗi: " + e.getMessage());
-                }
             } catch (Exception e) {
                 System.err.println("[OrderDAO] ensurePaymentMethodColumn lỗi kết nối: " + e.getMessage());
             } finally {
                 _colChecked = true;
+            }
+        }
+    }
+
+    // ─── Auto-migration: cancelled_reason / cancelled_at ─────────────────────
+
+    private static volatile boolean _cancelColChecked = false;
+
+    private void ensureCancelColumns() {
+        if (_cancelColChecked) return;
+        synchronized (OrderDAO.class) {
+            if (_cancelColChecked) return;
+            try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
+                 java.sql.Statement  stmt = conn.createStatement()) {
+                try { stmt.execute("ALTER TABLE orders ADD (cancelled_reason VARCHAR2(500))");
+                      System.out.println("[OrderDAO] Đã thêm cột cancelled_reason vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430"))
+                        System.err.println("[OrderDAO] ensureCancelColumns (reason) lỗi: " + e.getMessage());
+                }
+                try { stmt.execute("ALTER TABLE orders ADD (cancelled_at DATE)");
+                      System.out.println("[OrderDAO] Đã thêm cột cancelled_at vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430"))
+                        System.err.println("[OrderDAO] ensureCancelColumns (at) lỗi: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                System.err.println("[OrderDAO] ensureCancelColumns lỗi kết nối: " + e.getMessage());
+            } finally {
+                _cancelColChecked = true;
             }
         }
     }
@@ -108,7 +112,6 @@ public class OrderDAO {
               WHERE o.restaurant_id = ?
               ORDER BY o.created_at DESC
               """;
-
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             if (!isSuperAdmin()) ps.setLong(1, rid());
@@ -125,14 +128,6 @@ public class OrderDAO {
         return list;
     }
 
-    // ─── Phase 7D: FIND BY ID ─────────────────────────────────────────────────
-
-    /**
-     * Tìm một đơn hàng theo {@code order_id}.
-     *
-     * @param orderId ID đơn hàng (String)
-     * @return {@link Order} nếu tìm thấy; {@code null} nếu không tồn tại hoặc lỗi
-     */
     public Order findById(String orderId) {
         ensurePaymentMethodColumn();
         String sql = isSuperAdmin()
@@ -152,7 +147,6 @@ public class OrderDAO {
               JOIN restaurant_tables t ON o.table_id = t.table_id
               WHERE o.order_id = ? AND o.restaurant_id = ?
               """;
-
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, parseLongOrDefault(orderId, 0));
@@ -170,16 +164,6 @@ public class OrderDAO {
         return null;
     }
 
-    // ─── Phase 7D: OPEN TABLE (alias ngắn cho createEmptyOrder) ──────────────
-
-    /**
-     * Mở bàn: tạo đơn hàng PENDING rỗng, trả về orderId dạng String.
-     * Dùng trong integration test và flow cashier mở bàn nhanh.
-     *
-     * @param tableId      ID bàn (String)
-     * @param restaurantId ID nhà hàng
-     * @return orderId String vừa được DB sinh ra; {@code null} nếu lỗi
-     */
     public String openTable(String tableId, long restaurantId) {
         String sql = """
             INSERT INTO orders (status, total_amount, table_id, restaurant_id,
@@ -200,20 +184,8 @@ public class OrderDAO {
         return null;
     }
 
-    // ─── Phase 7D: CLOSE ORDER ────────────────────────────────────────────────
-
-    /**
-     * Đóng đơn hàng với trạng thái tuỳ ý (thường là COMPLETED).
-     * Ghi nhận {@code completed_at = SYSTIMESTAMP} nếu status là COMPLETED.
-     *
-     * @param orderId ID đơn hàng
-     * @param status  trạng thái đích (vd. {@code Order.Status.COMPLETED})
-     * @return {@code true} nếu update thành công
-     */
     public boolean closeOrder(String orderId, Order.Status status) {
-        boolean isCompleted = status == Order.Status.COMPLETED
-                || status == Order.Status.HOAN_THANH;
-
+        boolean isCompleted = status == Order.Status.COMPLETED || status == Order.Status.HOAN_THANH;
         String sql = isSuperAdmin()
             ? (isCompleted
                ? "UPDATE orders SET status = ?, completed_at = SYSTIMESTAMP WHERE order_id = ?"
@@ -221,7 +193,6 @@ public class OrderDAO {
             : (isCompleted
                ? "UPDATE orders SET status = ?, completed_at = SYSTIMESTAMP WHERE order_id = ? AND restaurant_id = ?"
                : "UPDATE orders SET status = ? WHERE order_id = ? AND restaurant_id = ?");
-
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, toDbStatus(status));
@@ -234,80 +205,25 @@ public class OrderDAO {
         }
     }
 
-    // ─── Auto-migration: thêm cột cancelled_reason / cancelled_at ────────────
-
-    /**
-     * Tự động thêm hai cột {@code cancelled_reason} và {@code cancelled_at} vào
-     * bảng {@code orders} nếu chưa tồn tại.
-     * Chạy một lần duy nhất (double-checked locking).
-     * An toàn với Oracle: ORA-01430 (column already exists) bị bỏ qua.
-     */
-    private static volatile boolean _cancelColChecked = false;
-
-    private void ensureCancelColumns() {
-        if (_cancelColChecked) return;
-        synchronized (OrderDAO.class) {
-            if (_cancelColChecked) return;
-            try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
-                 java.sql.Statement  stmt = conn.createStatement()) {
-                try {
-                    stmt.execute("ALTER TABLE orders ADD (cancelled_reason VARCHAR2(500))");
-                    System.out.println("[OrderDAO] Đã thêm cột cancelled_reason vào bảng orders.");
-                } catch (java.sql.SQLException e) {
-                    if (!e.getMessage().contains("ORA-01430")) {
-                        System.err.println("[OrderDAO] ensureCancelColumns (reason) lỗi: " + e.getMessage());
-                    }
-                }
-                try {
-                    stmt.execute("ALTER TABLE orders ADD (cancelled_at DATE)");
-                    System.out.println("[OrderDAO] Đã thêm cột cancelled_at vào bảng orders.");
-                } catch (java.sql.SQLException e) {
-                    if (!e.getMessage().contains("ORA-01430")) {
-                        System.err.println("[OrderDAO] ensureCancelColumns (at) lỗi: " + e.getMessage());
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("[OrderDAO] ensureCancelColumns lỗi kết nối: " + e.getMessage());
-            } finally {
-                _cancelColChecked = true;
-            }
-        }
-    }
-
     // ─── CANCEL ORDER ─────────────────────────────────────────────────────────
 
     /**
-     * Huỷ một đơn hàng với lý do cụ thể, áp dụng kiểm soát phân quyền theo role:
+     * Huỷ đơn hàng theo role:
+     * - WAITER       : chỉ huỷ được PENDING
+     * - ADMIN/SUPER  : huỷ được PENDING, ACCEPTED, COOKING, READY
      *
-     * <ul>
-     *   <li><b>WAITER</b> — chỉ được huỷ khi order đang ở trạng thái {@code PENDING}.
-     *       Các trạng thái khác (ACCEPTED, COOKING, READY, …) bị từ chối.</li>
-     *   <li><b>RESTAURANT_ADMIN / SUPER_ADMIN</b> — được huỷ khi status thuộc
-     *       {@code {PENDING, ACCEPTED, COOKING, READY}}. Không được huỷ
-     *       {@code COMPLETED} hoặc đơn đã {@code CANCELLED}.</li>
-     * </ul>
+     * Khi huỷ thành công:
+     * 1. orders.status           → CANCELLED
+     * 2. order_items.item_status → CANCELLED (trừ DELIVERED)
+     *    → bếp và phục vụ không còn thấy các món này
+     * 3. Ghi audit log
      *
-     * <p>Khi huỷ thành công:
-     * <ol>
-     *   <li>Cột {@code status} chuyển sang {@code 'CANCELLED'}.</li>
-     *   <li>Lý do huỷ được lưu vào {@code cancelled_reason}.</li>
-     *   <li>Thời điểm huỷ được ghi vào {@code cancelled_at} (Oracle {@code SYSDATE}).</li>
-     *   <li>Bàn liên kết được trả về trạng thái {@code 'RANH'}.</li>
-     *   <li>Thao tác được ghi vào audit log qua {@link AuditLogger}.</li>
-     * </ol>
-     *
-     * <p><b>Lưu ý:</b> Method tự động gọi {@link #ensureCancelColumns()} để đảm bảo
-     * schema Oracle đã có hai cột cần thiết trước khi thực thi UPDATE.
-     *
-     * @param orderId ID đơn hàng cần huỷ (String, parse sang {@code long} nội bộ)
-     * @param reason  Lý do huỷ (lưu vào {@code cancelled_reason}); có thể null
-     * @return {@code true} nếu huỷ thành công; {@code false} nếu không đủ quyền,
-     *         trạng thái không cho phép huỷ, hoặc order không tồn tại
+     * Không đụng vào trạng thái bàn (restaurant_tables).
      */
     public boolean cancelOrder(String orderId, String reason) {
         ensureCancelColumns();
 
-        // ── 1. Kiểm tra quyền CANCEL_ORDER ───────────────────────────────────
+        // 1. Kiểm tra quyền
         if (!RbacGuard.getInstance().can(Permission.CANCEL_ORDER)) {
             System.err.println("[OrderDAO] cancelOrder từ chối: thiếu quyền CANCEL_ORDER, orderId=" + orderId);
             return false;
@@ -316,102 +232,89 @@ public class OrderDAO {
         long oid = parseLongOrDefault(orderId, 0);
 
         try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
 
-            // ── 2. Lấy trạng thái hiện tại của order ─────────────────────────
-            String currentStatus;
-            String selectSql = isSuperAdmin()
-                ? "SELECT status FROM orders WHERE order_id = ?"
-                : "SELECT status FROM orders WHERE order_id = ? AND restaurant_id = ?";
+                // 2. Lấy trạng thái hiện tại
+                String currentStatus;
+                String selectSql = isSuperAdmin()
+                    ? "SELECT status FROM orders WHERE order_id = ?"
+                    : "SELECT status FROM orders WHERE order_id = ? AND restaurant_id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
+                    ps.setLong(1, oid);
+                    if (!isSuperAdmin()) ps.setLong(2, rid());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            System.err.println("[OrderDAO] cancelOrder: không tìm thấy order_id=" + orderId);
+                            conn.rollback();
+                            return false;
+                        }
+                        currentStatus = rs.getString("status");
+                    }
+                }
 
-            try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
-                ps.setLong(1, oid);
-                if (!isSuperAdmin()) ps.setLong(2, rid());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        System.err.println("[OrderDAO] cancelOrder: không tìm thấy order_id=" + orderId);
+                // 3. Kiểm tra trạng thái theo role
+                String role = AppSession.getInstance().getUserRole() == null
+                        ? "" : AppSession.getInstance().getUserRole().toUpperCase();
+                boolean isWaiter       = "WAITER".equals(role) || "PHUC_VU".equals(role);
+                boolean isAdminOrAbove = RbacGuard.getInstance().isManagerOrAbove();
+
+                if (isWaiter) {
+                    if (!"PENDING".equals(currentStatus)) {
+                        System.err.println("[OrderDAO] cancelOrder từ chối (WAITER): chỉ huỷ PENDING, hiện=" + currentStatus);
+                        conn.rollback();
                         return false;
                     }
-                    currentStatus = rs.getString("status");
-                }
-            }
-
-            // ── 3 & 4. Kiểm tra trạng thái theo role ─────────────────────────
-            String role = AppSession.getInstance().getUserRole() == null
-                    ? "" : AppSession.getInstance().getUserRole().toUpperCase();
-
-            boolean isWaiter = "WAITER".equals(role) || "PHUC_VU".equals(role);
-            boolean isAdminOrAbove = RbacGuard.getInstance().isManagerOrAbove();
-
-            if (isWaiter) {
-                // WAITER chỉ được huỷ PENDING
-                if (!"PENDING".equals(currentStatus)) {
-                    System.err.println("[OrderDAO] cancelOrder từ chối (WAITER): "
-                            + "chỉ được huỷ PENDING, hiện tại=" + currentStatus
-                            + ", orderId=" + orderId);
+                } else if (isAdminOrAbove) {
+                    if ("COMPLETED".equals(currentStatus) || "CANCELLED".equals(currentStatus)) {
+                        System.err.println("[OrderDAO] cancelOrder từ chối (ADMIN): đơn đã " + currentStatus);
+                        conn.rollback();
+                        return false;
+                    }
+                } else {
+                    System.err.println("[OrderDAO] cancelOrder từ chối: role không xác định=" + role);
+                    conn.rollback();
                     return false;
                 }
-            } else if (isAdminOrAbove) {
-                // RESTAURANT_ADMIN / SUPER_ADMIN không được huỷ COMPLETED hoặc CANCELLED
-                if ("COMPLETED".equals(currentStatus) || "CANCELLED".equals(currentStatus)) {
-                    System.err.println("[OrderDAO] cancelOrder từ chối (ADMIN): "
-                            + "không thể huỷ đơn đã " + currentStatus
-                            + ", orderId=" + orderId);
-                    return false;
+
+                // 4. Cập nhật orders → CANCELLED
+                String updateSql = isSuperAdmin()
+                    ? "UPDATE orders SET status='CANCELLED', cancelled_reason=?, cancelled_at=SYSDATE WHERE order_id=?"
+                    : "UPDATE orders SET status='CANCELLED', cancelled_reason=?, cancelled_at=SYSDATE WHERE order_id=? AND restaurant_id=?";
+                try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                    ps.setString(1, reason);
+                    ps.setLong(2, oid);
+                    if (!isSuperAdmin()) ps.setLong(3, rid());
+                    if (ps.executeUpdate() == 0) {
+                        System.err.println("[OrderDAO] cancelOrder: UPDATE orders không ảnh hưởng hàng nào");
+                        conn.rollback();
+                        return false;
+                    }
                 }
-            } else {
-                // Role khác có CANCEL_ORDER permission không được phép vào đây;
-                // từ chối an toàn.
-                System.err.println("[OrderDAO] cancelOrder từ chối: role không xác định=" + role);
-                return false;
+
+                // 5. Huỷ tất cả order_items chưa hoàn thành
+                //    → bếp và phục vụ lọc theo item_status nên sẽ biến mất ngay
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE order_items SET item_status='CANCELLED' " +
+                        "WHERE order_id=? AND item_status NOT IN ('DELIVERED','CANCELLED')")) {
+                    ps.setLong(1, oid);
+                    int n = ps.executeUpdate();
+                    System.out.println("[OrderDAO] cancelOrder: đã huỷ " + n + " order_item(s) của đơn " + orderId);
+                }
+
+                conn.commit();
+
+                // 6. Audit log (ngoài transaction)
+                AuditLogger.getInstance().log("CANCEL_ORDER", oid, "SUCCESS", orderId + " reason=" + reason);
+
+                return true;
+
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
-
-            // ── 5. UPDATE orders → CANCELLED ─────────────────────────────────
-            String updateSql = isSuperAdmin()
-                ? """
-                  UPDATE orders
-                  SET status = 'CANCELLED', cancelled_reason = ?, cancelled_at = SYSDATE
-                  WHERE order_id = ?
-                  """
-                : """
-                  UPDATE orders
-                  SET status = 'CANCELLED', cancelled_reason = ?, cancelled_at = SYSDATE
-                  WHERE order_id = ? AND restaurant_id = ?
-                  """;
-
-            int updated;
-            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                ps.setString(1, reason);
-                ps.setLong(2, oid);
-                if (!isSuperAdmin()) ps.setLong(3, rid());
-                updated = ps.executeUpdate();
-            }
-
-            if (updated == 0) {
-                System.err.println("[OrderDAO] cancelOrder: UPDATE không ảnh hưởng hàng nào, orderId=" + orderId);
-                return false;
-            }
-
-            // ── 6. Trả bàn về trạng thái RANH ────────────────────────────────
-            String resetTableSql = """
-                UPDATE restaurant_tables
-                SET status = 'RANH'
-                WHERE table_id = (SELECT table_id FROM orders WHERE order_id = ?)
-                """;
-            try (PreparedStatement ps = conn.prepareStatement(resetTableSql)) {
-                ps.setLong(1, oid);
-                ps.executeUpdate();
-            }
-
-            // ── 7. Ghi audit log ──────────────────────────────────────────────
-            AuditLogger.getInstance().log(
-                    "CANCEL_ORDER",
-                    oid,
-                    "SUCCESS",
-                    orderId + " reason=" + reason
-            );
-
-            // ── 8. Thành công ─────────────────────────────────────────────────
-            return true;
 
         } catch (Exception e) {
             System.err.println("[OrderDAO] cancelOrder lỗi: " + e.getMessage());
@@ -419,25 +322,15 @@ public class OrderDAO {
         }
     }
 
-    // ─── Phase 7D: GET ITEM STATUS ────────────────────────────────────────────
+    // ─── GET ITEM STATUS ──────────────────────────────────────────────────────
 
-    /**
-     * Lấy {@code item_status} hiện tại của một {@code order_item_id}.
-     * Dùng trong integration test để assert trạng thái sau mỗi bước.
-     *
-     * @param orderItemId ID của order_item
-     * @return {@link Order.OrderItem.ItemStatus} hiện tại;
-     *         {@code PENDING} nếu không tìm thấy hoặc lỗi
-     */
     public Order.OrderItem.ItemStatus getItemStatus(String orderItemId) {
         String sql = "SELECT item_status FROM order_items WHERE order_item_id = ?";
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, parseLongOrDefault(orderItemId, 0));
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return fromDbItemStatus(safeGetString(rs, "item_status"));
-                }
+                if (rs.next()) return fromDbItemStatus(safeGetString(rs, "item_status"));
             }
         } catch (Exception e) {
             System.err.println("[OrderDAO] getItemStatus lỗi: " + e.getMessage());
@@ -445,22 +338,12 @@ public class OrderDAO {
         return Order.OrderItem.ItemStatus.PENDING;
     }
 
-    // ─── Phase 7D: PAYMENT REQUESTED COUNT (badge Thu ngân) ──────────────────
+    // ─── PAYMENT REQUESTED COUNT ──────────────────────────────────────────────
 
-    /**
-     * Đếm số đơn hàng có trạng thái {@code PAYMENT_REQUESTED} thuộc nhà hàng.
-     * Dùng để cập nhật badge đỏ trên nút Thu ngân.
-     *
-     * <p><b>Lưu ý:</b> Nếu DB chưa có giá trị {@code PAYMENT_REQUESTED},
-     * hãy dùng {@code PENDING} làm fallback hoặc thêm status vào schema.
-     *
-     * @param restaurantId ID nhà hàng
-     * @return số đơn PAYMENT_REQUESTED (≥ 0), 0 nếu lỗi
-     */
     public int getPaymentRequestedCount(long restaurantId) {
         String sql = isSuperAdmin()
-            ? "SELECT COUNT(*) FROM orders WHERE status = 'PAYMENT_REQUESTED'"
-            : "SELECT COUNT(*) FROM orders WHERE status = 'PAYMENT_REQUESTED' AND restaurant_id = ?";
+            ? "SELECT COUNT(*) FROM orders WHERE status='PAYMENT_REQUESTED'"
+            : "SELECT COUNT(*) FROM orders WHERE status='PAYMENT_REQUESTED' AND restaurant_id=?";
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             if (!isSuperAdmin()) ps.setLong(1, restaurantId);
@@ -513,8 +396,6 @@ public class OrderDAO {
         return o;
     }
 
-    // ─── CREATE EMPTY ORDER ───────────────────────────────────────────────────
-
     public Order createEmptyOrder(String tableId, long restaurantId,
                                   String customerName, String customerPhone) {
         String sql = """
@@ -534,9 +415,8 @@ public class OrderDAO {
                 if (!keys.next()) throw new SQLException("Không lấy được order_id");
                 orderId = keys.getLong(1);
             }
-            Order o = new Order(
-                String.valueOf(orderId), tableId, null, 0,
-                Order.Status.PENDING, "", customerName, customerPhone);
+            Order o = new Order(String.valueOf(orderId), tableId, null, 0,
+                                Order.Status.PENDING, "", customerName, customerPhone);
             o.setItems(new java.util.ArrayList<>());
             return o;
         } catch (Exception e) {
@@ -544,63 +424,8 @@ public class OrderDAO {
         }
     }
 
-    // ─── ADD ORDER ITEMS – overload nhận List<Order.OrderItem> ───────────────
+    // ─── ADD ORDER ITEMS ──────────────────────────────────────────────────────
 
-    // /**
-    //  * Chèn danh sách {@link Order.OrderItem} vào đơn hàng.
-    //  */
-    // public boolean addOrderItems(String orderId, List<Order.OrderItem> items, int roundNumber) {
-    //     if (items == null || items.isEmpty()) return false;
-    //     String insertSql = """
-    //         INSERT INTO order_items
-    //             (order_id, menu_item_id, quantity, price, item_status, round_number)
-    //         VALUES (?, ?, ?, ?, 'PENDING', ?)
-    //         """;
-    //     String updateTotalSql = """
-    //         UPDATE orders SET total_amount = (
-    //             SELECT SUM(quantity * price) FROM order_items WHERE order_id = ?
-    //         ) WHERE order_id = ?
-    //         """;
-    //     try (Connection conn = DBConnection.getInstance().getConnection()) {
-    //         conn.setAutoCommit(false);
-    //         try {
-    //             try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
-    //                 for (Order.OrderItem item : items) {
-    //                     ps.setLong(1, parseLongOrDefault(orderId, 0));
-    //                     ps.setLong(2, parseLongOrDefault(item.getMenuItemId(), 0));
-    //                     ps.setInt(3, item.getQuantity());
-    //                     ps.setBigDecimal(4, BigDecimal.valueOf(item.getUnitPrice()));
-    //                     ps.setInt(5, roundNumber);
-    //                     ps.addBatch();
-    //                 }
-    //                 ps.executeBatch();
-    //             }
-    //             try (PreparedStatement ps = conn.prepareStatement(updateTotalSql)) {
-    //                 long oid = parseLongOrDefault(orderId, 0);
-    //                 ps.setLong(1, oid);
-    //                 ps.setLong(2, oid);
-    //                 ps.executeUpdate();
-    //             }
-    //             conn.commit();
-    //             return true;
-    //         } catch (Exception e) {
-    //             conn.rollback();
-    //             throw e;
-    //         } finally {
-    //             conn.setAutoCommit(true);
-    //         }
-    //     } catch (Exception e) {
-    //         System.err.println("[OrderDAO] addOrderItems(OrderItem) lỗi: " + e.getMessage());
-    //         return false;
-    //     }
-    // }
-
-    // ─── Phase 7D: ADD ORDER ITEMS – overload nhận List<CartEntry> ───────────
-
-    /**
-     * Overload nhận {@link CartEntry} – dùng trong integration test và
-     * flow thêm món từ tablet / cashier.
-     */
     public boolean addOrderItems(String orderId, List<CartEntry> entries, int roundNumber) {
         if (entries == null || entries.isEmpty()) return false;
         String insertSql = """
@@ -642,23 +467,18 @@ public class OrderDAO {
                 conn.setAutoCommit(true);
             }
         } catch (Exception e) {
-            System.err.println("[OrderDAO] addOrderItems(CartEntry) lỗi: " + e.getMessage());
+            System.err.println("[OrderDAO] addOrderItems lỗi: " + e.getMessage());
             return false;
         }
     }
 
     // ─── GET ITEMS WITH STATUS ────────────────────────────────────────────────
 
-    /**
-     * Lấy toàn bộ order_items của một đơn, kèm {@code item_status} và
-     * {@code round_number}.
-     */
     public List<Order.OrderItem> getItemsWithStatus(String orderId) {
         List<Order.OrderItem> list = new ArrayList<>();
         String sql = """
-            SELECT oi.menu_item_id, oi.quantity, oi.price,
-                   oi.item_status, oi.round_number,
-                   mi.name AS item_name
+            SELECT oi.order_item_id, oi.menu_item_id, oi.quantity, oi.price,
+                   oi.item_status, oi.round_number, mi.name AS item_name
             FROM order_items oi
             JOIN menu_items mi ON oi.menu_item_id = mi.item_id
             WHERE oi.order_id = ?
@@ -676,6 +496,8 @@ public class OrderDAO {
                         rs.getBigDecimal("price").doubleValue(),
                         fromDbItemStatus(safeGetString(rs, "item_status"))
                     );
+                    // Gán orderItemId để tablet có thể hủy món riêng lẻ
+                    item.setOrderItemId(String.valueOf(rs.getLong("order_item_id")));
                     list.add(item);
                 }
             }
@@ -695,10 +517,8 @@ public class OrderDAO {
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
-              WHERE o.table_id = ?
-                AND o.status NOT IN ('COMPLETED', 'CANCELLED')
-              ORDER BY o.created_at DESC
-              FETCH FIRST 1 ROWS ONLY
+              WHERE o.table_id = ? AND o.status NOT IN ('COMPLETED','CANCELLED')
+              ORDER BY o.created_at DESC FETCH FIRST 1 ROWS ONLY
               """
             : """
               SELECT o.order_id, o.status, o.total_amount, o.created_at,
@@ -706,11 +526,9 @@ public class OrderDAO {
                      t.table_number, t.table_id
               FROM orders o
               JOIN restaurant_tables t ON o.table_id = t.table_id
-              WHERE o.table_id = ?
-                AND o.restaurant_id = ?
-                AND o.status NOT IN ('COMPLETED', 'CANCELLED')
-              ORDER BY o.created_at DESC
-              FETCH FIRST 1 ROWS ONLY
+              WHERE o.table_id = ? AND o.restaurant_id = ?
+                AND o.status NOT IN ('COMPLETED','CANCELLED')
+              ORDER BY o.created_at DESC FETCH FIRST 1 ROWS ONLY
               """;
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -731,13 +549,6 @@ public class OrderDAO {
 
     // ─── COMPLETE ORDER ───────────────────────────────────────────────────────
 
-    /**
-     * Hoàn tất thanh toán — set COMPLETED, lưu payment_method, ghi completed_at.
-     *
-     * @param orderId       ID đơn hàng
-     * @param paymentMethod phương thức thanh toán đã dùng ("CASH", "BANK_TRANSFER", …)
-     * @return true nếu update thành công
-     */
     public boolean completeOrder(String orderId, String paymentMethod) {
         String sql = isSuperAdmin()
             ? "UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP, payment_method=? WHERE order_id=?"
@@ -754,25 +565,10 @@ public class OrderDAO {
         }
     }
 
-    /** Overload giữ backward-compat — payment_method = NULL. */
-    public boolean completeOrder(String orderId) {
-        return completeOrder(orderId, null);
-    }
+    public boolean completeOrder(String orderId) { return completeOrder(orderId, null); }
 
-    // ─── REQUEST PAYMENT ─────────────────────────────────────────────────────
+    // ─── REQUEST PAYMENT ──────────────────────────────────────────────────────
 
-    /**
-     * Tablet gọi khi khách bấm "Gửi yêu cầu thanh toán".
-     * Chuyển đơn sang {@code PAYMENT_REQUESTED}, lưu payment_method.
-     *
-     * <p>Sau khi gọi method này, {@link #getPaymentRequestedCount} tăng lên
-     * và {@code CashierController} sẽ nhận push event qua WebSocket / poll
-     * để hiển thị card trong cột "Chờ thanh toán".</p>
-     *
-     * @param orderId       ID đơn hàng
-     * @param paymentMethod "CASH" | "BANK_TRANSFER" | "CARD" | "MOMO" | "VNPAY"
-     * @return true nếu update thành công
-     */
     public boolean requestPayment(String orderId, String paymentMethod) {
         String sql = isSuperAdmin()
             ? "UPDATE orders SET status='PAYMENT_REQUESTED', payment_method=? WHERE order_id=?"
@@ -801,8 +597,7 @@ public class OrderDAO {
             ps.setLong(2, Long.parseLong(id));
             if (!isSuperAdmin()) ps.setLong(3, rid());
             int rows = ps.executeUpdate();
-            if (rows == 0)
-                throw new SecurityException("[OrderDAO] updateStatus từ chối: order_id=" + id);
+            if (rows == 0) throw new SecurityException("[OrderDAO] updateStatus từ chối: order_id=" + id);
         } catch (SecurityException e) {
             throw e;
         } catch (Exception e) {
@@ -823,8 +618,7 @@ public class OrderDAO {
             ps.setLong(3, Long.parseLong(o.getId()));
             if (!isSuperAdmin()) ps.setLong(4, rid());
             int rows = ps.executeUpdate();
-            if (rows == 0)
-                throw new SecurityException("[OrderDAO] update từ chối: order_id=" + o.getId());
+            if (rows == 0) throw new SecurityException("[OrderDAO] update từ chối: order_id=" + o.getId());
         } catch (SecurityException e) {
             throw e;
         } catch (Exception e) {
@@ -835,6 +629,11 @@ public class OrderDAO {
 
     // ─── DELETE ───────────────────────────────────────────────────────────────
 
+    /**
+     * Xoá đơn hàng và toàn bộ order_items trong một transaction.
+     * Sau khi xoá, bếp sẽ không còn thấy các món vì order_items bị xoá khỏi DB.
+     * Caller (OrderController) có trách nhiệm broadcast WsTopic.KITCHEN sau khi xoá.
+     */
     public void delete(String id) {
         String deleteOrderSql = isSuperAdmin()
             ? "DELETE FROM orders WHERE order_id = ?"
@@ -842,17 +641,18 @@ public class OrderDAO {
         try (Connection conn = DBConnection.getInstance().getConnection()) {
             conn.setAutoCommit(false);
             try {
+                // Xoá items trước (FK constraint)
                 try (PreparedStatement ps = conn.prepareStatement(
                         "DELETE FROM order_items WHERE order_id = ?")) {
                     ps.setLong(1, Long.parseLong(id));
                     ps.executeUpdate();
                 }
+                // Xoá đơn
                 try (PreparedStatement ps = conn.prepareStatement(deleteOrderSql)) {
                     ps.setLong(1, Long.parseLong(id));
                     if (!isSuperAdmin()) ps.setLong(2, rid());
                     int rows = ps.executeUpdate();
-                    if (rows == 0)
-                        throw new SecurityException("[OrderDAO] delete từ chối: order_id=" + id);
+                    if (rows == 0) throw new SecurityException("[OrderDAO] delete từ chối: order_id=" + id);
                 }
                 conn.commit();
             } catch (Exception e) {
@@ -984,6 +784,7 @@ public class OrderDAO {
             case "COOKING":    return Order.OrderItem.ItemStatus.COOKING;
             case "READY":      return Order.OrderItem.ItemStatus.READY;
             case "DELIVERED":  return Order.OrderItem.ItemStatus.DELIVERED;
+            case "CANCELLED":  return Order.OrderItem.ItemStatus.CANCELLED; // [FIX] không còn fall-through về PENDING
             default:           return Order.OrderItem.ItemStatus.PENDING;
         }
     }

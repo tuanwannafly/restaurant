@@ -4,12 +4,6 @@
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.Insets?>
 
-<!--
-  KitchenTicketCard.fxml  ─  Phase 8
-  Card hiển thị nhóm món (item name + qty + wait time).
-  Được load bằng FXMLLoader trong KitchenController.
-  Controller: com.restaurant.ui.KitchenTicketCardController
--->
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.restaurant.ui.KitchenTicketCardController"
@@ -44,14 +38,14 @@
                   -fx-font-size: 13px;
                   -fx-text-fill: #475569;"/>
 
-    <!-- Thời gian chờ – màu thay đổi qua urgency level -->
+    <!-- Thời gian chờ -->
     <Label fx:id="waitLabel"
            text="Chờ: 0 phút"
            style="-fx-font-family: 'Segoe UI';
                   -fx-font-size: 13px;
                   -fx-text-fill: #10B981;"/>
 
-    <!-- Extra row cho cooking card (assigned staff) -->
+    <!-- Staff label (cooking card) -->
     <Label fx:id="staffLabel"
            text=""
            managed="false"
@@ -60,11 +54,9 @@
                   -fx-font-size: 12px;
                   -fx-text-fill: #94A3B8;"/>
 
-    <!-- Divider -->
     <Separator style="-fx-opacity: 0.5;"/>
 
-    <!-- Action buttons -->
-    <!-- btnStartCooking: chỉ hiện ở cột PENDING (PENDING/ACCEPTED → COOKING) -->
+    <!-- Bắt đầu nấu (pending → cooking) -->
     <Button fx:id="btnStartCooking"
             text="▶ Bắt đầu nấu"
             maxWidth="Infinity"
@@ -80,7 +72,7 @@
                    -fx-padding: 7 0 7 0;
                    -fx-cursor: hand;"/>
 
-    <!-- btnMarkReady: chỉ hiện ở cột COOKING (COOKING → READY) -->
+    <!-- Hoàn thành (cooking → ready) -->
     <Button fx:id="btnMarkReady"
             text="✔ Hoàn thành"
             maxWidth="Infinity"
@@ -92,6 +84,25 @@
                    -fx-font-weight: bold;
                    -fx-background-color: #10B981;
                    -fx-text-fill: #FFFFFF;
+                   -fx-background-radius: 6;
+                   -fx-padding: 7 0 7 0;
+                   -fx-cursor: hand;"/>
+
+    <!-- Không nhận món (pending/cooking → cancelled) -->
+    <!-- Hiện ở CẢ HAI cột: bếp chưa nhận hoặc đang nấu nhưng không thể hoàn thành -->
+    <Button fx:id="btnRejectItem"
+            text="✕ Không nhận món"
+            maxWidth="Infinity"
+            managed="false"
+            visible="false"
+            onAction="#onRejectItem"
+            style="-fx-font-family: 'Segoe UI';
+                   -fx-font-size: 12px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #FEE2E2;
+                   -fx-text-fill: #DC2626;
+                   -fx-border-color: #FECACA;
+                   -fx-border-radius: 6;
                    -fx-background-radius: 6;
                    -fx-padding: 7 0 7 0;
                    -fx-cursor: hand;"/>
