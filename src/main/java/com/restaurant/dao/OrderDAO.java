@@ -12,6 +12,8 @@ import java.util.List;
 import com.restaurant.db.DBConnection;
 import com.restaurant.model.Order;
 import com.restaurant.session.AppSession;
+import com.restaurant.session.AuditLogger;
+import com.restaurant.session.Permission;
 import com.restaurant.session.RbacGuard;
 
 /**
@@ -228,6 +230,191 @@ public class OrderDAO {
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             System.err.println("[OrderDAO] closeOrder lỗi: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // ─── Auto-migration: thêm cột cancelled_reason / cancelled_at ────────────
+
+    /**
+     * Tự động thêm hai cột {@code cancelled_reason} và {@code cancelled_at} vào
+     * bảng {@code orders} nếu chưa tồn tại.
+     * Chạy một lần duy nhất (double-checked locking).
+     * An toàn với Oracle: ORA-01430 (column already exists) bị bỏ qua.
+     */
+    private static volatile boolean _cancelColChecked = false;
+
+    private void ensureCancelColumns() {
+        if (_cancelColChecked) return;
+        synchronized (OrderDAO.class) {
+            if (_cancelColChecked) return;
+            try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
+                 java.sql.Statement  stmt = conn.createStatement()) {
+                try {
+                    stmt.execute("ALTER TABLE orders ADD (cancelled_reason VARCHAR2(500))");
+                    System.out.println("[OrderDAO] Đã thêm cột cancelled_reason vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430")) {
+                        System.err.println("[OrderDAO] ensureCancelColumns (reason) lỗi: " + e.getMessage());
+                    }
+                }
+                try {
+                    stmt.execute("ALTER TABLE orders ADD (cancelled_at DATE)");
+                    System.out.println("[OrderDAO] Đã thêm cột cancelled_at vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430")) {
+                        System.err.println("[OrderDAO] ensureCancelColumns (at) lỗi: " + e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[OrderDAO] ensureCancelColumns lỗi kết nối: " + e.getMessage());
+            } finally {
+                _cancelColChecked = true;
+            }
+        }
+    }
+
+    // ─── CANCEL ORDER ─────────────────────────────────────────────────────────
+
+    /**
+     * Huỷ một đơn hàng với lý do cụ thể, áp dụng kiểm soát phân quyền theo role:
+     *
+     * <ul>
+     *   <li><b>WAITER</b> — chỉ được huỷ khi order đang ở trạng thái {@code PENDING}.
+     *       Các trạng thái khác (ACCEPTED, COOKING, READY, …) bị từ chối.</li>
+     *   <li><b>RESTAURANT_ADMIN / SUPER_ADMIN</b> — được huỷ khi status thuộc
+     *       {@code {PENDING, ACCEPTED, COOKING, READY}}. Không được huỷ
+     *       {@code COMPLETED} hoặc đơn đã {@code CANCELLED}.</li>
+     * </ul>
+     *
+     * <p>Khi huỷ thành công:
+     * <ol>
+     *   <li>Cột {@code status} chuyển sang {@code 'CANCELLED'}.</li>
+     *   <li>Lý do huỷ được lưu vào {@code cancelled_reason}.</li>
+     *   <li>Thời điểm huỷ được ghi vào {@code cancelled_at} (Oracle {@code SYSDATE}).</li>
+     *   <li>Bàn liên kết được trả về trạng thái {@code 'RANH'}.</li>
+     *   <li>Thao tác được ghi vào audit log qua {@link AuditLogger}.</li>
+     * </ol>
+     *
+     * <p><b>Lưu ý:</b> Method tự động gọi {@link #ensureCancelColumns()} để đảm bảo
+     * schema Oracle đã có hai cột cần thiết trước khi thực thi UPDATE.
+     *
+     * @param orderId ID đơn hàng cần huỷ (String, parse sang {@code long} nội bộ)
+     * @param reason  Lý do huỷ (lưu vào {@code cancelled_reason}); có thể null
+     * @return {@code true} nếu huỷ thành công; {@code false} nếu không đủ quyền,
+     *         trạng thái không cho phép huỷ, hoặc order không tồn tại
+     */
+    public boolean cancelOrder(String orderId, String reason) {
+        ensureCancelColumns();
+
+        // ── 1. Kiểm tra quyền CANCEL_ORDER ───────────────────────────────────
+        if (!RbacGuard.getInstance().can(Permission.CANCEL_ORDER)) {
+            System.err.println("[OrderDAO] cancelOrder từ chối: thiếu quyền CANCEL_ORDER, orderId=" + orderId);
+            return false;
+        }
+
+        long oid = parseLongOrDefault(orderId, 0);
+
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+
+            // ── 2. Lấy trạng thái hiện tại của order ─────────────────────────
+            String currentStatus;
+            String selectSql = isSuperAdmin()
+                ? "SELECT status FROM orders WHERE order_id = ?"
+                : "SELECT status FROM orders WHERE order_id = ? AND restaurant_id = ?";
+
+            try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
+                ps.setLong(1, oid);
+                if (!isSuperAdmin()) ps.setLong(2, rid());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        System.err.println("[OrderDAO] cancelOrder: không tìm thấy order_id=" + orderId);
+                        return false;
+                    }
+                    currentStatus = rs.getString("status");
+                }
+            }
+
+            // ── 3 & 4. Kiểm tra trạng thái theo role ─────────────────────────
+            String role = AppSession.getInstance().getUserRole() == null
+                    ? "" : AppSession.getInstance().getUserRole().toUpperCase();
+
+            boolean isWaiter = "WAITER".equals(role) || "PHUC_VU".equals(role);
+            boolean isAdminOrAbove = RbacGuard.getInstance().isManagerOrAbove();
+
+            if (isWaiter) {
+                // WAITER chỉ được huỷ PENDING
+                if (!"PENDING".equals(currentStatus)) {
+                    System.err.println("[OrderDAO] cancelOrder từ chối (WAITER): "
+                            + "chỉ được huỷ PENDING, hiện tại=" + currentStatus
+                            + ", orderId=" + orderId);
+                    return false;
+                }
+            } else if (isAdminOrAbove) {
+                // RESTAURANT_ADMIN / SUPER_ADMIN không được huỷ COMPLETED hoặc CANCELLED
+                if ("COMPLETED".equals(currentStatus) || "CANCELLED".equals(currentStatus)) {
+                    System.err.println("[OrderDAO] cancelOrder từ chối (ADMIN): "
+                            + "không thể huỷ đơn đã " + currentStatus
+                            + ", orderId=" + orderId);
+                    return false;
+                }
+            } else {
+                // Role khác có CANCEL_ORDER permission không được phép vào đây;
+                // từ chối an toàn.
+                System.err.println("[OrderDAO] cancelOrder từ chối: role không xác định=" + role);
+                return false;
+            }
+
+            // ── 5. UPDATE orders → CANCELLED ─────────────────────────────────
+            String updateSql = isSuperAdmin()
+                ? """
+                  UPDATE orders
+                  SET status = 'CANCELLED', cancelled_reason = ?, cancelled_at = SYSDATE
+                  WHERE order_id = ?
+                  """
+                : """
+                  UPDATE orders
+                  SET status = 'CANCELLED', cancelled_reason = ?, cancelled_at = SYSDATE
+                  WHERE order_id = ? AND restaurant_id = ?
+                  """;
+
+            int updated;
+            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                ps.setString(1, reason);
+                ps.setLong(2, oid);
+                if (!isSuperAdmin()) ps.setLong(3, rid());
+                updated = ps.executeUpdate();
+            }
+
+            if (updated == 0) {
+                System.err.println("[OrderDAO] cancelOrder: UPDATE không ảnh hưởng hàng nào, orderId=" + orderId);
+                return false;
+            }
+
+            // ── 6. Trả bàn về trạng thái RANH ────────────────────────────────
+            String resetTableSql = """
+                UPDATE restaurant_tables
+                SET status = 'RANH'
+                WHERE table_id = (SELECT table_id FROM orders WHERE order_id = ?)
+                """;
+            try (PreparedStatement ps = conn.prepareStatement(resetTableSql)) {
+                ps.setLong(1, oid);
+                ps.executeUpdate();
+            }
+
+            // ── 7. Ghi audit log ──────────────────────────────────────────────
+            AuditLogger.getInstance().log(
+                    "CANCEL_ORDER",
+                    oid,
+                    "SUCCESS",
+                    orderId + " reason=" + reason
+            );
+
+            // ── 8. Thành công ─────────────────────────────────────────────────
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] cancelOrder lỗi: " + e.getMessage());
             return false;
         }
     }
