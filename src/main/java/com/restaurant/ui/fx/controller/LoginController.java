@@ -51,7 +51,7 @@ public class LoginController {
     @FXML private CheckBox      chkRemember;
     @FXML private Label         lblError;
     @FXML private Button        btnLogin;
-    @FXML private Button        btnTableLogin;
+    
 
     // ── Callbacks set by Main ─────────────────────────────────────────────────
 
@@ -282,8 +282,8 @@ public class LoginController {
                 stage.setScene(loginScene);
                 stage.setTitle("SmartRestaurant — Đăng nhập");
                 stage.setResizable(false);
-                stage.setWidth(440);
-                stage.setHeight(560);
+                stage.setWidth(500);
+                stage.setHeight(660);
                 stage.centerOnScreen();
                 Platform.runLater(() -> tfEmail.requestFocus());
             });
@@ -292,14 +292,14 @@ public class LoginController {
                     com.restaurant.ui.fx.util.FxUtils.loadFxml(
                             "RestaurantRegistrationView.fxml", regCtrl);
 
-            javafx.scene.Scene regScene = new javafx.scene.Scene(regRoot, 500, 680);
+            javafx.scene.Scene regScene = new javafx.scene.Scene(regRoot, 500, 750);
             com.restaurant.ui.fx.util.FxUtils.loadCss(regScene);
 
             stage.setScene(regScene);
             stage.setTitle("SmartRestaurant — Đăng ký nhà hàng");
             stage.setResizable(true);
             stage.setMinWidth(480);
-            stage.setMinHeight(580);
+            stage.setMinHeight(680);
             stage.centerOnScreen();
 
         } catch (Exception ex) {

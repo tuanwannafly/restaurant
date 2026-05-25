@@ -24,6 +24,30 @@ public enum Permission {
     UPDATE_ORDER_STATUS,
     DELETE_ORDER,
 
+    /**
+     * Cho phép huỷ đơn hàng ({@code Order}) theo từng role với phạm vi khác nhau:
+     *
+     * <ul>
+     *   <li><b>WAITER</b> – chỉ được huỷ khi order đang ở trạng thái
+     *       {@code PENDING} (đơn vừa tạo, chưa được kitchen xác nhận).
+     *       Không được huỷ khi order đã chuyển sang {@code ACCEPTED},
+     *       {@code COOKING}, {@code READY}, {@code DELIVERING} hay bất kỳ
+     *       trạng thái nào khác.</li>
+     *   <li><b>RESTAURANT_ADMIN</b> – được huỷ ở <em>bất kỳ trạng thái nào</em>
+     *       <strong>trừ {@code COMPLETED}</strong> (đơn đã thanh toán xong
+     *       không thể hoàn tác).</li>
+     *   <li><b>CASHIER</b> – <strong>không được cấp quyền này</strong>.
+     *       Thu ngân chỉ xử lý luồng thanh toán; việc huỷ đơn nằm ngoài
+     *       trách nhiệm nghiệp vụ của role này.</li>
+     * </ul>
+     *
+     * <p><b>Lưu ý triển khai:</b> Tầng service phải kiểm tra thêm điều kiện
+     * trạng thái hiện tại của order {@code (OrderStatus)} sau khi đã xác thực
+     * permission này — permission chỉ kiểm soát <em>khả năng</em> huỷ,
+     * không thay thế logic kiểm tra trạng thái.</p>
+     */
+    CANCEL_ORDER,
+
     // ── Menu ──────────────────────────────────────────────────────────────────
     VIEW_MENU,
     ADD_MENU,
@@ -155,6 +179,7 @@ public enum Permission {
             Collections.unmodifiableSet(EnumSet.of(
                     VIEW_EMPLOYEE,  ADD_EMPLOYEE,    EDIT_EMPLOYEE,       DELETE_EMPLOYEE,
                     VIEW_ORDER,     ADD_ORDER,        UPDATE_ORDER_STATUS, DELETE_ORDER,
+                    CANCEL_ORDER,
                     VIEW_MENU,      ADD_MENU,         EDIT_MENU,           DELETE_MENU,
                     VIEW_TABLE,     ADD_TABLE,        EDIT_TABLE,          DELETE_TABLE,
                     VIEW_STATS,     VIEW_REPORT,      ADD_REPORT,
@@ -170,6 +195,7 @@ public enum Permission {
     private static final Set<Permission> WAITER_PERMS =
             Collections.unmodifiableSet(EnumSet.of(
                     VIEW_ORDER,  ADD_ORDER, UPDATE_ORDER_STATUS,
+                    CANCEL_ORDER,
                     VIEW_TABLE,
                     VIEW_MENU,
                     ADD_REPORT,

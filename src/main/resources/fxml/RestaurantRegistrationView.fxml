@@ -32,7 +32,7 @@
 
     <!-- ── Background: two-tone vertical split ── -->
     <VBox>
-        <Region styleClass="login-brand-band" VBox.vgrow="NEVER" prefHeight="160"/>
+        <Region styleClass="login-brand-band" VBox.vgrow="NEVER" prefHeight="230"/>
         <Region styleClass="login-form-band"  VBox.vgrow="ALWAYS"/>
     </VBox>
 
@@ -40,7 +40,7 @@
     <VBox alignment="TOP_CENTER" spacing="0" StackPane.alignment="TOP_CENTER">
 
         <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
-        <VBox alignment="CENTER" spacing="6" prefHeight="160" styleClass="login-header">
+        <VBox alignment="CENTER" spacing="6" prefHeight="230" styleClass="login-header">
             <StackPane styleClass="login-logo-ring">
                 <Label text="🏪" styleClass="login-logo-icon"/>
             </StackPane>

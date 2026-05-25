@@ -330,10 +330,12 @@ public class Main extends Application {
         Scene scene = new Scene(root, 1280, 780);
         FxUtils.loadCss(scene);
 
-        stage.setScene(scene);
-        stage.setMinWidth(900);
-        stage.setMinHeight(600);
-        stage.show();
+    stage.setScene(scene);
+    stage.setResizable(true);   // ← THÊM DÒNG NÀY
+    stage.setMinWidth(900);
+    stage.setMinHeight(600);
+    stage.centerOnScreen();     // ← tùy chọn: căn giữa lại sau khi đổi kích thước
+    stage.show();
 
         // ── Badge updater: inject callback vào PollManagerFx (giữ nguyên) ────────
         // Callback chạy trên FX thread, cập nhật 4 BadgeLabel trên nav bar.
@@ -507,7 +509,7 @@ public class Main extends Application {
 
         javafx.scene.Parent root = FxUtils.loadFxml("LoginView.fxml", loginController);
 
-        Scene scene = new Scene(root, 440, 560);
+        Scene scene = new Scene(root, 500, 660);
         FxUtils.loadCss(scene);
 
         stage.setScene(scene);
