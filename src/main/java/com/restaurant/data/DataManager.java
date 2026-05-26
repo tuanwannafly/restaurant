@@ -282,6 +282,20 @@ public class DataManager {
     //  USER / STAFF
     // ═══════════════════════════════════════════════════════
 
+
+    /**
+     * Tạo nhân viên MỚI kèm tài khoản đăng nhập trong một transaction.
+     * Thay thế cặp addEmployee() + registerStaff() riêng lẻ.
+     */
+    public long addStaffWithAccount(String name, String cccd, String phone, String address,
+                                     String startDate, String email, String password,
+                                     String roleName) {
+        checkSession();
+        return userDAO.registerStaffFull(name, cccd, phone, address, startDate,
+                                          email, password, roleName,
+                                          AppSession.getInstance().getRestaurantId());
+    }
+
     /** Tạo tài khoản staff mới (chỉ RESTAURANT_ADMIN). */
     public long registerStaff(String name, String email, String password, String roleName) {
         checkSession();

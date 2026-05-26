@@ -20,16 +20,6 @@
                        style="-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:#1E293B;"/>
                 <Region HBox.hgrow="ALWAYS"/>
 
-                <!-- Shown only when user has REGISTER_STAFF permission -->
-                <Button fx:id="btnRegister"
-                        text="👤 Tạo tài khoản"
-                        onAction="#openRegisterDialog"
-                        visible="false" managed="false"
-                        prefWidth="148" prefHeight="36"
-                        style="-fx-background-color:white;-fx-border-color:#3B82F6;-fx-border-radius:6;
-                               -fx-background-radius:6;-fx-text-fill:#3B82F6;-fx-font-size:13px;
-                               -fx-cursor:hand;"/>
-
                 <Button fx:id="btnAdd"
                         text="＋ Thêm nhân viên"
                         onAction="#openAddDialog"

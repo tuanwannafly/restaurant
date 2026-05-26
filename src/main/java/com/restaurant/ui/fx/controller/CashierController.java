@@ -345,6 +345,7 @@ public class CashierController implements Initializable {
                     }
                     // Broadcast để TableController phía admin tự động refresh (TABLES)
                     // VÀ để tablet WaitingPage nhận tín hiệu thanh toán hoàn tất (ORDERS + table topic)
+                    // VÀ để WaiterController nhận signal cần dọn bàn (KITCHEN)
                     try {
                         long rid = com.restaurant.session.AppSession.getInstance().getRestaurantId();
                         com.restaurant.websocket.RestaurantEventServer srv =
@@ -361,6 +362,10 @@ public class CashierController implements Initializable {
                         com.restaurant.websocket.WsEvent badgeEvt =
                             com.restaurant.websocket.WsEvent.of(
                                 com.restaurant.websocket.WsTopic.BADGE, rid);
+                        // Thêm KITCHEN broadcast để WaiterController nhận signal hiển thị bàn cần dọn
+                        com.restaurant.websocket.WsEvent kitchenEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.KITCHEN, rid);
                         // Topic bàn riêng — tablet đang chờ trên topic này
                         com.restaurant.websocket.WsEvent tableEvt =
                             com.restaurant.websocket.WsEvent.of(
@@ -371,11 +376,13 @@ public class CashierController implements Initializable {
                             srv.broadcast(tablesEvt);
                             srv.broadcast(ordersEvt);
                             srv.broadcast(badgeEvt);
+                            srv.broadcast(kitchenEvt);
                             srv.broadcast(tableEvt);
                         } else {
                             cli.publishToServer(tablesEvt);
                             cli.publishToServer(ordersEvt);
                             cli.publishToServer(badgeEvt);
+                            cli.publishToServer(kitchenEvt);
                             cli.publishToServer(tableEvt);
                         }
                     } catch (Exception wsEx) {

@@ -596,8 +596,13 @@ public class KitchenController implements Initializable {
     // ─── Access denied ────────────────────────────────────────────────────────
 
     private void showAccessDenied() {
-        // Xóa tất cả children rồi hiện thông báo
-        // (gọi sau initialize nên cần invokeLater)
+        // FIX: Trước đây code leo lên scene.getRoot() (= root của MainView) và gọi
+        // bp.setCenter(denied) → đè toàn bộ content area, khiến mọi panel khác biến mất.
+        // Nguyên nhân: Platform.runLater() chạy sau khi KitchenView đã được thêm vào
+        // scene graph, nên btnBack.getScene() != null và getRoot() trả về MainView's BorderPane.
+        //
+        // FIX: Thay thế nội dung của chính BorderPane gốc của KitchenView.fxml,
+        // không leo lên MainView. headerBox.getParent() chính là root BorderPane đó.
         Platform.runLater(() -> {
             VBox denied = new VBox();
             denied.setAlignment(Pos.CENTER);
@@ -606,11 +611,11 @@ public class KitchenController implements Initializable {
                          "-fx-text-fill: #94A3B8;");
             denied.getChildren().add(lbl);
 
-            // Tìm scene root và thay thế center nếu là BorderPane
-            Node root = btnBack.getScene() != null
-                    ? btnBack.getScene().getRoot() : null;
-            if (root instanceof BorderPane bp) {
-                bp.setCenter(denied);
+            // headerBox là HBox bên trong <top> của root BorderPane của KitchenView.fxml.
+            // getParent() của nó chính là root BorderPane đó — không phải MainView.
+            if (headerBox != null && headerBox.getParent() instanceof BorderPane kitchenRoot) {
+                kitchenRoot.setTop(null);
+                kitchenRoot.setCenter(denied);
             }
         });
     }

@@ -141,11 +141,12 @@ public class WaiterController implements Initializable {
             if (event.getRestaurantId() == myRestaurantId
                     && (WsTopic.KITCHEN.equals(event.getTopic())
                         || WsTopic.ORDERS.equals(event.getTopic())
-                        || WsTopic.BADGE.equals(event.getTopic()))) {
+                        || WsTopic.BADGE.equals(event.getTopic())
+                        || WsTopic.TABLES.equals(event.getTopic()))) {
                 doPoll();
             }
         });
-        ws.subscribe(WsTopic.KITCHEN, WsTopic.ORDERS, WsTopic.BADGE);
+        ws.subscribe(WsTopic.KITCHEN, WsTopic.ORDERS, WsTopic.BADGE, WsTopic.TABLES);
 
         // Fallback polling 30s (bắt cập nhật khi WS tạm ngắt)
         pollTimeline = new Timeline(
@@ -527,15 +528,15 @@ public class WaiterController implements Initializable {
 
     /**
      * Cell button cho cột "Hành động" trong bảng dọn bàn.
-     * DIRTY → "Bắt đầu dọn" → trạng thái CLEANING
-     * CLEANING → "Dọn xong"  → trạng thái RANH (sẵn sàng)
+     * Một bước duy nhất: DIRTY / CLEANING → "✓ Dọn xong" → trạng thái RANH.
+     * (DB chỉ phân biệt OUT_OF_SERVICE / AVAILABLE nên không cần trạng thái trung gian.)
      */
     private class CleanActionCell extends TableCell<TableItem, Void> {
 
-        private final Button btn = new Button();
+        private final Button btn = new Button("✓  Dọn xong");
 
         CleanActionCell() {
-            btn.getStyleClass().add("action-btn");
+            btn.getStyleClass().addAll("action-btn", "btn-success");
             btn.setMaxWidth(Double.MAX_VALUE);
             btn.setOnAction(e -> handleCleanAction());
         }
@@ -544,28 +545,44 @@ public class WaiterController implements Initializable {
             int idx = getIndex();
             if (idx < 0 || idx >= getTableView().getItems().size()) return;
             TableItem item = getTableView().getItems().get(idx);
-            boolean   isDirty = item.getStatus() == TableItem.Status.DIRTY;
-            TableItem.Status next = isDirty
-                    ? TableItem.Status.CLEANING
-                    : TableItem.Status.RANH;
+
+            // Disable button ngay để tránh double-click
+            btn.setDisable(true);
 
             Task<Void> task = new Task<>() {
                 @Override
                 protected Void call() {
-                    tableDAO.updateStatus(item.getId(), next);
+                    tableDAO.updateStatus(item.getId(), TableItem.Status.RANH);
+
+                    // Broadcast TABLES event để các màn hình khác cập nhật (TableController...)
+                    try {
+                        long rid = AppSession.getInstance().getRestaurantId();
+                        com.restaurant.websocket.RestaurantEventServer srv =
+                            com.restaurant.websocket.RestaurantEventServer.getInstance();
+                        com.restaurant.websocket.RestaurantEventClient cli =
+                            com.restaurant.websocket.RestaurantEventClient.getInstance();
+                        com.restaurant.websocket.WsEvent tablesEvt =
+                            com.restaurant.websocket.WsEvent.of(WsTopic.TABLES, rid);
+                        if (srv.isRunning()) srv.broadcast(tablesEvt);
+                        else                 cli.publishToServer(tablesEvt);
+                    } catch (Exception wsEx) {
+                        System.err.println("[WaiterController] broadcast lỗi: " + wsEx.getMessage());
+                    }
                     return null;
                 }
             };
+
             task.setOnSucceeded(ev -> {
-                String msg = (next == TableItem.Status.RANH)
-                        ? "Bàn " + item.getName() + " đã sẵn sàng phục vụ!"
-                        : "Đang dọn bàn " + item.getName();
-                showToast(msg, next == TableItem.Status.RANH
-                        ? ToastType.SUCCESS : ToastType.INFO);
+                showToast("Bàn " + item.getName() + " đã sẵn sàng phục vụ! ✓",
+                        ToastType.SUCCESS);
                 loadData();
             });
-            task.setOnFailed(ev ->
-                    showError("Lỗi cập nhật bàn: " + task.getException().getMessage()));
+
+            task.setOnFailed(ev -> {
+                btn.setDisable(false);
+                showError("Lỗi cập nhật bàn: " + task.getException().getMessage());
+            });
+
             executor.submit(task);
         }
 
@@ -577,11 +594,7 @@ public class WaiterController implements Initializable {
                 setGraphic(null);
                 return;
             }
-            TableItem ti      = getTableView().getItems().get(getIndex());
-            boolean   isDirty = ti.getStatus() == TableItem.Status.DIRTY;
-            btn.setText(isDirty ? "Bắt đầu dọn" : "Dọn xong");
-            btn.getStyleClass().removeAll("btn-warning", "btn-success");
-            btn.getStyleClass().add(isDirty ? "btn-warning" : "btn-success");
+            btn.setDisable(false);
             setGraphic(btn);
             setText(null);
         }

@@ -10,9 +10,9 @@ import com.restaurant.model.Employee;
 import com.restaurant.session.AppSession;
 import com.restaurant.session.OperationType;
 import com.restaurant.session.Permission;
+import com.restaurant.ui.dialog.AddStaffDialogController;
 import com.restaurant.ui.dialog.ConfirmOperationDialogController;
 import com.restaurant.ui.dialog.EmployeeDialogController;
-import com.restaurant.ui.dialog.RegisterStaffDialogController;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -52,7 +52,6 @@ public class EmployeeController {
 
     // ── FXML injections ───────────────────────────────────────────────────────
 
-    @FXML private Button                       btnRegister;
     @FXML private Button                       btnAdd;
     @FXML private TextField                    searchField;
     @FXML private HBox                         roleFilterBox;
@@ -68,8 +67,12 @@ public class EmployeeController {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    private final boolean showAccountCol =
-            AppSession.getInstance().hasPermission(Permission.REGISTER_STAFF);
+    // FIX: Không được gọi hasPermission() ở field initializer (chạy trong constructor,
+    // trước khi @FXML inject và trước khi session token hoàn toàn sẵn sàng).
+    // Nếu token chưa được ghi vào DB, validateToken() trả về false → SessionExpiredException
+    // khiến FXMLLoader.load() fail → toàn bộ panel thành placeholder.
+    // Giải pháp: khởi tạo false, gán lại trong initialize() sau khi session đã ổn định.
+    private boolean showAccountCol = false;
 
     private final EmployeeDAO employeeDAO = new EmployeeDAO();
 
@@ -84,6 +87,8 @@ public class EmployeeController {
 
     @FXML
     public void initialize() {
+        // Gán sau khi session token đã được thiết lập (UserDAO.login() đã chạy xong)
+        showAccountCol = AppSession.getInstance().hasPermission(Permission.REGISTER_STAFF);
         applyPermissionVisibility();
         wireColumns();
         buildRoleFilterButtons();
@@ -95,8 +100,7 @@ public class EmployeeController {
 
     private void applyPermissionVisibility() {
         colAccount.setVisible(showAccountCol);
-        btnRegister.setVisible(showAccountCol);
-        btnRegister.setManaged(showAccountCol);
+        // btnRegister removed — "Thêm nhân viên" (btnAdd) đã bao gồm tạo tài khoản
     }
 
     // ── Column setup ──────────────────────────────────────────────────────────
@@ -263,18 +267,15 @@ public class EmployeeController {
 
     @FXML
     private void openAddDialog() {
-        EmployeeDialogController.show(getWindow(), null, saved ->
-                runAsync(() -> DataManager.getInstance().addEmployee(saved)));
-    }
-
-    @FXML
-    private void openRegisterDialog() {
-        boolean ok = RegisterStaffDialogController.show(getWindow());
+        // Dialog hợp nhất: nhập đầy đủ thông tin nhân viên + tài khoản đăng nhập
+        boolean ok = AddStaffDialogController.show(getWindow());
         if (ok) {
             loadData();
-            showInfo("Tạo tài khoản thành công!", Alert.AlertType.INFORMATION);
+            showInfo("Tạo nhân viên và tài khoản thành công!", Alert.AlertType.INFORMATION);
         }
     }
+
+
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 

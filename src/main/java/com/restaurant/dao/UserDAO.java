@@ -134,8 +134,15 @@ public class UserDAO {
                     String token = TokenService.getInstance().generateSessionToken(userId);
                     AppSession.getInstance().setSessionToken(token);
                 } catch (Exception tokenEx) {
-                    System.err.println("[UserDAO] Cảnh báo: không tạo được session token: "
-                            + tokenEx.getMessage());
+                    // FIX: Không được nuốt lỗi này một cách im lặng.
+                    // Nếu token = null thì RbacGuard.can() sẽ ném SessionExpiredException
+                    // trong initialize() của các controller → tất cả panel thành placeholder.
+                    // Xử lý đúng: clear session và trả về false để LoginController hiển thị lỗi.
+                    System.err.println("[UserDAO] CRITICAL: Không tạo được session token cho userId="
+                            + userId + ": " + tokenEx.getMessage());
+                    tokenEx.printStackTrace();
+                    AppSession.getInstance().logout(); // clear session vừa set
+                    return false;
                 }
 
                 // Ghi audit log LOGIN SUCCESS (sau khi có session)
@@ -187,8 +194,13 @@ public class UserDAO {
                             .getInstance().generateSessionToken(userId);
                     com.restaurant.session.AppSession.getInstance().setSessionToken(token);
                 } catch (Exception tokenEx) {
-                    System.err.println("[UserDAO] Cảnh báo: không tạo session token khi silent login: "
-                            + tokenEx.getMessage());
+                    // FIX: Nếu không tạo được token, session sẽ bị broken (mọi can() ném exception).
+                    // Clear session và trả về false để caller biết silent login thất bại.
+                    System.err.println("[UserDAO] CRITICAL: Không tạo session token khi silent login userId="
+                            + userId + ": " + tokenEx.getMessage());
+                    tokenEx.printStackTrace();
+                    com.restaurant.session.AppSession.getInstance().logout();
+                    return false;
                 }
                 return true;
             }
@@ -973,6 +985,112 @@ public class UserDAO {
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+
+    /**
+     * Tạo đầy đủ: user account + employee record trong MỘT transaction.
+     * Dùng cho dialog "Thêm nhân viên" hợp nhất (AddStaffDialog).
+     *
+     * @param name         Họ và tên nhân viên
+     * @param cccd         Căn cước công dân (có thể rỗng)
+     * @param phone        Số điện thoại
+     * @param address      Địa chỉ (có thể rỗng)
+     * @param startDate    Ngày vào làm ISO "yyyy-MM-dd" (có thể rỗng → SYSDATE)
+     * @param email        Email đăng nhập
+     * @param password     Mật khẩu plain-text (sẽ được hash BCrypt)
+     * @param roleName     "WAITER" | "CHEF" | "CASHIER"
+     * @param restaurantId ID nhà hàng
+     * @return user_id của tài khoản vừa tạo
+     * @throws SecurityException        nếu không đủ quyền
+     * @throws IllegalArgumentException nếu email đã tồn tại hoặc role không hợp lệ
+     */
+    public long registerStaffFull(String name, String cccd, String phone, String address,
+                                   String startDate, String email, String password,
+                                   String roleName, long restaurantId) {
+        if (!RbacGuard.getInstance().can(Permission.REGISTER_STAFF)) {
+            throw new SecurityException("Không có quyền tạo tài khoản staff");
+        }
+        if (emailExists(email)) {
+            throw new IllegalArgumentException("Email đã tồn tại: " + email);
+        }
+        if (RbacGuard.getInstance().isRestaurantAdmin()) {
+            String upper = roleName != null ? roleName.toUpperCase() : "";
+            if (upper.equals("RESTAURANT_ADMIN") || upper.equals("ADMIN")
+                    || upper.equals("QUAN_LY") || upper.equals("SUPER_ADMIN")) {
+                throw new SecurityException(
+                        "RESTAURANT_ADMIN không được tạo tài khoản với role: " + roleName);
+            }
+        }
+
+        String employeeRole = mapRoleToEmployeeRole(roleName);
+        if (employeeRole == null) {
+            throw new IllegalArgumentException("Role không hợp lệ: " + roleName);
+        }
+
+        String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+
+        // Một connection duy nhất → atomic (auto-commit mặc định = true ở đây;
+        // hai INSERT riêng nhưng DB sequence đảm bảo consistency)
+        long userId;
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Tạo user
+                String insertUser =
+                        "INSERT INTO users (name, email, password, role_id, restaurant_id, status)"
+                      + " VALUES (?, ?, ?, (SELECT id FROM roles WHERE name = ?), ?, 'ACTIVE')";
+                try (PreparedStatement ps = conn.prepareStatement(
+                        insertUser, new String[]{"user_id"})) {
+                    ps.setString(1, name);
+                    ps.setString(2, email.trim().toLowerCase());
+                    ps.setString(3, hashedPassword);
+                    ps.setString(4, roleName.toUpperCase());
+                    ps.setLong  (5, restaurantId);
+                    ps.executeUpdate();
+                    try (ResultSet keys = ps.getGeneratedKeys()) {
+                        if (!keys.next()) throw new RuntimeException("Không lấy được user_id");
+                        userId = keys.getLong(1);
+                    }
+                }
+
+                // 2. Tạo employee record đầy đủ
+                String insertEmp =
+                        "INSERT INTO employees"
+                      + " (name, cccd, phone, address, start_date, role, restaurant_id, user_id)"
+                      + " VALUES (?, ?, ?, ?, "
+                      + (startDate != null && !startDate.isBlank()
+                              ? "TO_DATE(?, 'YYYY-MM-DD')" : "SYSDATE")
+                      + ", ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(insertEmp)) {
+                    int col = 1;
+                    ps.setString(col++, name);
+                    ps.setString(col++, cccd    != null ? cccd    : "");
+                    ps.setString(col++, phone   != null ? phone   : "");
+                    ps.setString(col++, address != null ? address : "");
+                    if (startDate != null && !startDate.isBlank()) {
+                        ps.setString(col++, startDate);
+                    }
+                    ps.setString(col++, employeeRole);
+                    ps.setLong  (col++, restaurantId);
+                    ps.setLong  (col,   userId);
+                    ps.executeUpdate();
+                }
+
+                conn.commit();
+            } catch (Exception ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SecurityException | IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("[UserDAO] Lỗi registerStaffFull: " + e.getMessage(), e);
+        }
+
+        return userId;
+    }
 
     private String mapRoleToEmployeeRole(String roleName) {
         if (roleName == null) return null;

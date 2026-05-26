@@ -156,7 +156,7 @@ public class KitchenDAO {
             "SELECT table_id, table_number, capacity, status " +
             "FROM   restaurant_tables " +
             "WHERE  restaurant_id = ? " +
-            "  AND  status IN ('DIRTY', 'CLEANING') " +
+            "  AND  status IN ('DIRTY', 'CLEANING', 'OUT_OF_SERVICE') " +
             "ORDER  BY table_number";
 
     private static final String SQL_UPDATE_STATUS =

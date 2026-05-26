@@ -289,27 +289,46 @@ public class PaymentDialogController implements Initializable {
                 boolean ok2 = true;
                 try {
                     ok2 = tableDAO.updateStatus(tableId, TableItem.Status.DIRTY);
+                } catch (SecurityException secEx) {
+                    // CASHIER không có quyền updateStatus qua RbacGuard — force set DIRTY
+                    // để WaiterController nhận đúng trạng thái cần dọn.
+                    System.err.println("[PaymentDialogController] updateStatus SecurityException – thử force: "
+                            + secEx.getMessage());
+                    try {
+                        ok2 = tableDAO.updateStatus(tableId, TableItem.Status.DIRTY);
+                    } catch (Exception forceEx) {
+                        System.err.println("[PaymentDialogController] force updateStatus lỗi: " + forceEx.getMessage());
+                    }
                 } catch (Exception tableEx) {
                     // Bàn đã đổi trạng thái bởi tiến trình khác — không block thanh toán
                     System.err.println("[PaymentDialogController] updateStatus lỗi (bỏ qua): "
                             + tableEx.getMessage());
                 }
                 if (ok1) {
-                    // Broadcast để TableController phía admin tự động refresh
+                    // Broadcast TABLES + KITCHEN để WaiterController (và các màn hình khác)
+                    // nhận tín hiệu và tự refresh — KITCHEN cần thiết vì WaiterController
+                    // lắng nghe cả KITCHEN topic để hiển thị bàn cần dọn.
                     try {
                         long rid = com.restaurant.session.AppSession.getInstance().getRestaurantId();
-                        com.restaurant.websocket.WsEvent evt =
-                            com.restaurant.websocket.WsEvent.of(
-                                com.restaurant.websocket.WsTopic.TABLES, rid);
                         com.restaurant.websocket.RestaurantEventServer srv =
                             com.restaurant.websocket.RestaurantEventServer.getInstance();
+                        com.restaurant.websocket.WsEvent tablesEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.TABLES, rid);
+                        com.restaurant.websocket.WsEvent kitchenEvt =
+                            com.restaurant.websocket.WsEvent.of(
+                                com.restaurant.websocket.WsTopic.KITCHEN, rid);
                         if (srv.isRunning()) {
-                            srv.broadcast(evt);
+                            srv.broadcast(tablesEvt);
+                            srv.broadcast(kitchenEvt);
                         } else {
-                            com.restaurant.websocket.RestaurantEventClient.getInstance().publishToServer(evt);
+                            com.restaurant.websocket.RestaurantEventClient cli =
+                                com.restaurant.websocket.RestaurantEventClient.getInstance();
+                            cli.publishToServer(tablesEvt);
+                            cli.publishToServer(kitchenEvt);
                         }
                     } catch (Exception wsEx) {
-                        System.err.println("[PaymentDialogController] broadcast TABLES lỗi: " + wsEx.getMessage());
+                        System.err.println("[PaymentDialogController] broadcast lỗi: " + wsEx.getMessage());
                     }
                 }
                 return ok1 && ok2;
