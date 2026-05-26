@@ -24,7 +24,8 @@ import org.java_websocket.handshake.ServerHandshake;
  *   <li>Nhận {@link WsEvent} và dispatch consumer callback
  *       trên FX Application Thread ({@link Platform#runLater}).</li>
  *   <li>Auto-reconnect với exponential backoff:
- *       1 s → 2 s → 4 s → 8 s → 16 s → 30 s (tối đa).</li>
+ *       1 s → 2 s → 4 s → 8 s → 16 s → 30 s (tối đa).
+ *       Sau 12 lần thất bại liên tiếp, dừng reconnect để tránh spam.</li>
  * </ul>
  *
  * <h3>Sử dụng</h3>
@@ -59,6 +60,9 @@ public final class RestaurantEventClient extends WebSocketClient {
 
     /** Giới hạn tối đa delay reconnect (ms). */
     private static final long BACKOFF_MAX_MS     = 30_000L;
+
+    /** Giới hạn tối đa số lần reconnect liên tiếp trước khi dừng. */
+    private static final int MAX_RECONNECT_ATTEMPTS = 12;
 
     // ── Singleton ─────────────────────────────────────────────────────────────
 
@@ -97,13 +101,16 @@ public final class RestaurantEventClient extends WebSocketClient {
     /** Delay hiện tại của backoff (ms). */
     private long backoffMs = BACKOFF_INITIAL_MS;
 
+    /** Số lần reconnect thất bại liên tiếp — reset thành 0 khi connect thành công. */
+    private int consecutiveFailures = 0;
+
     /**
      * Flag ngừng reconnect — đặt thành {@code true} khi {@link #disconnect()} được gọi
      * để tránh reconnect vô tận sau khi logout.
      */
     private volatile boolean intentionalClose = false;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // ── Constructor ────────────────────────────────────────────────────────────
 
     private RestaurantEventClient(URI serverUri) {
         super(serverUri);
@@ -116,6 +123,7 @@ public final class RestaurantEventClient extends WebSocketClient {
     public void onOpen(ServerHandshake handshake) {
         LOGGER.info("[WsClient] Kết nối thành công tới " + getURI());
         backoffMs = BACKOFF_INITIAL_MS; // reset backoff khi kết nối thành công
+        consecutiveFailures = 0; // reset failure counter
 
         // Gửi lại tất cả topic subscribe sau mỗi lần (re)connect
         String[] topics = pendingTopics;
@@ -228,6 +236,9 @@ public final class RestaurantEventClient extends WebSocketClient {
      * (port bị chiếm). WsClient đã kết nối đến server của process kia — gửi PUB
      * để server đó broadcast đến tất cả subscriber, bao gồm TableOrderStage.</p>
      *
+     * <p><strong>Lưu ý:</strong> Nếu client đang reconnect, PUB message sẽ bị DROP.
+     * Caller nên check {@link #isOpen()} trước hoặc retry logic.</p>
+     *
      * @param event sự kiện cần relay
      */
     public void publishToServer(WsEvent event) {
@@ -279,6 +290,7 @@ public final class RestaurantEventClient extends WebSocketClient {
     public void connect() {
         intentionalClose = false;
         backoffMs        = BACKOFF_INITIAL_MS;
+        consecutiveFailures = 0;
         super.connect();
     }
 
@@ -306,14 +318,30 @@ public final class RestaurantEventClient extends WebSocketClient {
      * Lên lịch reconnect với exponential backoff.
      *
      * <p>Backoff tăng gấp đôi mỗi lần thất bại cho đến khi đạt {@link #BACKOFF_MAX_MS}.
-     * Thread được đặt là daemon để không chặn JVM shutdown.
+     * Sau {@link #MAX_RECONNECT_ATTEMPTS} lần thất bại liên tiếp, dừng reconnect.
+     *
+     * <p>Thread được đặt là daemon để không chặn JVM shutdown.
      */
     private void scheduleReconnect() {
+        // Đếm lần thất bại
+        consecutiveFailures++;
+
+        // Nếu vượt quá giới hạn, dừng reconnect (tránh spam CPU + network)
+        if (consecutiveFailures > MAX_RECONNECT_ATTEMPTS) {
+            LOGGER.warning("[WsClient] Đã thất bại " + consecutiveFailures
+                    + " lần — dừng reconnect để tránh spam. Hãy kiểm tra:\n"
+                    + "  1. WsServer có đang chạy tại " + getURI() + " không?\n"
+                    + "  2. Firewall / port blocking?\n"
+                    + "  Gọi connect() lại để reset counter.");
+            return;
+        }
+
         long delay = backoffMs;
         // Tăng backoff cho lần tiếp theo, giới hạn tại BACKOFF_MAX_MS
         backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
 
-        LOGGER.info("[WsClient] Sẽ thử reconnect sau " + delay + " ms…");
+        LOGGER.info("[WsClient] Sẽ thử reconnect sau " + delay + " ms "
+                + "(lần " + consecutiveFailures + "/" + MAX_RECONNECT_ATTEMPTS + ")…");
 
         Thread t = new Thread(() -> {
             try {
