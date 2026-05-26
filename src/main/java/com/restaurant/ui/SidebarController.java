@@ -266,6 +266,13 @@ public class SidebarController {
                                 Set<Permission> perms,
                                 boolean isSuper,
                                 boolean isAdmin) {
+        RbacGuard guard = RbacGuard.getInstance();
+        // ── Đầu bếp: chỉ thấy Bếp + Báo cáo ────────────────────────────────
+        if (guard.isChef()   && !"bep".equals(ni.key())    && !"baocao".equals(ni.key())) return false;
+        // ── Phục vụ: chỉ thấy Phục vụ + Báo cáo ────────────────────────────
+        if (guard.isWaiter() && !"phucvu".equals(ni.key()) && !"baocao".equals(ni.key())) return false;
+        // ── Thu ngân: chỉ thấy Thu ngân + Báo cáo ───────────────────────────
+        if (guard.isCashier()&& !"thungan".equals(ni.key())&& !"baocao".equals(ni.key())) return false;
         return switch (ni.visibleFor() == null ? "" : ni.visibleFor()) {
             case "super_admin_only"      -> isSuper;
             case "restaurant_admin_only" -> isAdmin;

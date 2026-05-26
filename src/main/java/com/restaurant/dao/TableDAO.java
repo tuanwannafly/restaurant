@@ -115,10 +115,14 @@ public class TableDAO {
             ps.setLong(2, Long.parseLong(tableId));
             if (!isSuperAdmin()) ps.setLong(3, rid());
             int rows = ps.executeUpdate();
-            if (rows == 0) throw new SecurityException("[TableDAO] updateStatus từ chối: table_id=" + tableId);
+            if (rows == 0) {
+                // rows==0: bàn có thể đã được đổi trạng thái bởi tiến trình khác (race condition).
+                // Không throw — chỉ log cảnh báo và trả false để caller biết.
+                System.err.println("[TableDAO] updateStatus rows=0 — table_id=" + tableId
+                    + " có thể đã được đổi trạng thái trước đó.");
+                return false;
+            }
             return true;
-        } catch (SecurityException e) {
-            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Lỗi cập nhật trạng thái bàn: " + e.getMessage(), e);
         }

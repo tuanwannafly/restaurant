@@ -113,7 +113,11 @@ public class MainController implements Initializable, SessionListener {
         registerPages();
 
         // Navigate to home
-        navigateTo("home");
+        var guard = com.restaurant.session.RbacGuard.getInstance();
+        navigateTo(guard.isChef()    ? "bep"    :
+                   guard.isWaiter()  ? "phucvu" :
+                   guard.isCashier() ? "thungan":
+                                       "home");
 
         // Periodic session check
         startSessionCheckTimer();

@@ -108,4 +108,30 @@ public final class RbacGuard {
     private String currentRole() {
         return AppSession.getInstance().getUserRole();
     }
+
+    public boolean isChef() {
+        String role = currentRole();
+        return role != null && (
+                "CHEF".equalsIgnoreCase(role) ||
+                "DAU_BEP".equalsIgnoreCase(role)
+        );
+    }
+
+    /** {@code true} nếu là nhân viên phục vụ (WAITER / PHUC_VU). */
+    public boolean isWaiter() {
+        String role = currentRole();
+        return role != null && (
+                "WAITER".equalsIgnoreCase(role) ||
+                "PHUC_VU".equalsIgnoreCase(role)
+        );
+    }
+
+    /** {@code true} nếu là thu ngân (CASHIER / THU_NGAN). */
+    public boolean isCashier() {
+        String role = currentRole();
+        return role != null && (
+                "CASHIER".equalsIgnoreCase(role) ||
+                "THU_NGAN".equalsIgnoreCase(role)
+        );
+    }
 }

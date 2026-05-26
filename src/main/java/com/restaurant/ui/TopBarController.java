@@ -74,12 +74,12 @@ public class TopBarController implements Initializable {
         profileMenu = new ContextMenu();
         profileMenu.getStyleClass().add("profile-context-menu");
 
-        MenuItem miProfile = new MenuItem("Thong tin ca nhan");
+        MenuItem miProfile = new MenuItem("👤  Thông tin cá nhân");
         miProfile.setOnAction(e -> openProfileDialog());
 
         SeparatorMenuItem sep = new SeparatorMenuItem();
 
-        MenuItem miLogout = new MenuItem("Dang xuat");
+        MenuItem miLogout = new MenuItem("🚪  Đăng xuất");
         miLogout.getStyleClass().add("menu-item-danger");
         miLogout.setOnAction(e -> AppSession.getInstance().logout());
 
@@ -98,14 +98,6 @@ public class TopBarController implements Initializable {
     private void openProfileDialog() {
         if (btnProfile == null || btnProfile.getScene() == null) return;
         javafx.stage.Window owner = btnProfile.getScene().getWindow();
-        try {
-            Class<?> dlgClass = Class.forName("com.restaurant.ui.dialog.MyProfileDialog");
-            Object dlg = dlgClass
-                    .getConstructor(javafx.stage.Stage.class)
-                    .newInstance((javafx.stage.Stage) owner);
-            dlgClass.getMethod("showAndWait").invoke(dlg);
-        } catch (Exception ex) {
-            System.err.println("[TopBarController] MyProfileDialog not found: " + ex.getMessage());
-        }
+        com.restaurant.ui.fx.controller.ProfileController.show(owner);
     }
 }
