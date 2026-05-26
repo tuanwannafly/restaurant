@@ -127,6 +127,13 @@ public class StatusPageController extends BasePageController {
         confirm.showAndWait().ifPresent(btn -> {
             if (btn != ButtonType.YES) return;
 
+            // ── FIX: Set flag TRƯỚC khi start thread ──────────────────────────
+            // broadcastCancelEvent() chạy trên background thread; WS event có thể
+            // arrive trên FX thread TRƯỚC setOnSucceeded. Nếu flag chưa set, WS
+            // handler thấy selfCancelInProgress=false → hiện "nhân viên đã hủy" SAI.
+            // Set flag ngay bây giờ (FX thread) → WS event luôn thấy flag=true.
+            selfCancelInProgress = true;
+
             javafx.concurrent.Task<Boolean> task = new javafx.concurrent.Task<>() {
                 @Override protected Boolean call() {
                     long restaurantId = AppSession.getInstance().getRestaurantId();
@@ -135,19 +142,21 @@ public class StatusPageController extends BasePageController {
             };
             task.setOnSucceeded(e -> {
                 if (Boolean.TRUE.equals(task.getValue())) {
-                    // Đánh dấu tự hủy trước khi refresh để phân biệt với admin hủy
-                    selfCancelInProgress = true;
-
-                    // Thông báo hủy thành công ngay cho khách
+                    // Thông báo hủy thành công cho khách.
+                    // Không gọi refreshTable() ở đây — WS event (ORDERS topic) từ
+                    // broadcastCancelEvent() sẽ trigger refreshTable() qua setupWsSubscription.
+                    // Gọi thêm sẽ tạo 2 refresh đồng thời và làm mất flag.
                     Alert ok = new Alert(Alert.AlertType.INFORMATION,
                         "Đã hủy món \"" + row.name.get() + "\" thành công.",
                         ButtonType.OK);
                     ok.setTitle("Hủy món thành công");
                     ok.setHeaderText(null);
                     ok.showAndWait();
-
-                    refreshTable();
+                    // WS event đã được queue trong lúc alert mở (FX thread bị block bởi
+                    // showAndWait) → sẽ chạy ngay sau khi alert đóng → refreshTable().
                 } else {
+                    // Hủy thất bại → reset flag để không chặn cảnh báo external cancel
+                    selfCancelInProgress = false;
                     Alert err = new Alert(Alert.AlertType.WARNING,
                         "Không thể hủy món này vì bếp đã tiếp nhận.\n" +
                         "Vui lòng liên hệ nhân viên để được hỗ trợ.",
@@ -156,9 +165,12 @@ public class StatusPageController extends BasePageController {
                     err.showAndWait();
                 }
             });
-            task.setOnFailed(e ->
+            task.setOnFailed(e -> {
+                // Task crash → reset flag
+                selfCancelInProgress = false;
                 System.err.println("[StatusPageController] cancelOrderItem lỗi: "
-                        + task.getException().getMessage()));
+                        + task.getException().getMessage());
+            });
             new Thread(task, "cancel-item").start();
         });
     }
