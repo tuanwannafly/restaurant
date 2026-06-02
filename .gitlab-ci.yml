@@ -1,0 +1,364 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SmartRestaurant — GitLab CI/CD Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+#  STAGES
+#    build       → mvn package -DskipTests  →  target/smart-restaurant-1.0.0.jar
+#    test        → unit (RbacTest + future JUnit) │ integration (PG 16 + Redis)
+#    docker      → docker build & push to GitLab Container Registry
+#    deploy      → SSH → EC2 → docker compose up -d  (manual, main only)
+#
+#  REQUIRED CI/CD VARIABLES  (GitLab → Settings → CI/CD → Variables)
+#  ┌──────────────────┬──────────┬────────────────────────────────────────────┐
+#  │ Variable          │ Type     │ Description                                │
+#  ├──────────────────┼──────────┼────────────────────────────────────────────┤
+#  │ EC2_HOST          │ Variable │ EC2 public IP or hostname                  │
+#  │ EC2_USER          │ Variable │ SSH user  (ubuntu / ec2-user …)            │
+#  │ EC2_SSH_KEY       │ File ◄── │ PEM private key — Variable Type = File     │
+#  │ EC2_DEPLOY_PATH   │ Variable │ /home/ubuntu/smartrestaurant               │
+#  └──────────────────┴──────────┴────────────────────────────────────────────┘
+#  CI_REGISTRY / CI_REGISTRY_USER / CI_REGISTRY_PASSWORD are auto-injected
+#  by GitLab for jobs that push to the Container Registry.
+#
+#  README BADGE — paste into README.md (replace NAMESPACE/PROJECT):
+#  [![pipeline](https://gitlab.com/NAMESPACE/PROJECT/badges/main/pipeline.svg)](https://gitlab.com/NAMESPACE/PROJECT/-/pipelines)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Default base image for build/test stages ─────────────────────────────────
+default:
+  image: maven:3.9-eclipse-temurin-17
+  interruptible: true
+
+# ─── Global variables ─────────────────────────────────────────────────────────
+variables:
+  MAVEN_OPTS: >-
+    -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
+    -Djava.awt.headless=true
+    -Dfile.encoding=UTF-8
+
+  MAVEN_CLI: >-
+    --batch-mode
+    --no-transfer-progress
+    --errors
+
+  IMAGE: $CI_REGISTRY_IMAGE
+  TAG:   $CI_COMMIT_SHORT_SHA
+
+stages:
+  - build
+  - test
+  - docker
+  - deploy
+
+# ─── Maven dependency cache (invalidated when pom.xml changes) ────────────────
+cache:
+  key:
+    files:
+      - pom.xml
+  paths:
+    - .m2/repository/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SHARED: Source patches (hidden job — referenced with !reference)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Mirrors the two sed fixes in Dockerfile so the source compiles cleanly
+# against PostgreSQL/Docker without touching the committed source files.
+#
+#   FIX 1 — remove "SELECT 1 FROM DUAL" Oracle connectionTestQuery from HikariCP
+#            (PostgreSQL has no DUAL table → pool crash on init)
+#   FIX 2 — replace hardcoded Redis "localhost:6379" with REDIS_HOST env var
+#            ("localhost" does not resolve inside Docker networks)
+#
+# Commands are idempotent; safe to run multiple times.
+# ─────────────────────────────────────────────────────────────────────────────
+.apply_patches:
+  script:
+    # FIX 1 — remove connectionTestQuery line (Oracle-only, not needed for PG)
+    - sed -i '/config\.setConnectionTestQuery/d' src/main/java/com/restaurant/db/DBConnection.java
+
+    # FIX 2 — Redis localhost → REDIS_HOST env var
+    - |
+      sed -i \
+        's|new redis\.clients\.jedis\.Jedis("localhost", 6379)|new redis.clients.jedis.Jedis(System.getenv("REDIS_HOST")!=null?System.getenv("REDIS_HOST"):"redis",6379)|g' \
+        src/main/java/com/restaurant/db/KitchenLockService.java \
+        src/main/java/com/restaurant/db/OrderLockService.java
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGE 1 — BUILD
+# ═══════════════════════════════════════════════════════════════════════════════
+# Applies source patches → compiles → packages fat JAR (maven-shade-plugin).
+# Tests are skipped here and run in the dedicated test jobs instead.
+# The JAR artifact is forwarded to downstream jobs via GitLab artifact passing.
+# ─────────────────────────────────────────────────────────────────────────────
+build:
+  stage: build
+  script:
+    - !reference [.apply_patches, script]
+    - mvn $MAVEN_CLI package -DskipTests
+    - ls -lh target/smart-restaurant-1.0.0.jar
+  artifacts:
+    name: "jar-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - target/smart-restaurant-1.0.0.jar
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGE 2a — UNIT TEST  (no external services required)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Two test runners in a single job:
+#
+#   1. RbacTest.java — standalone main() program in src/main/java (not JUnit).
+#      Runs directly from the fat JAR artifact using -cp (bypasses Main-Class).
+#      Uses its own ok()/no() helpers; exits with code 1 on any failure →
+#      pipeline job fails immediately on any RBAC regression.
+#
+#   2. mvn test — runs any JUnit 5 tests placed in src/test/java.
+#      Currently empty (vacuous pass). Add @Test classes and they run here.
+# ─────────────────────────────────────────────────────────────────────────────
+test:unit:
+  stage: test
+  needs:
+    - job:       build
+      artifacts: true
+  script:
+    - !reference [.apply_patches, script]
+
+    # RBAC smoke-test: pure logic, no DB or JavaFX toolkit needed
+    - java -Djava.awt.headless=true -cp target/smart-restaurant-1.0.0.jar
+           com.restaurant.session.RbacTest
+
+    # JUnit suite: src/test/java (ready for future @Test classes)
+    - mvn $MAVEN_CLI test -Djava.awt.headless=true
+
+  artifacts:
+    when: always
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGE 2b — INTEGRATION TEST  (PostgreSQL 16 + Redis 7 service containers)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Spins up real PostgreSQL 16 and Redis 7 alongside the job container.
+# Before tests run, bootstraps the full schema (init.sql) then seed data
+# (datainit-postgres.sql) using psql.
+#
+# DB connection properties are injected as JVM system properties via
+# MAVEN_OPTS so DBConnection.java picks them up with no db.properties file.
+#
+# Current state: mvn test passes vacuously (no integration tests yet).
+# When FullOrderFlowIntegrationTest is added to src/test/java it will be
+# picked up automatically — zero CI changes required.
+#
+# Schedule:
+#   main / develop  → runs automatically on every push
+#   Merge requests  → manual trigger only (saves CI minutes)
+# ─────────────────────────────────────────────────────────────────────────────
+test:integration:
+  stage: test
+  needs:
+    - job:       build
+      artifacts: true
+
+  services:
+    - name:  postgres:16
+      alias: postgres
+    - name:  redis:7-alpine
+      alias: redis
+
+  variables:
+    # PostgreSQL service config
+    POSTGRES_DB:       smartrestaurant
+    POSTGRES_USER:     restaurant
+    POSTGRES_PASSWORD: restaurant123
+
+    # Inject DB + Redis coords into JVM (DBConnection reads -D system properties)
+    MAVEN_OPTS: >-
+      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
+      -Djava.awt.headless=true
+      -Dfile.encoding=UTF-8
+      -Ddb.url=jdbc:postgresql://postgres:5432/smartrestaurant
+      -Ddb.username=restaurant
+      -Ddb.password=restaurant123
+      -Ddb.driver=org.postgresql.Driver
+      -Ddb.pool.max=5
+      -Ddb.pool.min=1
+      -Ddb.pool.timeout=10000
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+
+  before_script:
+    # Install psql client (maven:3.9-eclipse-temurin-17 is Ubuntu-based)
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client
+
+    # Poll until PostgreSQL accepts connections (max 60 s)
+    - |
+      echo "Waiting for PostgreSQL…"
+      for i in $(seq 1 30); do
+        pg_isready -h postgres -U restaurant -d smartrestaurant -q && \
+          echo "  PostgreSQL ready after $((i*2)) s." && break
+        echo "  attempt $i/30 — retrying in 2 s…"
+        sleep 2
+      done
+      pg_isready -h postgres -U restaurant -d smartrestaurant
+
+    # Bootstrap: DDL schema first, then seed data
+    - PGPASSWORD=restaurant123 psql -h postgres -U restaurant -d smartrestaurant
+        -v ON_ERROR_STOP=1 -f init.sql
+    - PGPASSWORD=restaurant123 psql -h postgres -U restaurant -d smartrestaurant
+        -v ON_ERROR_STOP=1 -f datainit-postgres.sql
+
+  script:
+    - !reference [.apply_patches, script]
+    - mvn $MAVEN_CLI test -Djava.awt.headless=true
+
+  artifacts:
+    when: always
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+    paths:
+      - target/surefire-reports/
+    expire_in: 30 days
+
+  rules:
+    # Auto-run on main and develop
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "develop"
+    # Manual trigger on MRs (saves runner minutes)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when:          manual
+      allow_failure: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGE 3 — DOCKER BUILD & PUSH  (GitLab Container Registry)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Uses Docker-in-Docker (dind) to build the project's multi-stage Dockerfile.
+# Pulls :latest first to warm the layer cache (unchanged layers = ~5 min faster).
+#
+# Tags pushed:
+#   :${CI_COMMIT_SHORT_SHA}  — immutable, exact per-commit identifier
+#   :latest                   — rolling pointer to newest build on main
+#
+# Only runs on the default branch after unit tests pass.
+# ─────────────────────────────────────────────────────────────────────────────
+docker:build:
+  stage:  docker
+  image:  docker:24
+  services:
+    - name:  docker:24-dind
+      alias: docker
+  variables:
+    DOCKER_DRIVER:      overlay2
+    DOCKER_TLS_CERTDIR: "/certs"
+  needs: [test:unit]
+
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+  script:
+    # Warm layer cache from previous :latest (|| true so first build succeeds)
+    - docker pull "$IMAGE:latest" || true
+
+    # Build multi-stage image with OCI labels for traceability
+    - |
+      docker build \
+        --cache-from "$IMAGE:latest" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.ref.name=$CI_COMMIT_REF_NAME" \
+        --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
+        -t "$IMAGE:$TAG" \
+        -t "$IMAGE:latest" \
+        .
+
+    # Push both tags to GitLab Container Registry
+    - docker push "$IMAGE:$TAG"
+    - docker push "$IMAGE:latest"
+
+    # Print digest for audit trail in CI log
+    - |
+      DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG" 2>/dev/null || echo "digest unavailable")
+      echo "Pushed: $DIGEST"
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGE 4 — DEPLOY TO AWS EC2  (manual click-to-deploy, main only)
+# ═══════════════════════════════════════════════════════════════════════════════
+# PREREQUISITES on the EC2 instance:
+#   1. Docker Engine + Compose plugin installed
+#   2. docker-compose.yml present at $EC2_DEPLOY_PATH
+#   3. Security Group: inbound TCP 8025 (WebSocket) + 5900 (VNC, optional)
+#
+# REQUIRED CI/CD VARIABLES  (Settings → CI/CD → Variables):
+#   EC2_HOST        — EC2 public IP or hostname
+#   EC2_USER        — SSH user  (ubuntu / ec2-user / admin …)
+#   EC2_SSH_KEY     — PEM private key  ← Variable Type MUST be "File"
+#   EC2_DEPLOY_PATH — Absolute path with docker-compose.yml on the server
+#
+# STRATEGY:
+#   Pull the exact SHA-tagged image → retag as smart-restaurant:latest →
+#   docker compose up -d --force-recreate app
+#   PostgreSQL + Redis keep running; only the app container is replaced.
+#
+# TRIGGER: click ▶ on this job in GitLab → Pipelines → Jobs.
+# ─────────────────────────────────────────────────────────────────────────────
+deploy:production:
+  stage: deploy
+  image: alpine:3.19
+  needs: [docker:build]
+
+  before_script:
+    - apk add --no-cache openssh-client
+
+    # EC2_SSH_KEY is a File-type variable: GitLab writes PEM content to a
+    # temp file and sets EC2_SSH_KEY to that file's path.
+    - chmod 400 "$EC2_SSH_KEY"
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+  script:
+    # $CI_* variables are expanded locally; the remote only receives literal values.
+    - |
+      ssh -i "$EC2_SSH_KEY" -o StrictHostKeyChecking=yes \
+          "$EC2_USER@$EC2_HOST" "
+        set -e
+        echo '=== SmartRestaurant Deploy: $IMAGE:$TAG ==='
+
+        # Login to GitLab Container Registry
+        echo '$CI_REGISTRY_PASSWORD' | \
+          docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY'
+
+        # Pull the exact image produced by this pipeline
+        docker pull '$IMAGE:$TAG'
+
+        # Retag as :latest so docker-compose.yml picks it up
+        docker tag '$IMAGE:$TAG' smart-restaurant:latest
+
+        # Restart only the app container (PG + Redis keep running)
+        cd '$EC2_DEPLOY_PATH'
+        docker compose up -d --no-build --force-recreate app
+
+        # Clean up dangling images
+        docker image prune -f
+
+        echo '✅  Deployed $IMAGE:$TAG'
+      "
+
+  environment:
+    name:   production
+    url:    http://$EC2_HOST:8025
+    action: start
+
+  rules:
+    - if:   $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
