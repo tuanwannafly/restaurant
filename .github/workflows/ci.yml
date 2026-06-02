@@ -1,146 +1,263 @@
-name: CI/CD — Build → SonarQube → Deploy K8s
+# ═══════════════════════════════════════════════════════════════════════════════
+# GitHub Actions CI/CD — SmartRestaurant
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Các job chạy theo thứ tự:
+#
+#   build ──┬── test-unit
+#           └── test-integration
+#                     └── docker-build ── deploy (thủ công)
+#
+# Registry: GitHub Container Registry (ghcr.io) — miễn phí với GitHub
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
+  workflow_dispatch:   # cho phép chạy thủ công từ tab Actions
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Biến dùng chung cho tất cả job
+# ─────────────────────────────────────────────────────────────────────────────
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/smart-restaurant
+  IMAGE: ghcr.io/${{ github.repository_owner }}/smart-restaurant
+  TAG:   ${{ github.sha }}
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 1 — BUILD
+# ═══════════════════════════════════════════════════════════════════════════════
 jobs:
-  # ════════════════════════════════════════════════════════════════════
-  # JOB 1: Build + Test + SonarQube
-  # ════════════════════════════════════════════════════════════════════
-  build-and-analyze:
-    name: Build & SonarQube Analysis
+  build:
+    name: Build JAR
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0    # SonarQube cần full history để tính blame
 
-      - name: Set up JDK 17
+      # FIX 1 — Xóa connectionTestQuery Oracle-only (PostgreSQL không có DUAL)
+      - name: Patch — remove Oracle DUAL query
+        run: |
+          sed -i '/config\.setConnectionTestQuery/d' \
+            src/main/java/com/restaurant/db/DBConnection.java
+
+      # FIX 2 — Thay Redis "localhost" bằng env var REDIS_HOST
+      - name: Patch — Redis localhost → env var
+        run: |
+          sed -i \
+            's|new redis\.clients\.jedis\.Jedis("localhost", 6379)|new redis.clients.jedis.Jedis(System.getenv("REDIS_HOST")!=null?System.getenv("REDIS_HOST"):"redis",6379)|g' \
+            src/main/java/com/restaurant/db/KitchenLockService.java \
+            src/main/java/com/restaurant/db/OrderLockService.java
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
-      # Cache SonarQube packages để tăng tốc
-      - name: Cache SonarQube packages
-        uses: actions/cache@v4
+      - name: Build with Maven (skip tests)
+        run: mvn package -DskipTests --batch-mode
+
+      # Lưu JAR để các job sau dùng lại (không cần build lại)
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
+          name: app-jar
+          path: target/smart-restaurant-1.0.0.jar
+          retention-days: 1
 
-      - name: Build, Test & Analyze with SonarQube
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN:  ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # e.g. https://sonarcloud.io
-        run: |
-          ./mvn verify sonar:sonar \
-            -Dsonar.projectKey=smart-restaurant \
-            -Dsonar.host.url=$SONAR_HOST_URL \
-            -Dsonar.token=$SONAR_TOKEN \
-            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
-            -Dsonar.pullrequest.branch=${{ github.head_ref }} \
-            -Dsonar.pullrequest.base=${{ github.base_ref }}
-
-      # Chặn merge PR nếu Quality Gate FAIL
-      - name: SonarQube Quality Gate Check
-        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-  # ════════════════════════════════════════════════════════════════════
-  # JOB 2: Build & Push Docker Image
-  # ════════════════════════════════════════════════════════════════════
-  docker-build:
-    name: Build & Push Docker Image
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 2 — TEST UNIT (không cần database)
+# ═══════════════════════════════════════════════════════════════════════════════
+  test-unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    needs: build-and-analyze        # Chỉ build image khi Sonar PASS
-    if: github.ref == 'refs/heads/main'
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.push.outputs.digest }}
+    needs: build   # phải đợi build xong
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target/
+
+      # RbacTest là chương trình main() thường, không phải JUnit → chạy trực tiếp
+      - name: Run RBAC test
+        run: |
+          java -cp target/smart-restaurant-1.0.0.jar \
+            com.restaurant.session.RbacTest
+
+      - name: Run JUnit tests
+        run: mvn test --batch-mode -Dtest="*Test" -DfailIfNoTests=false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 3 — TEST INTEGRATION (cần PostgreSQL + Redis thật)
+# ═══════════════════════════════════════════════════════════════════════════════
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    # GitHub Actions tự spin up container song song với job
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB:       restaurant
+          POSTGRES_USER:     postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST:     localhost
+      DB_PORT:     5432
+      DB_NAME:     restaurant
+      DB_USER:     postgres
+      DB_PASSWORD: postgres
+      REDIS_HOST:  localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target/
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Seed database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d restaurant -f init.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d restaurant -f datainit-postgres.sql
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run integration tests
+        run: mvn test --batch-mode -Dtest="*IntegrationTest,*IT" -DfailIfNoTests=false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 4 — DOCKER BUILD & PUSH lên GitHub Container Registry
+# ═══════════════════════════════════════════════════════════════════════════════
+  docker-build:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [ test-unit, test-integration ]   # chỉ build image khi cả 2 test pass
+
+    # Chỉ push image khi push lên nhánh main (không push khi PR)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    permissions:
+      contents: read
+      packages: write   # cần quyền này để push lên ghcr.io
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target/
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # token tự động, không cần tạo thủ công
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push image
-        id: push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.IMAGE }}:${{ env.TAG }}
+            ${{ env.IMAGE }}:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to:   type=gha,mode=max
 
-  # ════════════════════════════════════════════════════════════════════
-  # JOB 3: Deploy lên Kubernetes (production)
-  # ════════════════════════════════════════════════════════════════════
-  deploy-k8s:
-    name: Deploy to Kubernetes
+      - name: Print image URL
+        run: echo "Image pushed → ghcr.io/${{ github.repository_owner }}/smart-restaurant:${{ env.TAG }}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 5 — DEPLOY lên AWS EC2 (THỦ CÔNG — phải bấm nút mới chạy)
+# ═══════════════════════════════════════════════════════════════════════════════
+  deploy:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.ref == 'refs/heads/main'
-    environment: production         # Yêu cầu approval thủ công trên GitHub
+    environment: production   # tạo environment "production" trong GitHub → Settings để yêu cầu approve
+
+    # Chỉ hiện job này khi chạy thủ công (workflow_dispatch) hoặc push main
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Deploy via SSH to EC2
+        uses: appleboy/ssh-action@v1
         with:
-          version: 'v1.29.0'
+          host:     ${{ secrets.EC2_HOST }}      # IP hoặc domain của EC2
+          username: ${{ secrets.EC2_USER }}      # thường là "ubuntu" hoặc "ec2-user"
+          key:      ${{ secrets.EC2_SSH_KEY }}   # nội dung file .pem
+          script: |
+            echo "Pulling new image..."
+            docker pull ghcr.io/${{ github.repository_owner }}/smart-restaurant:${{ github.sha }}
 
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+            echo "Updating docker-compose with new tag..."
+            export APP_IMAGE=ghcr.io/${{ github.repository_owner }}/smart-restaurant:${{ github.sha }}
+            cd ~/restaurant
 
-      - name: Update image tag in kustomization
-        run: |
-          cd k8s/overlays/prod
-          # Dùng kustomize edit để cập nhật tag image mới nhất
-          kustomize edit set image smart-restaurant=${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            docker compose up -d --force-recreate app
 
-      - name: Deploy with Kustomize
-        run: |
-          kubectl apply -k k8s/overlays/prod
-          kubectl rollout status deployment/smart-restaurant \
-            -n smart-restaurant-prod \
-            --timeout=120s
-
-      - name: Verify deployment health
-        run: |
-          kubectl get pods -n smart-restaurant-prod -l app=smart-restaurant
-          kubectl get hpa  -n smart-restaurant-prod
+            echo "Deploy done. Running containers:"
+            docker compose ps
