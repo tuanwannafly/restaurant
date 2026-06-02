@@ -46,6 +46,14 @@
                         styleClass="btn-outline"
                         onAction="#onFilter"
                         prefWidth="90" prefHeight="32"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnExport" text="⬇ Xuất CSV"
+                        onAction="#onExportCsv"
+                        prefHeight="32"
+                        style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                               -fx-font-weight: bold; -fx-background-color: #10B981;
+                               -fx-text-fill: white; -fx-background-radius: 8;
+                               -fx-padding: 6 16 6 16; -fx-cursor: hand;"/>
             </HBox>
 
             <Separator/>

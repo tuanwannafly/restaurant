@@ -56,21 +56,26 @@ public class StatsDAO {
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
+        // ── Tối ưu: sargable date range ────────────────────────────────────────
+        // TRƯỚC (không sargable): TRUNC(created_at) >= ? AND TRUNC(created_at) <= ?
+        //   → Oracle wrap cột trong hàm → không dùng được index → FULL TABLE SCAN
+        // SAU: created_at >= ? AND created_at < (to + 1 ngày)
+        //   → Oracle dùng B-tree index trực tiếp → INDEX RANGE SCAN
         String sql =
             "SELECT NVL(SUM(total_amount), 0) AS revenue, " +
             "       COUNT(*) AS order_count " +
             "FROM orders " +
             "WHERE restaurant_id = ? " +
             "  AND status = 'COMPLETED' " +
-            "  AND TRUNC(created_at) >= ? " +
-            "  AND TRUNC(created_at) <= ?";
+            "  AND created_at >= ? " +
+            "  AND created_at <  ?";   // exclusive upper bound: to + 1 ngày
 
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setLong(1, restaurantId);
             ps.setDate(2, java.sql.Date.valueOf(from));
-            ps.setDate(3, java.sql.Date.valueOf(to));
+            ps.setDate(3, java.sql.Date.valueOf(to.plusDays(1)));  // exclusive upper bound
 
             try (ResultSet rs = ps.executeQuery()) {
                 RevenueStats stats = new RevenueStats();
@@ -98,18 +103,20 @@ public class StatsDAO {
 
         long restaurantId = AppSession.getInstance().getRestaurantId();
 
+        // ── Tối ưu 1: sargable date range (như getRevenue) ───────────────────
+        // ── Tối ưu 2: bỏ JOIN menus mn — mn.menu_id không dùng trong SELECT/WHERE
+        //             Giảm từ 4-table JOIN xuống 3-table JOIN
         String sql =
             "SELECT mi.name, " +
             "       SUM(oi.quantity)            AS total_qty, " +
             "       SUM(oi.quantity * oi.price) AS total_rev " +
             "FROM order_items oi " +
             "JOIN menu_items mi ON oi.menu_item_id = mi.item_id " +
-            "JOIN menus mn      ON mi.menu_id = mn.menu_id " +
             "JOIN orders o      ON oi.order_id = o.order_id " +
             "WHERE o.restaurant_id = ? " +
             "  AND o.status = 'COMPLETED' " +
-            "  AND TRUNC(o.created_at) >= ? " +
-            "  AND TRUNC(o.created_at) <= ? " +
+            "  AND o.created_at >= ? " +
+            "  AND o.created_at <  ? " +           // exclusive upper bound
             "GROUP BY mi.name " +
             "ORDER BY total_qty DESC " +
             "FETCH FIRST ? ROWS ONLY";
@@ -121,7 +128,7 @@ public class StatsDAO {
 
             ps.setLong(1, restaurantId);
             ps.setDate(2, java.sql.Date.valueOf(from));
-            ps.setDate(3, java.sql.Date.valueOf(to));
+            ps.setDate(3, java.sql.Date.valueOf(to.plusDays(1)));  // exclusive upper bound
             ps.setInt(4, limit);
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -280,25 +287,61 @@ public class StatsDAO {
      * @return Map&lt;String, Long&gt; – không bao giờ null; giá trị mặc định là 0
      */
     public Map<String, Long> getRestaurantHomeDashboardStats(long restaurantId) {
+        // ── Tối ưu: 6 scalar subquery → 1 UNION ALL ────────────────────────────
+        // TRƯỚC: 6 subquery chạy tuần tự = 6 round-trips + TRUNC anti-pattern
+        // SAU:   UNION ALL trong 1 query = 1 round-trip, Oracle xử lý song song
+        //        Điều kiện hôm nay dùng sargable range thay vì TRUNC(completed_at) = TRUNC(SYSDATE)
+        //
+        // Sơ đồ UNION ALL:
+        //   src='T' → restaurant_tables (OCCUPIED / AVAILABLE)
+        //   src='P' → orders COMPLETED hôm nay (count)
+        //   src='R' → orders COMPLETED hôm nay (sum revenue)
+        //   src='O' → order_items đang nấu (PENDING/ACCEPTED/COOKING)
+        //   src='X' → reports OPEN
         String sql =
             "SELECT " +
-            "  (SELECT COUNT(*) FROM restaurant_tables " +
-            "    WHERE restaurant_id = ? AND status = 'OCCUPIED')                AS tables_occupied, " +
-            "  (SELECT COUNT(*) FROM restaurant_tables " +
-            "    WHERE restaurant_id = ? AND status = 'AVAILABLE')               AS tables_available, " +
-            "  (SELECT COUNT(*) FROM orders " +
-            "    WHERE restaurant_id = ? AND status = 'COMPLETED' " +
-            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))                     AS orders_today, " +
-            "  (SELECT NVL(SUM(total_amount), 0) FROM orders " +
-            "    WHERE restaurant_id = ? AND status = 'COMPLETED' " +
-            "      AND TRUNC(completed_at) = TRUNC(SYSDATE))                     AS revenue_today, " +
-            "  (SELECT COUNT(*) FROM order_items oi " +
-            "    JOIN orders o ON oi.order_id = o.order_id " +
-            "    WHERE o.restaurant_id = ? " +
-            "      AND oi.item_status IN ('PENDING','ACCEPTED','COOKING'))        AS items_cooking, " +
-            "  (SELECT COUNT(*) FROM reports " +
-            "    WHERE restaurant_id = ? AND status = 'OPEN')                    AS reports_pending " +
-            "FROM DUAL";
+            "  SUM(CASE WHEN src='T' AND lbl='OCCUPIED'  THEN val ELSE 0 END) AS tables_occupied,  " +
+            "  SUM(CASE WHEN src='T' AND lbl='AVAILABLE' THEN val ELSE 0 END) AS tables_available, " +
+            "  SUM(CASE WHEN src='P'                     THEN val ELSE 0 END) AS orders_today,     " +
+            "  SUM(CASE WHEN src='R'                     THEN val ELSE 0 END) AS revenue_today,    " +
+            "  SUM(CASE WHEN src='O'                     THEN val ELSE 0 END) AS items_cooking,    " +
+            "  SUM(CASE WHEN src='X'                     THEN val ELSE 0 END) AS reports_pending   " +
+            "FROM (" +
+            // Nhánh 1: trạng thái bàn
+            "  SELECT 'T' AS src, status AS lbl, COUNT(*) AS val " +
+            "  FROM restaurant_tables " +
+            "  WHERE restaurant_id = ? AND status IN ('OCCUPIED','AVAILABLE') " +
+            "  GROUP BY status " +
+            "  UNION ALL " +
+            // Nhánh 2: đơn hoàn tất hôm nay (sargable)
+            "  SELECT 'P', 'COUNT', COUNT(*) " +
+            "  FROM orders " +
+            "  WHERE restaurant_id = ? " +
+            "    AND status = 'COMPLETED' " +
+            "    AND completed_at >= TRUNC(SYSDATE) " +
+            "    AND completed_at <  TRUNC(SYSDATE) + 1 " +
+            "  UNION ALL " +
+            // Nhánh 3: doanh thu hôm nay
+            "  SELECT 'R', 'SUM', NVL(SUM(total_amount), 0) " +
+            "  FROM orders " +
+            "  WHERE restaurant_id = ? " +
+            "    AND status = 'COMPLETED' " +
+            "    AND completed_at >= TRUNC(SYSDATE) " +
+            "    AND completed_at <  TRUNC(SYSDATE) + 1 " +
+            "  UNION ALL " +
+            // Nhánh 4: món đang nấu
+            "  SELECT 'O', oi.item_status, COUNT(*) " +
+            "  FROM order_items oi " +
+            "  JOIN orders o ON oi.order_id = o.order_id " +
+            "  WHERE o.restaurant_id = ? " +
+            "    AND oi.item_status IN ('PENDING','ACCEPTED','COOKING') " +
+            "  GROUP BY oi.item_status " +
+            "  UNION ALL " +
+            // Nhánh 5: báo cáo chưa xử lý
+            "  SELECT 'X', 'OPEN', COUNT(*) " +
+            "  FROM reports " +
+            "  WHERE restaurant_id = ? AND status = 'OPEN' " +
+            ")";
 
         Map<String, Long> result = new HashMap<>();
         result.put("tables_occupied",  0L);
@@ -311,12 +354,11 @@ public class StatsDAO {
         try (Connection conn = DBConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setLong(1, restaurantId);
-            ps.setLong(2, restaurantId);
-            ps.setLong(3, restaurantId);
-            ps.setLong(4, restaurantId);
-            ps.setLong(5, restaurantId);
-            ps.setLong(6, restaurantId);
+            ps.setLong(1, restaurantId);   // bàn
+            ps.setLong(2, restaurantId);   // đơn hôm nay (count)
+            ps.setLong(3, restaurantId);   // doanh thu hôm nay
+            ps.setLong(4, restaurantId);   // món đang nấu
+            ps.setLong(5, restaurantId);   // báo cáo
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {

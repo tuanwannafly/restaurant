@@ -89,7 +89,38 @@ public class OrderDAO {
         }
     }
 
+    // ─── Auto-migration: recovered_at / recovery_note ────────────────────────
+
+    private static volatile boolean _recoveryColChecked = false;
+
+    private void ensureRecoveryColumns() {
+        if (_recoveryColChecked) return;
+        synchronized (OrderDAO.class) {
+            if (_recoveryColChecked) return;
+            try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
+                 java.sql.Statement  stmt = conn.createStatement()) {
+                try { stmt.execute("ALTER TABLE orders ADD (recovered_at DATE)");
+                      System.out.println("[OrderDAO] Đã thêm cột recovered_at vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430"))
+                        System.err.println("[OrderDAO] ensureRecoveryColumns (recovered_at) lỗi: " + e.getMessage());
+                }
+                try { stmt.execute("ALTER TABLE orders ADD (recovery_note VARCHAR2(500))");
+                      System.out.println("[OrderDAO] Đã thêm cột recovery_note vào bảng orders.");
+                } catch (java.sql.SQLException e) {
+                    if (!e.getMessage().contains("ORA-01430"))
+                        System.err.println("[OrderDAO] ensureRecoveryColumns (recovery_note) lỗi: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                System.err.println("[OrderDAO] ensureRecoveryColumns lỗi kết nối: " + e.getMessage());
+            } finally {
+                _recoveryColChecked = true;
+            }
+        }
+    }
+
     // ─── READ ─────────────────────────────────────────────────────────────────
+
 
     public List<Order> getAll() {
         ensurePaymentMethodColumn();
@@ -232,6 +263,10 @@ public class OrderDAO {
         long oid = parseLongOrDefault(orderId, 0);
 
         try (Connection conn = DBConnection.getInstance().getConnection()) {
+            // READ_COMMITTED: SELECT status bên dưới chỉ đọc dữ liệu đã COMMIT
+            // → không bao giờ thấy trạng thái uncommitted của transaction khác
+            //   (Oracle MVCC trả về snapshot của lần commit cuối cùng)
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             conn.setAutoCommit(false);
             try {
 
@@ -322,7 +357,120 @@ public class OrderDAO {
         }
     }
 
+    // ─── RECOVER CANCELLED ORDER (PL/SQL-backed) ─────────────────────────────
+
+    /**
+     * Phục hồi đơn hàng từ trạng thái {@code CANCELLED} về {@code PENDING}.
+     *
+     * <p><b>Khi nào dùng:</b> Admin nhận ra đơn bị huỷ nhầm (nhân viên bấm nhầm,
+     * sự cố mạng gây rollback sai) → cần kích hoạt lại đơn để bếp tiếp tục xử lý.</p>
+     *
+     * <p><b>Điều kiện:</b>
+     * <ul>
+     *   <li>Người dùng phải có quyền {@link com.restaurant.session.Permission#RECOVER_ORDER}
+     *       (RESTAURANT_ADMIN hoặc SUPER_ADMIN).</li>
+     *   <li>Order phải đang ở trạng thái {@code CANCELLED}
+     *       (không áp dụng cho {@code COMPLETED}).</li>
+     * </ul></p>
+     *
+     * <p><b>2-layer lock (giống completeOrderViaPLSQL):</b>
+     * <ol>
+     *   <li>Layer 1 – Redis: chặn race với luồng cancel/complete đồng thời.</li>
+     *   <li>Layer 2 – Oracle PL/SQL {@code pkg_order.recover_order}: {@code FOR UPDATE}
+     *       + atomic restore trong 1 transaction; xử lý {@code ORA-00060} bằng retry.</li>
+     * </ol></p>
+     *
+     * <p><b>Oracle Flashback (tra cứu thủ công):</b>
+     * <pre>{@code
+     * -- Xem trạng thái order tại thời điểm trước khi cancel (thay timestamp tương ứng)
+     * SELECT * FROM orders AS OF TIMESTAMP (SYSTIMESTAMP - INTERVAL '10' MINUTE)
+     *  WHERE order_id = <id>;
+     * }</pre></p>
+     *
+     * @param orderId order_id cần phục hồi
+     * @param note    ghi chú lý do phục hồi (lưu vào {@code orders.recovery_note})
+     * @return {@code true} nếu phục hồi thành công
+     */
+    public boolean recoverCancelledOrder(String orderId, String note) {
+        ensureRecoveryColumns();
+
+        // 1. Kiểm tra quyền RECOVER_ORDER
+        if (!RbacGuard.getInstance().can(Permission.RECOVER_ORDER)) {
+            System.err.println("[OrderDAO] recoverCancelledOrder từ chối: thiếu quyền RECOVER_ORDER, orderId=" + orderId);
+            return false;
+        }
+
+        // 2. Layer 1 – Redis lock (cùng key với cancel/complete → mutual exclusion)
+        com.restaurant.db.OrderLockService orderLock =
+                com.restaurant.db.OrderLockService.getInstance();
+        boolean redisLocked = orderLock.tryAcquire(orderId);
+        if (!redisLocked) {
+            System.err.println("[OrderDAO] recoverCancelledOrder từ chối: order đang bị lock, orderId=" + orderId);
+            return false;
+        }
+
+        // 3. Layer 2 – Oracle PL/SQL pkg_order.recover_order
+        final int MAX_RETRY = 2;
+        int attempt = 0;
+        try {
+            while (attempt < MAX_RETRY) {
+                attempt++;
+                try (java.sql.Connection conn = DBConnection.getInstance().getConnection();
+                     java.sql.CallableStatement cs = conn.prepareCall(
+                             "{ CALL pkg_order.recover_order(?, ?, ?, ?) }")) {
+
+                    cs.setLong(1, parseLongOrDefault(orderId, 0));
+                    cs.setString(2, note != null ? note : "");
+                    cs.setLong(3, AppSession.getInstance().isLoggedIn()
+                                 ? AppSession.getInstance().getUserId() : 0L);
+                    cs.registerOutParameter(4, java.sql.Types.VARCHAR);
+                    cs.execute();
+
+                    String result = cs.getString(4);
+                    System.out.println("[OrderDAO] recoverCancelledOrder result=" + result
+                            + " orderId=" + orderId + " attempt=" + attempt);
+
+                    switch (result == null ? "ERROR" : result) {
+                        case "OK":
+                            AuditLogger.getInstance().logRecovery(orderId, note);
+                            return true;
+                        case "NOT_CANCELLED":
+                            AuditLogger.getInstance().logRecoveryFailed(orderId, "order không ở trạng thái CANCELLED");
+                            System.err.println("[OrderDAO] recoverCancelledOrder: order không bị CANCELLED, orderId=" + orderId);
+                            return false;
+                        case "COMPLETED_CANT_RECOVER":
+                            AuditLogger.getInstance().logRecoveryFailed(orderId, "order đã COMPLETED — không thể phục hồi");
+                            System.err.println("[OrderDAO] recoverCancelledOrder: order đã COMPLETED, không thể phục hồi, orderId=" + orderId);
+                            return false;
+                        case "NOT_FOUND":
+                            AuditLogger.getInstance().logRecoveryFailed(orderId, "order không tìm thấy");
+                            System.err.println("[OrderDAO] recoverCancelledOrder: không tìm thấy orderId=" + orderId);
+                            return false;
+                        case "DEADLOCK":
+                            System.err.println("[OrderDAO] recoverCancelledOrder: deadlock, retry " + attempt + "/" + MAX_RETRY);
+                            if (attempt < MAX_RETRY) {
+                                try { Thread.sleep(200L * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                            }
+                            break;
+                        default:
+                            AuditLogger.getInstance().logRecoveryFailed(orderId, result);
+                            System.err.println("[OrderDAO] recoverCancelledOrder lỗi PL/SQL: " + result);
+                            return false;
+                    }
+                }
+            }
+            System.err.println("[OrderDAO] recoverCancelledOrder: vẫn deadlock sau " + MAX_RETRY + " lần retry, orderId=" + orderId);
+            return false;
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] recoverCancelledOrder lỗi: " + e.getMessage());
+            return false;
+        } finally {
+            orderLock.release(orderId);
+        }
+    }
+
     // ─── GET ITEM STATUS ──────────────────────────────────────────────────────
+
 
     public Order.OrderItem.ItemStatus getItemStatus(String orderItemId) {
         String sql = "SELECT item_status FROM order_items WHERE order_item_id = ?";
@@ -365,6 +513,7 @@ public class OrderDAO {
             VALUES (?, ?, ?, ?, ?, ?, SYSTIMESTAMP)
             """;
         try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             conn.setAutoCommit(false);
             try {
                 long orderId;
@@ -426,8 +575,39 @@ public class OrderDAO {
 
     // ─── ADD ORDER ITEMS ──────────────────────────────────────────────────────
 
+    /**
+     * Thêm danh sách món vào đơn hàng đang mở (PENDING / ACCEPTED / COOKING / READY).
+     *
+     * <p><b>Phantom Read fix – chiến lược 2 lớp:</b>
+     * <ol>
+     *   <li><b>Tầng Application (Redis)</b>: {@link com.restaurant.db.OrderLockService#tryAcquire}
+     *       với key {@code order:lock:{orderId}} → chặn 2 luồng đồng thời thao tác cùng đơn.
+     *       Nếu Redis down, fallback ConcurrentHashMap tự động.</li>
+     *   <li><b>Tầng DB (Oracle safety-net)</b>: {@code SELECT ... FOR UPDATE} trên hàng {@code orders}
+     *       → bất kỳ transaction nào (kể cả cashier đang thanh toán) cũng phải lock hàng này trước
+     *       → T2 INSERT bị BLOCK đến khi T1 thanh toán COMMIT xong → không có Phantom Row nào lọt vào.</li>
+     * </ol>
+     *
+     * @param orderId     order_id của đơn hàng đang mở
+     * @param entries     danh sách món cần thêm
+     * @param roundNumber số thứ tự lượt gọi món
+     * @return {@code true} nếu thêm thành công; {@code false} nếu đơn đã đóng, bị lock, hoặc lỗi DB
+     */
     public boolean addOrderItems(String orderId, List<CartEntry> entries, int roundNumber) {
         if (entries == null || entries.isEmpty()) return false;
+
+        // ── Tầng Application: Redis lock phòng Phantom Read ──────────────────
+        // Ngăn waiter/tablet thêm món trong khi cashier đang kiểm tra và thanh toán.
+        // Nếu Redis down → fallback in-memory → DB layer vẫn là safety-net cuối cùng.
+        com.restaurant.db.OrderLockService orderLock =
+                com.restaurant.db.OrderLockService.getInstance();
+        boolean redisLocked = orderLock.tryAcquire(orderId);
+        if (!redisLocked) {
+            // Lock đang bị giữ bởi luồng khác (waiter/cashier) → từ chối thêm món ngay
+            System.err.println("[OrderDAO] addOrderItems từ chối: order đang bị lock (Redis/local), orderId=" + orderId);
+            return false;
+        }
+
         String insertSql = """
             INSERT INTO order_items
                 (order_id, menu_item_id, quantity, price, item_status, round_number)
@@ -438,9 +618,33 @@ public class OrderDAO {
                 SELECT SUM(quantity * price) FROM order_items WHERE order_id = ?
             ) WHERE order_id = ?
             """;
+        // ── Tầng DB: Oracle FOR UPDATE — safety-net khi Redis bị bypass ──────
+        // Lock hàng orders trước khi INSERT items → cashier cũng lock hàng này
+        // → hai luồng không thể đồng thời thao tác items của cùng 1 order.
+        String lockSql = isSuperAdmin()
+            ? "SELECT order_id FROM orders WHERE order_id = ? AND status NOT IN ('COMPLETED','CANCELLED') FOR UPDATE"
+            : "SELECT order_id FROM orders WHERE order_id = ? AND restaurant_id = ? AND status NOT IN ('COMPLETED','CANCELLED') FOR UPDATE";
+
         try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             conn.setAutoCommit(false);
             try {
+                // 1. Lock hàng orders (safety-net DB layer)
+                try (PreparedStatement lockPs = conn.prepareStatement(lockSql)) {
+                    lockPs.setLong(1, parseLongOrDefault(orderId, 0));
+                    if (!isSuperAdmin()) lockPs.setLong(2, rid());
+                    try (java.sql.ResultSet lockRs = lockPs.executeQuery()) {
+                        if (!lockRs.next()) {
+                            // Order không tồn tại hoặc đã COMPLETED/CANCELLED
+                            conn.rollback();
+                            System.err.println("[OrderDAO] addOrderItems từ chối: order không tồn tại " +
+                                "hoặc đã đóng (COMPLETED/CANCELLED), orderId=" + orderId);
+                            return false;
+                        }
+                    }
+                }
+
+                // 2. INSERT items — an toàn vì đã hold lock trên order row
                 try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
                     for (CartEntry e : entries) {
                         ps.setLong(1, parseLongOrDefault(orderId, 0));
@@ -452,14 +656,18 @@ public class OrderDAO {
                     }
                     ps.executeBatch();
                 }
+
+                // 3. Cập nhật tổng tiền
                 try (PreparedStatement ps = conn.prepareStatement(updateTotalSql)) {
                     long oid = parseLongOrDefault(orderId, 0);
                     ps.setLong(1, oid);
                     ps.setLong(2, oid);
                     ps.executeUpdate();
                 }
+
                 conn.commit();
                 return true;
+
             } catch (Exception e) {
                 conn.rollback();
                 throw e;
@@ -469,6 +677,185 @@ public class OrderDAO {
         } catch (Exception e) {
             System.err.println("[OrderDAO] addOrderItems lỗi: " + e.getMessage());
             return false;
+        } finally {
+            // Luôn giải phóng Redis lock dù thành công hay thất bại
+            orderLock.release(orderId);
+        }
+    }
+
+    // ─── COMPLETE ORDER SAFE (Phantom-Read-Safe) ──────────────────────────────
+
+    /**
+     * Thanh toán đơn hàng an toàn: lock order trước, kiểm tra không còn món PENDING,
+     * rồi mới đánh dấu COMPLETED – tất cả trong 1 transaction.
+     *
+     * <p><b>Vấn đề Phantom Read cần giải quyết:</b>
+     * <pre>
+     *   T1 (Cashier):  đọc items → 0 PENDING → quyết định complete
+     *   T2 (Waiter) :  INSERT món mới (PENDING) → COMMIT   ← Phantom Row
+     *   T1 (Cashier):  complete → đơn COMPLETED nhưng có món PENDING bị bỏ sót!
+     * </pre>
+     *
+     * <p><b>Fix 2 lớp:</b>
+     * <ol>
+     *   <li>Redis lock (Application): ngăn waiter thêm món trong khi cashier đang thanh toán.</li>
+     *   <li>Oracle FOR UPDATE (DB): serialise access tại DB layer → dù Redis down, không bao giờ
+     *       có phantom items lọt vào giữa "đọc" và "complete".</li>
+     * </ol>
+     *
+     * @param orderId       order_id cần thanh toán
+     * @param paymentMethod phương thức thanh toán
+     * @return {@code true} nếu thanh toán thành công;
+     *         {@code false} nếu còn món chưa xong, order đang bị lock, hoặc lỗi
+     */
+    public boolean completeOrderSafe(String orderId, String paymentMethod) {
+        // ── Tầng Application: Redis lock ──────────────────────────────────────
+        com.restaurant.db.OrderLockService orderLock =
+                com.restaurant.db.OrderLockService.getInstance();
+        boolean redisLocked = orderLock.tryAcquire(orderId);
+        if (!redisLocked) {
+            System.err.println("[OrderDAO] completeOrderSafe từ chối: order đang bị lock, orderId=" + orderId);
+            return false;
+        }
+
+        // ── Tầng DB: Oracle FOR UPDATE + check + complete trong 1 transaction ──
+        String lockSql = isSuperAdmin()
+            ? "SELECT order_id, status FROM orders WHERE order_id = ? FOR UPDATE"
+            : "SELECT order_id, status FROM orders WHERE order_id = ? AND restaurant_id = ? FOR UPDATE";
+        String checkPendingSql =
+            "SELECT COUNT(*) FROM order_items " +
+            "WHERE order_id = ? AND item_status IN ('PENDING','ACCEPTED','COOKING','READY')";
+        String completeSql = isSuperAdmin()
+            ? "UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP, payment_method=? WHERE order_id=?"
+            : "UPDATE orders SET status='COMPLETED', completed_at=SYSTIMESTAMP, payment_method=? WHERE order_id=? AND restaurant_id=?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            conn.setAutoCommit(false);
+            try {
+                // 1. Lock hàng orders — waiter nếu gọi addOrderItems sẽ bị BLOCK tại đây
+                String currentStatus;
+                try (PreparedStatement lockPs = conn.prepareStatement(lockSql)) {
+                    lockPs.setLong(1, parseLongOrDefault(orderId, 0));
+                    if (!isSuperAdmin()) lockPs.setLong(2, rid());
+                    try (java.sql.ResultSet rs = lockPs.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            System.err.println("[OrderDAO] completeOrderSafe: order không tìm thấy, orderId=" + orderId);
+                            return false;
+                        }
+                        currentStatus = rs.getString("status");
+                    }
+                }
+
+                if ("COMPLETED".equals(currentStatus) || "CANCELLED".equals(currentStatus)) {
+                    conn.rollback();
+                    System.err.println("[OrderDAO] completeOrderSafe từ chối: order đã " + currentStatus);
+                    return false;
+                }
+
+                // 2. Sau khi lock — đọc số món còn đang xử lý
+                //    Đây là lần đọc PHANTOM-FREE vì bất kỳ INSERT mới nào cũng bị block
+                //    bởi FOR UPDATE ở trên (addOrderItems cũng cần lock hàng orders trước)
+                int pendingCount;
+                try (PreparedStatement checkPs = conn.prepareStatement(checkPendingSql)) {
+                    checkPs.setLong(1, parseLongOrDefault(orderId, 0));
+                    try (java.sql.ResultSet rs = checkPs.executeQuery()) {
+                        pendingCount = rs.next() ? rs.getInt(1) : 0;
+                    }
+                }
+
+                if (pendingCount > 0) {
+                    conn.rollback();
+                    System.out.println("[OrderDAO] completeOrderSafe: còn " + pendingCount +
+                        " món chưa hoàn thành, không thể complete, orderId=" + orderId);
+                    return false;
+                }
+
+                // 3. Hoàn tất đơn — an toàn, không Phantom
+                try (PreparedStatement completePs = conn.prepareStatement(completeSql)) {
+                    completePs.setString(1, paymentMethod);
+                    completePs.setLong(2, parseLongOrDefault(orderId, 0));
+                    if (!isSuperAdmin()) completePs.setLong(3, rid());
+                    completePs.executeUpdate();
+                }
+
+                conn.commit();
+                AuditLogger.getInstance().log("COMPLETE_ORDER_SAFE", parseLongOrDefault(orderId, 0),
+                    "SUCCESS", "orderId=" + orderId + " payment=" + paymentMethod);
+                return true;
+
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] completeOrderSafe lỗi: " + e.getMessage());
+            return false;
+        } finally {
+            orderLock.release(orderId);
+        }
+    }
+
+    /**
+     * Yêu cầu thanh toán an toàn – tương tự {@link #completeOrderSafe} nhưng chuyển sang
+     * trạng thái {@code PAYMENT_REQUESTED} thay vì {@code COMPLETED}.
+     *
+     * <p>Lock 2 lớp (Redis + Oracle FOR UPDATE) ngăn waiter thêm món trong khi khách
+     * đang yêu cầu thanh toán.</p>
+     */
+    public boolean requestPaymentSafe(String orderId, String paymentMethod) {
+        com.restaurant.db.OrderLockService orderLock =
+                com.restaurant.db.OrderLockService.getInstance();
+        boolean redisLocked = orderLock.tryAcquire(orderId);
+        if (!redisLocked) {
+            System.err.println("[OrderDAO] requestPaymentSafe từ chối: order đang bị lock, orderId=" + orderId);
+            return false;
+        }
+
+        String lockSql = isSuperAdmin()
+            ? "SELECT order_id FROM orders WHERE order_id = ? FOR UPDATE"
+            : "SELECT order_id FROM orders WHERE order_id = ? AND restaurant_id = ? FOR UPDATE";
+        String updateSql = isSuperAdmin()
+            ? "UPDATE orders SET status='PAYMENT_REQUESTED', payment_method=? WHERE order_id=?"
+            : "UPDATE orders SET status='PAYMENT_REQUESTED', payment_method=? WHERE order_id=? AND restaurant_id=?";
+
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            conn.setAutoCommit(false);
+            try {
+                // Lock order row — waiter bị block tại addOrderItems
+                try (PreparedStatement lockPs = conn.prepareStatement(lockSql)) {
+                    lockPs.setLong(1, parseLongOrDefault(orderId, 0));
+                    if (!isSuperAdmin()) lockPs.setLong(2, rid());
+                    try (java.sql.ResultSet rs = lockPs.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                    ps.setString(1, paymentMethod);
+                    ps.setLong(2, parseLongOrDefault(orderId, 0));
+                    if (!isSuperAdmin()) ps.setLong(3, rid());
+                    boolean ok = ps.executeUpdate() > 0;
+                    if (ok) conn.commit(); else conn.rollback();
+                    return ok;
+                }
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] requestPaymentSafe lỗi: " + e.getMessage());
+            return false;
+        } finally {
+            orderLock.release(orderId);
         }
     }
 
@@ -545,6 +932,89 @@ public class OrderDAO {
             System.err.println("[OrderDAO] getActiveOrderByTable lỗi: " + e.getMessage());
         }
         return null;
+    }
+
+    // ─── COMPLETE ORDER VIA PL/SQL (Phantom-Read-Safe + ORA-00060 handler) ──────
+
+    /**
+     * Thanh toán đơn hàng qua Oracle PL/SQL package {@code pkg_order.complete_order_safe}.
+     *
+     * <p><b>2-layer lock:</b>
+     * <ol>
+     *   <li>Layer 1 – Redis {@link com.restaurant.db.OrderLockService}: chặn race ngay tầng Application.</li>
+     *   <li>Layer 2 – Oracle {@code FOR UPDATE} bên trong procedure: safety-net khi Redis down,
+     *       đảm bảo không có Phantom Read và tự xử lý {@code ORA-00060} (deadlock) bằng retry.</li>
+     * </ol>
+     *
+     * @param orderId       order_id cần thanh toán
+     * @param paymentMethod phương thức thanh toán ("CASH" / "TRANSFER")
+     * @return {@code true} nếu thanh toán thành công
+     */
+    public boolean completeOrderViaPLSQL(String orderId, String paymentMethod) {
+        // ── Layer 1: Redis lock ──────────────────────────────────────────────
+        com.restaurant.db.OrderLockService orderLock =
+                com.restaurant.db.OrderLockService.getInstance();
+        boolean redisLocked = orderLock.tryAcquire(orderId);
+        if (!redisLocked) {
+            System.err.println("[OrderDAO] completeOrderViaPLSQL từ chối: order đang bị lock, orderId=" + orderId);
+            return false;
+        }
+
+        // ── Layer 2: Oracle PL/SQL pkg_order.complete_order_safe ────────────
+        final int MAX_RETRY = 2;
+        int attempt = 0;
+        try {
+            while (attempt < MAX_RETRY) {
+                attempt++;
+                try (java.sql.Connection conn = com.restaurant.db.DBConnection.getInstance().getConnection();
+                     java.sql.CallableStatement cs = conn.prepareCall(
+                             "{ CALL pkg_order.complete_order_safe(?, ?, ?) }")) {
+
+                    cs.setLong(1, parseLongOrDefault(orderId, 0));
+                    cs.setString(2, paymentMethod);
+                    cs.registerOutParameter(3, java.sql.Types.VARCHAR);
+                    cs.execute();
+
+                    String result = cs.getString(3);
+                    System.out.println("[OrderDAO] completeOrderViaPLSQL result=" + result
+                            + " orderId=" + orderId + " attempt=" + attempt);
+
+                    switch (result == null ? "ERROR" : result) {
+                        case "OK":
+                            AuditLogger.getInstance().log(
+                                "COMPLETE_ORDER_PLSQL", parseLongOrDefault(orderId, 0),
+                                "SUCCESS", "orderId=" + orderId + " payment=" + paymentMethod);
+                            return true;
+                        case "HAS_PENDING":
+                            System.err.println("[OrderDAO] completeOrderViaPLSQL: còn món chưa xong, orderId=" + orderId);
+                            return false;
+                        case "ALREADY_CLOSED":
+                            System.err.println("[OrderDAO] completeOrderViaPLSQL: đơn đã đóng, orderId=" + orderId);
+                            return false;
+                        case "NOT_FOUND":
+                            System.err.println("[OrderDAO] completeOrderViaPLSQL: không tìm thấy đơn, orderId=" + orderId);
+                            return false;
+                        case "DEADLOCK":
+                            // ORA-00060: Oracle đã rollback tự động — retry sau 200ms
+                            System.err.println("[OrderDAO] completeOrderViaPLSQL: deadlock detected, retry " + attempt + "/" + MAX_RETRY);
+                            if (attempt < MAX_RETRY) {
+                                try { Thread.sleep(200L * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                            }
+                            break; // tiếp tục vòng while
+                        default:
+                            System.err.println("[OrderDAO] completeOrderViaPLSQL lỗi PL/SQL: " + result);
+                            return false;
+                    }
+                }
+            }
+            System.err.println("[OrderDAO] completeOrderViaPLSQL: vẫn deadlock sau " + MAX_RETRY + " lần retry, orderId=" + orderId);
+            return false;
+        } catch (Exception e) {
+            System.err.println("[OrderDAO] completeOrderViaPLSQL lỗi: " + e.getMessage());
+            return false;
+        } finally {
+            orderLock.release(orderId);
+        }
     }
 
     // ─── COMPLETE ORDER ───────────────────────────────────────────────────────

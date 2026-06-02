@@ -2,8 +2,11 @@ package com.restaurant.ui.fx.controller;
 
 import java.net.URL;
 import java.text.NumberFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -17,8 +20,12 @@ import com.restaurant.ui.fx.controller.CashierController.PaymentRequest.PaymentM
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.print.PageLayout;
+import javafx.print.PrinterJob;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -26,6 +33,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 /**
@@ -76,6 +85,9 @@ public class CashierPaymentDialogController implements Initializable {
 
     /** ComboBox chọn nhân viên thu ngân. */
     @FXML private ComboBox<String> cbEmployee;
+
+    /** Nút in hóa đơn. */
+    @FXML private Button           btnPrint;
 
     // ─── State ───────────────────────────────────────────────────────────────
 
@@ -166,6 +178,9 @@ public class CashierPaymentDialogController implements Initializable {
         }
 
         for (OrderItem item : req.items) {
+            // [FIX] Bỏ qua món đã hủy — không hiển thị trên dialog thanh toán
+            if (item.getItemStatus() == com.restaurant.model.Order.OrderItem.ItemStatus.CANCELLED) continue;
+
             HBox row = new HBox(8);
             row.setAlignment(Pos.CENTER_LEFT);
             row.setStyle("-fx-padding: 4 0 4 0;");
@@ -302,12 +317,308 @@ public class CashierPaymentDialogController implements Initializable {
 
     @FXML
     private void onPrint() {
-        Alert info = new Alert(Alert.AlertType.INFORMATION);
-        info.setTitle("Thông báo");
-        info.setHeaderText(null);
-        info.setContentText("Chức năng in hóa đơn đang phát triển.");
-        info.initOwner(getStage());
-        info.showAndWait();
+        if (req == null) return;
+
+        // Disable nút trong lúc xử lý
+        if (btnPrint != null) btnPrint.setDisable(true);
+
+        // Lấy tiền nhận / tiền thừa tại thời điểm bấm in
+        long cashReceived = 0;
+        long cashChange   = 0;
+        boolean isCash = getSelectedMethod() == CashierController.PaymentRequest.PaymentMethod.CASH;
+        if (isCash && tfCashReceived != null) {
+            try {
+                cashReceived = Long.parseLong(
+                    tfCashReceived.getText().trim().replace(",", "").replace(".", ""));
+                cashChange = cashReceived - (long) req.getGrandTotal();
+            } catch (NumberFormatException ignored) {
+                cashReceived = req.getCashReceived();
+                cashChange   = req.getChange();
+            }
+        }
+
+        // Nhân viên đang chọn (có thể chưa chọn)
+        String empName = (cbEmployee != null && cbEmployee.getValue() != null
+                && !cbEmployee.getValue().equals("Chọn nhân viên")
+                && !cbEmployee.getValue().equals("Đang tải..."))
+                ? cbEmployee.getValue() : "";
+
+        final long    fReceived = cashReceived;
+        final long    fChange   = cashChange;
+        final String  fEmp      = empName;
+        final boolean fIsCash   = isCash;
+
+        // Build receipt node và gửi printer — vẫn chạy trên FX thread vì
+        // PrinterJob phải được tạo và showDialog trên FX Application Thread.
+        VBox receipt = buildReceiptNode(fEmp, fIsCash, fReceived, fChange);
+
+        PrinterJob job = PrinterJob.createPrinterJob();
+        if (job == null) {
+            showWarn("Không tìm thấy máy in. Hãy kiểm tra cài đặt máy in hệ thống.");
+            if (btnPrint != null) btnPrint.setDisable(false);
+            return;
+        }
+
+        // Chọn máy in + cài đặt trang (khổ A5 portrait — phù hợp hóa đơn nhà hàng)
+        boolean proceed = job.showPrintDialog(getStage());
+        if (!proceed) {
+            job.cancelJob();
+            if (btnPrint != null) btnPrint.setDisable(false);
+            return;
+        }
+
+        // [FIX] Gắn receipt vào Scene tạm — applyCss()/layout() chỉ hoạt động khi node có Scene context
+        new javafx.scene.Scene(new javafx.scene.Group(receipt));
+        receipt.applyCss();
+        receipt.layout();
+
+        // Lấy kích thước trang để scale receipt vừa khổ
+        PageLayout layout = job.getJobSettings().getPageLayout();
+        double printableW = layout.getPrintableWidth();
+        double printableH = layout.getPrintableHeight();
+
+        // [FIX] Dùng getBoundsInLocal() sau khi đã layout
+        //      getPrefHeight() trả -1 trước layout → scaleY âm → node bị lật ngược → in trang trắng
+        double nodeW = receipt.getBoundsInLocal().getWidth();
+        double nodeH = receipt.getBoundsInLocal().getHeight();
+        if (nodeW <= 0) nodeW = receipt.getPrefWidth();
+        if (nodeH <= 0) nodeH = printableH;
+
+        // Scale receipt xuống nếu to hơn trang in
+        double scaleX = printableW / nodeW;
+        double scaleY = printableH / nodeH;
+        double scale  = Math.min(1.0, Math.min(scaleX, scaleY));
+        // [FIX] Guard: scale <= 0 hoặc NaN gây in trang trắng
+        if (scale <= 0 || Double.isNaN(scale) || Double.isInfinite(scale)) scale = 1.0;
+        receipt.setScaleX(scale);
+        receipt.setScaleY(scale);
+
+
+        boolean printed = job.printPage(receipt);
+        if (printed) {
+            job.endJob();
+            Alert ok = new Alert(Alert.AlertType.INFORMATION, "Hóa đơn đã được gửi đến máy in.");
+            ok.setHeaderText("In thành công");
+            ok.initOwner(getStage());
+            ok.showAndWait();
+        } else {
+            job.cancelJob();
+            showWarn("Không thể in hóa đơn. Vui lòng thử lại hoặc kiểm tra máy in.");
+        }
+
+        if (btnPrint != null) btnPrint.setDisable(false);
+    }
+
+    // ─── Receipt builder ─────────────────────────────────────────────────────
+
+    /**
+     * Tạo Node VBox có dạng hóa đơn (receipt) để gửi vào {@link PrinterJob}.
+     *
+     * <p>Layout:
+     * <pre>
+     *   ══════════════════════════════
+     *       HÓA ĐƠN THANH TOÁN
+     *   ══════════════════════════════
+     *   Bàn: xxx    Mã ĐH: xxxxxxxx
+     *   Thời gian: dd/MM/yyyy HH:mm
+     *   ──────────────────────────────
+     *   Tên món             SL  Thành tiền
+     *   ──────────────────────────────
+     *   [items]
+     *   ──────────────────────────────
+     *   Tạm tính:           xxx đ
+     *   VAT (10%):          xxx đ
+     *   ══════════════════════════════
+     *   TỔNG CỘNG:          xxx đ
+     *   ══════════════════════════════
+     *   [Nếu tiền mặt]
+     *   Tiền nhận:          xxx đ
+     *   Tiền thừa:          xxx đ
+     *   ──────────────────────────────
+     *   Phương thức: Tiền mặt / ...
+     *   Nhân viên: xxx
+     *   ──────────────────────────────
+     *       Cảm ơn quý khách!
+     *   Hẹn gặp lại!
+     * </pre>
+     */
+    private VBox buildReceiptNode(String employeeName,
+                                  boolean isCash,
+                                  long cashReceived,
+                                  long cashChange) {
+        VBox root = new VBox(0);
+        root.setPrefWidth(380);
+        root.setStyle("-fx-background-color: white; -fx-padding: 24 28 24 28;");
+
+        String LINE  = "──────────────────────────────────";
+        String DLINE = "══════════════════════════════════";
+
+        // ── Tiêu đề ──────────────────────────────────────────────────────────
+        root.getChildren().add(receiptLabel(DLINE, 11, false, Pos.CENTER));
+        Label title = receiptLabel("HÓA ĐƠN THANH TOÁN", 16, true, Pos.CENTER);
+        title.setPadding(new Insets(4, 0, 4, 0));
+        root.getChildren().add(title);
+        root.getChildren().add(receiptLabel(DLINE, 11, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(6));
+
+        // ── Thông tin đơn ─────────────────────────────────────────────────────
+        String timeStr = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("HH:mm  dd/MM/yyyy"));
+        String orderShort = req.orderId != null && req.orderId.length() > 8
+                ? req.orderId.substring(req.orderId.length() - 8).toUpperCase()
+                : (req.orderId != null ? req.orderId : "--");
+
+        root.getChildren().add(receiptRow("Bàn:", req.tableName, 13));
+        root.getChildren().add(receiptRow("Mã đơn:", "#" + orderShort, 13));
+        root.getChildren().add(receiptRow("Thời gian:", timeStr, 13));
+        root.getChildren().add(receiptSpacer(6));
+        root.getChildren().add(receiptLabel(LINE, 11, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(4));
+
+        // ── Header cột món ────────────────────────────────────────────────────
+        HBox colHeader = new HBox();
+        Label colName = receiptLabel("MÓN ĂN", 11, true, Pos.CENTER_LEFT);
+        HBox.setHgrow(colName, Priority.ALWAYS);
+        colName.setMaxWidth(Double.MAX_VALUE);
+        Label colQty  = new Label("SL");
+        colQty.setFont(Font.font("Monospace", FontWeight.BOLD, 11));
+        colQty.setMinWidth(28);
+        colQty.setAlignment(Pos.CENTER);
+        Label colAmt  = new Label("Thành tiền");
+        colAmt.setFont(Font.font("Monospace", FontWeight.BOLD, 11));
+        colAmt.setMinWidth(90);
+        colAmt.setAlignment(Pos.CENTER_RIGHT);
+        colHeader.getChildren().addAll(colName, colQty, colAmt);
+        root.getChildren().add(colHeader);
+        root.getChildren().add(receiptLabel(LINE, 11, false, Pos.CENTER));
+
+        // ── Danh sách món ─────────────────────────────────────────────────────
+        if (req.items != null) {
+            for (OrderItem item : req.items) {
+                // [FIX] Bỏ qua món đã hủy — không in vào hóa đơn
+                if (item.getItemStatus() == com.restaurant.model.Order.OrderItem.ItemStatus.CANCELLED) continue;
+
+                HBox row = new HBox(4);
+                row.setPadding(new Insets(2, 0, 2, 0));
+
+                // Tên món — wrap nếu dài
+                Label lName = new Label(item.getMenuItemName());
+                lName.setFont(Font.font("Monospace", 12));
+                lName.setWrapText(true);
+                lName.setMaxWidth(200);
+                HBox.setHgrow(lName, Priority.ALWAYS);
+
+                Label lQty = new Label(String.valueOf(item.getQuantity()));
+                lQty.setFont(Font.font("Monospace", 12));
+                lQty.setMinWidth(28);
+                lQty.setAlignment(Pos.CENTER);
+
+                Label lAmt = new Label(fmt(item.getSubtotal()) + "đ");
+                lAmt.setFont(Font.font("Monospace", 12));
+                lAmt.setMinWidth(90);
+                lAmt.setAlignment(Pos.CENTER_RIGHT);
+
+                row.getChildren().addAll(lName, lQty, lAmt);
+                root.getChildren().add(row);
+
+                // Dòng phụ: qty × đơn giá (nhỏ hơn)
+                Label lUnitPrice = new Label(
+                    "    " + item.getQuantity() + " × " + fmt(item.getUnitPrice()) + "đ");
+                lUnitPrice.setFont(Font.font("Monospace", 10));
+                lUnitPrice.setStyle("-fx-text-fill: #666666;");
+                root.getChildren().add(lUnitPrice);
+            }
+        }
+
+        root.getChildren().add(receiptLabel(LINE, 11, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(2));
+
+        // ── Tổng ─────────────────────────────────────────────────────────────
+        root.getChildren().add(receiptRow("Tạm tính:", fmt(req.getSubtotal()) + "đ", 12));
+        root.getChildren().add(receiptRow("VAT (10%):", fmt(req.getVatAmount()) + "đ", 12));
+        root.getChildren().add(receiptSpacer(4));
+        root.getChildren().add(receiptLabel(DLINE, 11, false, Pos.CENTER));
+
+        HBox grandRow = receiptRow("TỔNG CỘNG:", fmt(req.getGrandTotal()) + "đ", 15);
+        grandRow.setPadding(new Insets(4, 0, 4, 0));
+        // Bold the grand total label
+        grandRow.getChildren().forEach(n -> {
+            if (n instanceof Label l) l.setFont(Font.font("Monospace", FontWeight.BOLD, 15));
+        });
+        root.getChildren().add(grandRow);
+        root.getChildren().add(receiptLabel(DLINE, 11, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(6));
+
+        // ── Tiền mặt ─────────────────────────────────────────────────────────
+        if (isCash) {
+            root.getChildren().add(receiptRow("Tiền nhận:", fmt(cashReceived) + "đ", 12));
+            root.getChildren().add(receiptRow("Tiền thừa:", fmt(cashChange)   + "đ", 12));
+            root.getChildren().add(receiptSpacer(4));
+        }
+
+        // ── Phương thức & Nhân viên ──────────────────────────────────────────
+        root.getChildren().add(receiptRow("Phương thức:", req.getPaymentMethodLabel(), 12));
+        if (!employeeName.isBlank()) {
+            root.getChildren().add(receiptRow("Nhân viên:", employeeName, 12));
+        }
+
+        root.getChildren().add(receiptSpacer(8));
+        root.getChildren().add(receiptLabel(LINE, 11, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(6));
+
+        // ── Footer ────────────────────────────────────────────────────────────
+        Label thanks = receiptLabel("Cảm ơn quý khách!", 14, true, Pos.CENTER);
+        thanks.setPadding(new Insets(2, 0, 2, 0));
+        root.getChildren().add(thanks);
+        root.getChildren().add(
+            receiptLabel("Hẹn gặp lại quý khách!", 12, false, Pos.CENTER));
+        root.getChildren().add(receiptSpacer(4));
+        root.getChildren().add(receiptLabel(LINE, 11, false, Pos.CENTER));
+
+        // applyCss()/layout() sẽ được gọi sau khi gắn vào Scene tạm trong onPrint()
+        return root;
+    }
+
+    // ─── Receipt node helpers ────────────────────────────────────────────────
+
+    /** Label đơn dùng font monospace (phù hợp receipt cân chỉnh cột). */
+    private static Label receiptLabel(String text, double size,
+                                      boolean bold, Pos align) {
+        Label l = new Label(text);
+        l.setFont(bold
+            ? Font.font("Monospace", FontWeight.BOLD, size)
+            : Font.font("Monospace", size));
+        l.setMaxWidth(Double.MAX_VALUE);
+        l.setAlignment(align);
+        return l;
+    }
+
+    /**
+     * Hàng key–value: [key grow=ALWAYS] [value right-align].
+     * Trả về HBox để caller có thể override style nếu cần.
+     */
+    private static HBox receiptRow(String key, String value, double size) {
+        HBox row = new HBox();
+        row.setPadding(new Insets(1, 0, 1, 0));
+
+        Label lKey = new Label(key);
+        lKey.setFont(Font.font("Monospace", size));
+        HBox.setHgrow(lKey, Priority.ALWAYS);
+        lKey.setMaxWidth(Double.MAX_VALUE);
+
+        Label lVal = new Label(value);
+        lVal.setFont(Font.font("Monospace", FontWeight.BOLD, size));
+        lVal.setAlignment(Pos.CENTER_RIGHT);
+
+        row.getChildren().addAll(lKey, lVal);
+        return row;
+    }
+
+    /** Khoảng cách dọc giữa các section. */
+    private static Region receiptSpacer(double height) {
+        Region r = new Region();
+        r.setPrefHeight(height);
+        return r;
     }
 
     @FXML
@@ -318,9 +629,26 @@ public class CashierPaymentDialogController implements Initializable {
     // ─── Async employee loading ───────────────────────────────────────────────
 
     private void loadEmployeesAsync() {
+        com.restaurant.session.AppSession session = com.restaurant.session.AppSession.getInstance();
+        String role = session.getUserRole();
+        long   uid  = session.getUserId();
+
+        // Đăng nhập bằng tài khoản CASHIER/THU_NGAN → tự động gán, không cần chọn thủ công
+        boolean isCashierLogin = "CASHIER".equalsIgnoreCase(role)
+                              || "THU_NGAN".equalsIgnoreCase(role);
+
         Task<List<String>> task = new Task<>() {
             @Override
             protected List<String> call() {
+                if (isCashierLogin && uid > 0) {
+                    // Tìm bản ghi nhân viên liên kết với tài khoản đang đăng nhập
+                    Optional<Employee> empOpt = new EmployeeDAO().findByUserId(uid);
+                    if (empOpt.isPresent()) {
+                        return List.of(empOpt.get().getName());   // chỉ trả về chính mình
+                    }
+                    // Tài khoản CASHIER chưa liên kết employee → fallback load all
+                }
+                // Không phải CASHIER (hoặc không tìm thấy): load toàn bộ thu ngân để chọn
                 return new EmployeeDAO().findAll().stream()
                     .filter(e -> e.getRole() == Employee.Role.THU_NGAN)
                     .map(Employee::getName)
@@ -331,15 +659,24 @@ public class CashierPaymentDialogController implements Initializable {
         task.setOnSucceeded(e -> {
             List<String> names = task.getValue();
             cbEmployee.getItems().clear();
-            cbEmployee.getItems().add("Chọn nhân viên");
-            if (names.isEmpty()) {
-                cbEmployee.getItems().add("(Không có thu ngân)");
+
+            if (isCashierLogin && names.size() == 1) {
+                // Tài khoản thu ngân: tự động chọn chính mình, khoá lại
+                cbEmployee.getItems().addAll(names);
+                cbEmployee.getSelectionModel().selectFirst();
                 cbEmployee.setDisable(true);
             } else {
-                cbEmployee.getItems().addAll(names);
-                cbEmployee.setDisable(false);
+                // Không phải thu ngân hoặc chưa liên kết → cho phép chọn thủ công
+                cbEmployee.getItems().add("Chọn nhân viên");
+                if (names.isEmpty()) {
+                    cbEmployee.getItems().add("(Không có thu ngân)");
+                    cbEmployee.setDisable(true);
+                } else {
+                    cbEmployee.getItems().addAll(names);
+                    cbEmployee.setDisable(false);
+                }
+                cbEmployee.getSelectionModel().selectFirst();
             }
-            cbEmployee.getSelectionModel().selectFirst();
         });
 
         task.setOnFailed(e ->

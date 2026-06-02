@@ -48,6 +48,24 @@ public enum Permission {
      */
     CANCEL_ORDER,
 
+    /**
+     * Cho phép phục hồi đơn hàng từ trạng thái {@code CANCELLED} về {@code PENDING}.
+     *
+     * <ul>
+     *   <li><b>RESTAURANT_ADMIN / SUPER_ADMIN</b> – được phép phục hồi mọi đơn CANCELLED.</li>
+     *   <li><b>WAITER / CASHIER / CHEF</b> – không có quyền này.</li>
+     * </ul>
+     *
+     * <p><b>Hành động khi phục hồi (qua PL/SQL {@code pkg_order.recover_order}):</b>
+     * <ol>
+     *   <li>{@code orders.status} → {@code PENDING}</li>
+     *   <li>{@code orders.cancelled_at}, {@code orders.cancelled_reason} → {@code NULL}</li>
+     *   <li>{@code orders.recovered_at} → SYSDATE; {@code orders.recovery_note} → ghi chú</li>
+     *   <li>{@code order_items.item_status = 'CANCELLED'} → {@code 'PENDING'} (trừ {@code DELIVERED})</li>
+     * </ol></p>
+     */
+    RECOVER_ORDER,
+
     // ── Menu ──────────────────────────────────────────────────────────────────
     VIEW_MENU,
     ADD_MENU,
@@ -179,7 +197,7 @@ public enum Permission {
             Collections.unmodifiableSet(EnumSet.of(
                     VIEW_EMPLOYEE,  ADD_EMPLOYEE,    EDIT_EMPLOYEE,       DELETE_EMPLOYEE,
                     VIEW_ORDER,     ADD_ORDER,        UPDATE_ORDER_STATUS, DELETE_ORDER,
-                    CANCEL_ORDER,
+                    CANCEL_ORDER,   RECOVER_ORDER,
                     VIEW_MENU,      ADD_MENU,         EDIT_MENU,           DELETE_MENU,
                     VIEW_TABLE,     ADD_TABLE,        EDIT_TABLE,          DELETE_TABLE,
                     VIEW_STATS,     VIEW_REPORT,      ADD_REPORT,

@@ -11,7 +11,8 @@
  *    framework reflection requirement.
  *  • Logging via SLF4J → Logback (transitive from logback-classic).
  *
- * Phase WS: Thêm org.java_websocket cho WebSocket push infrastructure.
+ * Phase WS:        Thêm org.java_websocket cho WebSocket push infrastructure.
+ * Lost-update fix: Thêm redis.clients.jedis cho KitchenLockService.
  */
 module com.restaurant {
 
@@ -20,8 +21,12 @@ module com.restaurant {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.media;
-    requires javafx.web;  
-    requires jakarta.mail;        // Charts (BarChart, LineChart) via javafx.scene.chart
+    requires javafx.web;
+    // NOTE: javafx.print is NOT a separate module in OpenJFX 17 Maven artifacts.
+    // The javafx.print package (PrinterJob, PageLayout, …) is exported from the
+    // javafx.graphics module, which is already transitively available via
+    // javafx.controls → javafx.graphics.  No explicit "requires" is needed.
+    requires jakarta.mail;        // email notifications
 
     // ── Database ─────────────────────────────────────────────────────────────
 
@@ -49,6 +54,17 @@ module com.restaurant {
 
     requires org.java_websocket;
 
+    // ── Redis (Lost-update fix) ───────────────────────────────────────────────
+    // Artifact: redis.clients:jedis:5.1.0
+    // Thêm vào pom.xml:
+    //   <dependency>
+    //     <groupId>redis.clients</groupId>
+    //     <artifactId>jedis</artifactId>
+    //     <version>5.1.0</version>
+    //   </dependency>
+
+    requires redis.clients.jedis;
+
     // ── JDK utilities used by business logic ─────────────────────────────────
 
     requires java.desktop;        // java.awt.Desktop used in RestaurantRequestDetailController (open file with OS default app)
@@ -64,6 +80,7 @@ module com.restaurant {
     // Business-logic packages consumed across modules / tests
     exports com.restaurant.dao;
     exports com.restaurant.data;
+    exports com.restaurant.db;
     exports com.restaurant.model;
     exports com.restaurant.session;
     exports com.restaurant.ui.fx.util;

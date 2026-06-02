@@ -666,7 +666,12 @@ public class CashierController implements Initializable {
             o.getTotalAmount(),
             method
         );
-        req.items       = new java.util.ArrayList<>(o.getItems());
+        // [FIX] Loại bỏ món CANCELLED — không hiển thị và không tính tiền
+        req.items = o.getItems() == null ? new java.util.ArrayList<>()
+                : o.getItems().stream()
+                        .filter(i -> i.getItemStatus()
+                                != com.restaurant.model.Order.OrderItem.ItemStatus.CANCELLED)
+                        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
         req.createdTime = o.getCreatedTime();
         return req;
     }
@@ -754,7 +759,10 @@ public class CashierController implements Initializable {
          */
         public double getSubtotal() {
             if (items == null || items.isEmpty()) return totalAmount;
+            // [FIX] Chỉ cộng những món chưa bị hủy — CANCELLED không được cộng vào tạm tính
             return items.stream()
+                .filter(i -> i.getItemStatus()
+                        != com.restaurant.model.Order.OrderItem.ItemStatus.CANCELLED)
                 .mapToDouble(com.restaurant.model.Order.OrderItem::getSubtotal)
                 .sum();
         }

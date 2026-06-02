@@ -11,7 +11,10 @@ import java.util.logging.Logger;
 
 import com.restaurant.dao.KitchenDAO;
 import com.restaurant.dao.KitchenDAO.KitchenTicket;
+import com.restaurant.dao.KitchenDAO.UpdateResult;
+import com.restaurant.db.KitchenLockService;
 import com.restaurant.model.Order;
+import com.restaurant.session.AppSession;
 
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -65,12 +68,20 @@ public class KitchenTicketCardController implements Initializable {
     // ─── State ────────────────────────────────────────────────────────────────
 
     private final KitchenDAO dao = new KitchenDAO();
+    private final KitchenLockService lockService = KitchenLockService.getInstance();
 
     /** Danh sách tickets hiện tại của card này. */
     private List<KitchenTicket> currentTickets;
 
     /** Callback được gọi sau khi thay đổi trạng thái thành công. */
     private Runnable onStatusChanged;
+
+    /**
+     * true = card này đang ở cột "Đang chế biến" (COOKING).
+     * false = card đang ở cột "Đang chờ" (PENDING).
+     * Dùng để phân biệt hành vi của nút "Không nhận món".
+     */
+    private boolean isCookingCard = false;
 
     // ─── Initializable ────────────────────────────────────────────────────────
 
@@ -96,6 +107,7 @@ public class KitchenTicketCardController implements Initializable {
                             Runnable onStatusChanged) {
         this.currentTickets   = tickets;
         this.onStatusChanged  = onStatusChanged;
+        this.isCookingCard    = false;
 
         itemNameLabel.setText(itemName);
 
@@ -108,10 +120,11 @@ public class KitchenTicketCardController implements Initializable {
         staffLabel.setVisible(false);
         staffLabel.setManaged(false);
 
-        // Hiện nút Bắt đầu nấu và Không nhận món
+        // Hiện nút Bắt đầu nấu và Không nhận món (pending → cancelled)
         showButton(btnStartCooking);
         hideButton(btnMarkReady);
         showButton(btnRejectItem);
+        btnRejectItem.setText("✕ Không nhận món");
 
         if (onClick != null) {
             cardRoot.setOnMouseClicked(e -> {
@@ -146,6 +159,7 @@ public class KitchenTicketCardController implements Initializable {
                             Runnable onStatusChanged) {
         this.currentTickets  = tickets;
         this.onStatusChanged = onStatusChanged;
+        this.isCookingCard   = true;
 
         itemNameLabel.setText(itemName);
 
@@ -163,10 +177,11 @@ public class KitchenTicketCardController implements Initializable {
         staffLabel.setVisible(true);
         staffLabel.setManaged(true);
 
-        // Hiện nút Hoàn thành và Không nhận món
+        // Hiện nút Hoàn thành và nút Trả lại (cooking → pending)
         hideButton(btnStartCooking);
         showButton(btnMarkReady);
         showButton(btnRejectItem);
+        btnRejectItem.setText("↩ Trả lại hàng chờ");
 
         if (onClick != null) {
             cardRoot.setOnMouseClicked(e -> {
@@ -188,81 +203,239 @@ public class KitchenTicketCardController implements Initializable {
     // ─── FXML action handlers ─────────────────────────────────────────────────
 
     /**
-     * Xử lý click "Bắt đầu nấu": cập nhật tất cả tickets sang COOKING.
+     * Xử lý click "Bắt đầu nấu": nguyên tử gán chef và chuyển sang COOKING.
+     * Dùng {@link KitchenDAO#assignAndStart} thay vì updateItemStatusSafe.
      */
     @FXML
     private void onStartCooking() {
         if (currentTickets == null || currentTickets.isEmpty()) return;
-        updateAllTickets(Order.OrderItem.ItemStatus.COOKING, btnStartCooking);
+
+        long employeeId = com.restaurant.session.AppSession.getInstance().getUserId();
+        setButtonLoading(btnStartCooking, true);
+
+        List<KitchenTicket> snapshots = List.copyOf(currentTickets);
+
+        Task<String> task = new Task<>() {
+            @Override
+            protected String call() {
+                int success = 0, alreadyChanged = 0, error = 0;
+
+                for (KitchenTicket ticket : snapshots) {
+                    String itemId = ticket.itemId;
+
+                    // Tầng Application: Redis / in-memory distributed lock
+                    if (!lockService.tryAcquire(itemId)) {
+                        alreadyChanged++;
+                        continue;
+                    }
+                    try {
+                        // Tầng DB: atomic assign + status change
+                        UpdateResult result = dao.assignAndStart(itemId, employeeId);
+                        switch (result) {
+                            case SUCCESS        -> success++;
+                            case ALREADY_CHANGED -> alreadyChanged++;
+                            case ERROR          -> error++;
+                        }
+                    } finally {
+                        lockService.release(itemId);
+                    }
+                }
+
+                if (alreadyChanged > 0 && success == 0) return "ALREADY_CHANGED";
+                if (error > 0 && success == 0)          return "ERROR";
+                return "OK";
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            setButtonLoading(btnStartCooking, false);
+            if ("ALREADY_CHANGED".equals(task.getValue())) showConflictAlert();
+            if (onStatusChanged != null) onStatusChanged.run();
+        });
+        task.setOnFailed(e -> {
+            setButtonLoading(btnStartCooking, false);
+            LOGGER.log(Level.SEVERE, "[KitchenTicketCard] onStartCooking failed", task.getException());
+            if (onStatusChanged != null) onStatusChanged.run();
+        });
+
+        new Thread(task, "kitchen-assign").setDaemon(true);
+        Thread t = new Thread(task, "kitchen-assign");
+        t.setDaemon(true);
+        t.start();
     }
 
     /**
      * Xử lý click "Hoàn thành": cập nhật tất cả tickets sang READY.
      */
+    /**
+     * Xử lý click "Hoàn thành": chuyển tất cả tickets từ COOKING sang READY.
+     * Chỉ món của chính đầu bếp này (đã được filter từ getCookingByChef) mới xuất hiện ở đây.
+     */
     @FXML
     private void onMarkReady() {
         if (currentTickets == null || currentTickets.isEmpty()) return;
-        updateAllTickets(Order.OrderItem.ItemStatus.READY, btnMarkReady);
+        updateAllTickets(Order.OrderItem.ItemStatus.COOKING,
+                         Order.OrderItem.ItemStatus.READY, btnMarkReady);
     }
 
     /**
-     * Xử lý click "Không nhận món": hủy tất cả tickets trong nhóm.
-     * Bếp dùng khi không thể chế biến món (hết nguyên liệu, sự cố, ...).
-     * Tablet sẽ nhận WS event ORDERS và hiển thị "Đã hủy" cho khách.
+     * Xử lý click "Không nhận món":
+     * <ul>
+     *   <li>Nếu đang ở cột COOKING (isCooking=true): trả món về PENDING,
+     *       xóa assigned_to → món quay lại cột chờ cho đầu bếp khác nhận.</li>
+     *   <li>Nếu đang ở cột PENDING (isCooking=false): hủy mon (CANCELLED)
+     *       — bếp không thể chế biến.</li>
+     * </ul>
      */
     @FXML
     private void onRejectItem() {
         if (currentTickets == null || currentTickets.isEmpty()) return;
 
-        // Xác nhận trước khi hủy — tránh bấm nhầm
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Xác nhận không nhận món");
-        confirm.setHeaderText(null);
-        confirm.setContentText(
-            "Bếp không thể chế biến món \"" + itemNameLabel.getText() + "\"?\n" +
-            "Món sẽ bị hủy và khách hàng sẽ được thông báo."
-        );
-        confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-        confirm.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.YES) {
-                updateAllTickets(Order.OrderItem.ItemStatus.CANCELLED, btnRejectItem);
+        if (isCookingCard) {
+            // Trả món về PENDING
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Trả món lại");
+            confirm.setHeaderText(null);
+            confirm.setContentText(
+                "Bạn muốn trả món \"" + itemNameLabel.getText() + "\" về hàng chờ?\n" +
+                "Đầu bếp khác có thể nhận món này."
+            );
+            confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn == ButtonType.YES) unassignAllTickets();
+            });
+        } else {
+            // Hủy món (không thể chế biến)
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Xác nhận không nhận món");
+            confirm.setHeaderText(null);
+            confirm.setContentText(
+                "Bếp không thể chế biến món \"" + itemNameLabel.getText() + "\"?\n" +
+                "Món sẽ bị hủy và khách hàng sẽ được thông báo."
+            );
+            confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn == ButtonType.YES) {
+                    Order.OrderItem.ItemStatus expected = currentTickets.get(0).itemStatus;
+                    updateAllTickets(expected, Order.OrderItem.ItemStatus.CANCELLED, btnRejectItem);
+                }
+            });
+        }
+    }
+
+    /**
+     * Trả tất cả tickets trong nhóm về PENDING, xóa assigned_to.
+     * Chỉ gọi từ cột COOKING.
+     */
+    private void unassignAllTickets() {
+        long employeeId = com.restaurant.session.AppSession.getInstance().getUserId();
+        setButtonLoading(btnRejectItem, true);
+
+        List<KitchenTicket> snapshots = List.copyOf(currentTickets);
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() {
+                for (KitchenTicket ticket : snapshots) {
+                    boolean ok = dao.unassignAndReset(ticket.itemId, employeeId);
+                    if (!ok) {
+                        LOGGER.log(Level.WARNING,
+                            "[KitchenTicketCard] unassignAndReset failed — itemId={0}", ticket.itemId);
+                    }
+                }
+                return null;
             }
+        };
+
+        task.setOnSucceeded(e -> {
+            setButtonLoading(btnRejectItem, false);
+            if (onStatusChanged != null) onStatusChanged.run();
         });
+        task.setOnFailed(e -> {
+            setButtonLoading(btnRejectItem, false);
+            LOGGER.log(Level.SEVERE, "[KitchenTicketCard] unassignAllTickets failed", task.getException());
+            if (onStatusChanged != null) onStatusChanged.run();
+        });
+
+        Thread t = new Thread(task, "kitchen-unassign");
+        t.setDaemon(true);
+        t.start();
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     /**
      * Cập nhật trạng thái tất cả tickets trong nhóm bất đồng bộ.
-     * Nút bị vô hiệu hoá trong khi đang xử lý.
+     * Dùng {@link KitchenLockService} (Redis / in-memory fallback) để chặn
+     * 2 đầu bếp cùng xử lý, và {@link KitchenDAO#updateItemStatusSafe}
+     * để bảo vệ tầng DB bằng conditional UPDATE.
      *
-     * @param newStatus  trạng thái mới
-     * @param sourceBtn  nút kích hoạt (để disable/enable)
+     * @param expectedStatus trạng thái hiện tại mà đầu bếp đang nhìn thấy
+     * @param newStatus      trạng thái muốn chuyển sang
+     * @param sourceBtn      nút kích hoạt (để disable/enable)
      */
-    private void updateAllTickets(Order.OrderItem.ItemStatus newStatus, Button sourceBtn) {
+    private void updateAllTickets(Order.OrderItem.ItemStatus expectedStatus,
+                                  Order.OrderItem.ItemStatus newStatus,
+                                  Button sourceBtn) {
         setButtonLoading(sourceBtn, true);
 
         List<KitchenTicket> snapshots = List.copyOf(currentTickets);
 
-        Task<Boolean> task = new Task<>() {
+        Task<String> task = new Task<>() {
             @Override
-            protected Boolean call() {
-                boolean allOk = true;
+            protected String call() {
+                int success = 0, alreadyChanged = 0, error = 0;
+
                 for (KitchenTicket ticket : snapshots) {
-                    boolean ok = dao.updateItemStatus(ticket.itemId, newStatus);
-                    if (!ok) {
-                        LOGGER.log(Level.WARNING,
-                                "[KitchenTicketCard] updateItemStatus failed – itemId={0}, newStatus={1}",
-                                new Object[]{ticket.itemId, newStatus});
-                        allOk = false;
+                    String itemId = ticket.itemId;
+
+                    // ── Tầng Application: Redis / in-memory distributed lock ──
+                    if (!lockService.tryAcquire(itemId)) {
+                        // Lock đang bị giữ bởi đầu bếp khác → bỏ qua ticket này
+                        LOGGER.log(Level.INFO,
+                            "[KitchenTicketCard] lock BUSY — itemId={0}, skipping", itemId);
+                        alreadyChanged++;
+                        continue;
+                    }
+
+                    try {
+                        // ── Tầng DB: conditional UPDATE chống lost update ──
+                        UpdateResult result =
+                            dao.updateItemStatusSafe(itemId, expectedStatus, newStatus);
+
+                        switch (result) {
+                            case SUCCESS       -> success++;
+                            case ALREADY_CHANGED -> {
+                                alreadyChanged++;
+                                LOGGER.log(Level.INFO,
+                                    "[KitchenTicketCard] ALREADY_CHANGED — itemId={0}", itemId);
+                            }
+                            case ERROR         -> error++;
+                        }
+                    } finally {
+                        lockService.release(itemId);
                     }
                 }
-                return allOk;
+
+                // Tóm tắt kết quả để trả về UI
+                if (alreadyChanged > 0 && success == 0) {
+                    return "ALREADY_CHANGED";
+                } else if (error > 0 && success == 0) {
+                    return "ERROR";
+                } else {
+                    return "OK";
+                }
             }
         };
 
         task.setOnSucceeded(e -> {
             setButtonLoading(sourceBtn, false);
+            String outcome = task.getValue();
+            if ("ALREADY_CHANGED".equals(outcome)) {
+                showConflictAlert();
+            } else if ("ERROR".equals(outcome)) {
+                LOGGER.log(Level.SEVERE, "[KitchenTicketCard] updateAllTickets returned ERROR");
+            }
             if (onStatusChanged != null) {
                 onStatusChanged.run();
             }
@@ -271,13 +444,28 @@ public class KitchenTicketCardController implements Initializable {
         task.setOnFailed(e -> {
             setButtonLoading(sourceBtn, false);
             LOGGER.log(Level.SEVERE,
-                    "[KitchenTicketCard] updateAllTickets failed",
+                    "[KitchenTicketCard] updateAllTickets task failed",
                     task.getException());
+            if (onStatusChanged != null) onStatusChanged.run();
         });
 
         Thread thread = new Thread(task, "kitchen-update-status");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Hiển thị thông báo khi món đã được đầu bếp khác xử lý trước.
+     */
+    private void showConflictAlert() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Món đã được xử lý");
+        alert.setHeaderText(null);
+        alert.setContentText(
+            "Món \"" + itemNameLabel.getText() + "\" đã được đầu bếp khác cập nhật.\n" +
+            "Danh sách sẽ được làm mới."
+        );
+        alert.showAndWait();
     }
 
     /** Hiển thị nút và bật managed layout. */

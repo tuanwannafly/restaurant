@@ -193,6 +193,19 @@ public class DBConnection {
         // Oracle: dùng SELECT 1 FROM DUAL để kiểm tra connection còn sống
         config.setConnectionTestQuery("SELECT 1 FROM DUAL");
 
+        // ── Isolation level tường minh ─────────────────────────────────────
+        // Oracle chỉ hỗ trợ 2 mức: READ_COMMITTED (default) và SERIALIZABLE.
+        // Ta chọn READ_COMMITTED vì:
+        //   1) Oracle dùng MVCC → mỗi READ thấy snapshot của lần COMMIT cuối
+        //      → dirty read KHÔNG THỂ xảy ra (không cần SERIALIZABLE).
+        //   2) Tầng Application đã có Redis SET NX/EX (KitchenLockService)
+        //      ngăn 2 chef cùng nhận 1 món cùng lúc.
+        //   3) Tầng DB đã có conditional UPDATE ("WHERE item_status = ?")
+        //      làm safety-net chống lost update kể cả khi Redis bị bypass.
+        //   4) SERIALIZABLE sẽ ném ORA-08177 khi 2 writer đụng nhau → quá heavy
+        //      và không cần thiết với kiến trúc 2 lớp hiện tại.
+        config.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
+
         return new HikariDataSource(config);
     }
 
