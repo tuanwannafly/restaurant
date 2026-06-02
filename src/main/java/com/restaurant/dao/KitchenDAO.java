@@ -99,6 +99,68 @@ public class KitchenDAO {
 
     // ─── SQL ──────────────────────────────────────────────────────────────────
 
+    /**
+     * Lấy tickets PENDING/ACCEPTED chưa có đầu bếp nào nhận (assigned_to IS NULL).
+     * Đây là danh sách hiển thị trong cột "Đang chờ" trên màn hình bếp.
+     */
+    private static final String SQL_PENDING_UNASSIGNED =
+            "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
+            "       oi.quantity,      oi.item_status, oi.round_number, " +
+            "       oi.created_at,    oi.assigned_to, " +
+            "       mi.name AS item_name, t.table_number, t.table_id, " +
+            "       NULL AS note, NULL AS assigned_employee_name " +
+            "FROM   order_items oi " +
+            "JOIN   orders           o  ON oi.order_id     = o.order_id " +
+            "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
+            "JOIN   menu_items       mi  ON oi.menu_item_id = mi.item_id " +
+            "WHERE  o.restaurant_id = ? " +
+            "  AND  oi.item_status IN ('PENDING','ACCEPTED') " +
+            "  AND  oi.assigned_to IS NULL " +
+            "ORDER  BY t.table_number, oi.round_number, oi.created_at";
+
+    /**
+     * Lấy tickets COOKING thuộc về đúng đầu bếp đang đăng nhập (assigned_to = ?).
+     * Chỉ hiện món của chính mình trong cột "Đang chế biến".
+     */
+    private static final String SQL_COOKING_BY_CHEF =
+            "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
+            "       oi.quantity,      oi.item_status, oi.round_number, " +
+            "       oi.created_at,    oi.assigned_to, " +
+            "       mi.name AS item_name, t.table_number, t.table_id, " +
+            "       NULL AS note, NULL AS assigned_employee_name " +
+            "FROM   order_items oi " +
+            "JOIN   orders           o  ON oi.order_id     = o.order_id " +
+            "JOIN   restaurant_tables t  ON o.table_id      = t.table_id " +
+            "JOIN   menu_items       mi  ON oi.menu_item_id = mi.item_id " +
+            "WHERE  o.restaurant_id = ? " +
+            "  AND  oi.item_status  = 'COOKING' " +
+            "  AND  oi.assigned_to  = ? " +
+            "ORDER  BY t.table_number, oi.round_number, oi.created_at";
+
+    /**
+     * Gán đầu bếp và chuyển trạng thái sang COOKING trong 1 câu UPDATE.
+     * Điều kiện {@code AND item_status IN ('PENDING','ACCEPTED') AND assigned_to IS NULL}
+     * đảm bảo chỉ update khi mon thực sự chưa ai nhận.
+     */
+    private static final String SQL_ASSIGN_AND_START =
+            "UPDATE order_items " +
+            "SET    item_status = 'COOKING', assigned_to = ? " +
+            "WHERE  order_item_id = ? " +
+            "  AND  item_status IN ('PENDING','ACCEPTED') " +
+            "  AND  assigned_to IS NULL";
+
+    /**
+     * Trả món về PENDING và xóa assigned_to (đầu bếp bỏ nhận món).
+     * Điều kiện {@code AND item_status = 'COOKING' AND assigned_to = ?}
+     * đảm bảo chỉ đầu bếp đang giữ món mới có thể trả lại.
+     */
+    private static final String SQL_UNASSIGN_AND_RESET =
+            "UPDATE order_items " +
+            "SET    item_status = 'PENDING', assigned_to = NULL " +
+            "WHERE  order_item_id = ? " +
+            "  AND  item_status  = 'COOKING' " +
+            "  AND  assigned_to  = ?";
+
     private static final String SQL_ACTIVE_TICKETS =
             "SELECT oi.order_item_id, oi.order_id, oi.menu_item_id, " +
             "       oi.quantity,      oi.item_status, oi.round_number, " +
@@ -159,6 +221,22 @@ public class KitchenDAO {
             "  AND  status IN ('DIRTY', 'CLEANING', 'OUT_OF_SERVICE') " +
             "ORDER  BY table_number";
 
+    /**
+     * UPDATE có điều kiện: chỉ cập nhật nếu item vẫn còn đúng trạng thái
+     * mà đầu bếp nhìn thấy lúc bấm nút (expected_status).
+     *
+     * <p>Đây là phòng thủ tầng DB chống lost update:
+     * <pre>
+     *   Đầu bếp A: UPDATE ... SET item_status='READY' WHERE order_item_id=? AND item_status='COOKING'  → 1 row
+     *   Đầu bếp B: UPDATE ... SET item_status='READY' WHERE order_item_id=? AND item_status='COOKING'  → 0 row (không còn COOKING)
+     * </pre>
+     * {@code updateCount == 0} có nghĩa là người khác đã cập nhật trước.
+     */
+    private static final String SQL_UPDATE_STATUS_CONDITIONAL =
+            "UPDATE order_items SET item_status = ? " +
+            "WHERE order_item_id = ? AND item_status = ?";
+
+    // Kept for backward-compat callers that don't pass expectedStatus
     private static final String SQL_UPDATE_STATUS =
             "UPDATE order_items SET item_status = ? WHERE order_item_id = ?";
 
@@ -277,11 +355,12 @@ public class KitchenDAO {
     }
 
     /**
-     * Cập nhật item_status của một order_item.
+     * Cập nhật item_status của một order_item (không có kiểm tra trạng thái cũ).
+     * Dùng cho các luồng không phải kitchen (e.g. admin override).
      *
      * @param itemId    order_item_id
      * @param newStatus trạng thái mới
-     * @return true nếu update thành công
+     * @return true nếu update thành công (ít nhất 1 row bị ảnh hưởng)
      */
     public boolean updateItemStatus(String itemId, Order.OrderItem.ItemStatus newStatus) {
         try (Connection conn = DBConnection.getInstance().getConnection();
@@ -295,6 +374,193 @@ public class KitchenDAO {
                     + ", newStatus=" + newStatus, e);
             return false;
         }
+    }
+
+    // ─── Chef-scoped queries (assigned_to feature) ────────────────────────────
+
+    /**
+     * Lấy các tickets PENDING/ACCEPTED chưa có ai nhận ({@code assigned_to IS NULL}).
+     * Dùng để render cột "Đang chờ" — chỉ hiện món chưa có đầu bếp nào claim.
+     *
+     * @param restaurantId ID nhà hàng
+     * @return danh sách ticket chưa được gán, có thứ tự theo bàn → lượt → thời gian
+     */
+    public List<KitchenTicket> getPendingUnassigned(long restaurantId) {
+        List<KitchenTicket> list = new ArrayList<>();
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_PENDING_UNASSIGNED)) {
+            ps.setLong(1, restaurantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapTicket(rs));
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getPendingUnassigned error – restaurantId=" + restaurantId, e);
+        }
+        return list;
+    }
+
+    /**
+     * Lấy các tickets COOKING thuộc về đúng đầu bếp ({@code assigned_to = employeeId}).
+     * Dùng để render cột "Đang chế biến" — mỗi đầu bếp chỉ thấy món của mình.
+     *
+     * @param restaurantId ID nhà hàng
+     * @param employeeId   user_id của đầu bếp đang đăng nhập
+     * @return danh sách ticket COOKING thuộc về đầu bếp này
+     */
+    public List<KitchenTicket> getCookingByChef(long restaurantId, long employeeId) {
+        List<KitchenTicket> list = new ArrayList<>();
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_COOKING_BY_CHEF)) {
+            ps.setLong(1, restaurantId);
+            ps.setString(2, String.valueOf(employeeId));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapTicket(rs));
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                    "[KitchenDAO] getCookingByChef error – restaurantId=" + restaurantId
+                    + ", employeeId=" + employeeId, e);
+        }
+        return list;
+    }
+
+    /**
+     * Nguyên tử: gán đầu bếp {@code employeeId} và chuyển {@code itemId} sang COOKING.
+     *
+     * <p>Chỉ thành công nếu item vẫn còn PENDING/ACCEPTED VÀ {@code assigned_to IS NULL}
+     * tại thời điểm ghi — đây chính là guard chống lost update tầng DB cho "nhận món".</p>
+     *
+     * @param itemId     order_item_id
+     * @param employeeId user_id của đầu bếp nhận món
+     * @return {@link UpdateResult#SUCCESS} nếu nhận được,
+     *         {@link UpdateResult#ALREADY_CHANGED} nếu đầu bếp khác đã nhận trước,
+     *         {@link UpdateResult#ERROR} nếu lỗi SQL
+     */
+    public UpdateResult assignAndStart(String itemId, long employeeId) {
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_ASSIGN_AND_START)) {
+
+            ps.setString(1, String.valueOf(employeeId));
+            ps.setString(2, itemId);
+
+            int rows = ps.executeUpdate();
+            if (rows >= 1) {
+                LOGGER.log(Level.FINE,
+                    "[KitchenDAO] assignAndStart OK — itemId={0}, employeeId={1}",
+                    new Object[]{itemId, employeeId});
+                return UpdateResult.SUCCESS;
+            } else {
+                LOGGER.log(Level.INFO,
+                    "[KitchenDAO] assignAndStart ALREADY_CHANGED — itemId={0}", itemId);
+                return UpdateResult.ALREADY_CHANGED;
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                "[KitchenDAO] assignAndStart ERROR — itemId=" + itemId, e);
+            return UpdateResult.ERROR;
+        }
+    }
+
+    /**
+     * Trả món về PENDING và xóa {@code assigned_to} (đầu bếp bỏ nhận món).
+     *
+     * <p>Chỉ đầu bếp đang giữ món ({@code assigned_to = employeeId}) mới có thể trả lại.
+     * Sau khi trả lại, món xuất hiện lại ở cột "Đang chờ" cho đầu bếp khác nhận.</p>
+     *
+     * @param itemId     order_item_id
+     * @param employeeId user_id của đầu bếp muốn trả món
+     * @return true nếu trả thành công (1 row bị ảnh hưởng)
+     */
+    public boolean unassignAndReset(String itemId, long employeeId) {
+        try (Connection conn = DBConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_UNASSIGN_AND_RESET)) {
+
+            ps.setString(1, itemId);
+            ps.setString(2, String.valueOf(employeeId));
+
+            int rows = ps.executeUpdate();
+            if (rows >= 1) {
+                LOGGER.log(Level.FINE,
+                    "[KitchenDAO] unassignAndReset OK — itemId={0}, employeeId={1}",
+                    new Object[]{itemId, employeeId});
+                return true;
+            } else {
+                LOGGER.log(Level.INFO,
+                    "[KitchenDAO] unassignAndReset 0 rows — itemId={0} " +
+                    "(mon khong con COOKING hoac khong thuoc chef nay)", itemId);
+                return false;
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                "[KitchenDAO] unassignAndReset ERROR — itemId=" + itemId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Cập nhật item_status AN TOÀN: chỉ update nếu item vẫn còn ở
+     * {@code expectedStatus} tại thời điểm ghi.
+     *
+     * <p>Phòng chống lost update khi 2 đầu bếp cùng bấm "Hoàn thành" một món:
+     * <ul>
+     *   <li>Đầu bếp A bấm trước → WHERE item_status='COOKING' khớp → 1 row → {@link UpdateResult#SUCCESS}</li>
+     *   <li>Đầu bếp B bấm sau  → WHERE item_status='COOKING' không còn khớp → 0 row → {@link UpdateResult#ALREADY_CHANGED}</li>
+     * </ul>
+     *
+     * @param itemId         order_item_id
+     * @param expectedStatus trạng thái đầu bếp đang nhìn thấy (COOKING → READY, PENDING → COOKING, ...)
+     * @param newStatus      trạng thái muốn chuyển sang
+     * @return kết quả update (xem {@link UpdateResult})
+     */
+    public UpdateResult updateItemStatusSafe(String itemId,
+                                             Order.OrderItem.ItemStatus expectedStatus,
+                                             Order.OrderItem.ItemStatus newStatus) {
+        try (Connection conn = DBConnection.getInstance().getConnection()) {
+            // READ_COMMITTED đảm bảo chỉ đọc dữ liệu đã commit.
+            // Kết hợp với conditional UPDATE (WHERE item_status = ?)
+            // tạo thành optimistic locking an toàn mà không cần SERIALIZABLE.
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_STATUS_CONDITIONAL)) {
+                ps.setString(1, newStatus.name());
+                ps.setString(2, itemId);
+                ps.setString(3, expectedStatus.name());
+
+                int rows = ps.executeUpdate();
+
+                if (rows >= 1) {
+                    LOGGER.log(Level.FINE,
+                        "[KitchenDAO] updateItemStatusSafe OK — itemId={0} {1}→{2}",
+                        new Object[]{itemId, expectedStatus, newStatus});
+                    return UpdateResult.SUCCESS;
+                } else {
+                    // 0 row: item không còn ở expectedStatus → đã bị người khác cập nhật
+                    LOGGER.log(Level.INFO,
+                        "[KitchenDAO] updateItemStatusSafe ALREADY_CHANGED — itemId={0} expected={1}",
+                        new Object[]{itemId, expectedStatus});
+                    return UpdateResult.ALREADY_CHANGED;
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                "[KitchenDAO] updateItemStatusSafe ERROR — itemId=" + itemId, e);
+            return UpdateResult.ERROR;
+        }
+    }
+
+    /**
+     * Kết quả của {@link #updateItemStatusSafe}.
+     */
+    public enum UpdateResult {
+        /** Update thành công — row đã được ghi. */
+        SUCCESS,
+        /**
+         * Không có row nào bị ảnh hưởng — item đã được đầu bếp khác cập nhật trước.
+         * UI nên hiển thị thông báo "Món đã được xử lý bởi người khác".
+         */
+        ALREADY_CHANGED,
+        /** Lỗi SQL hoặc kết nối DB. */
+        ERROR
     }
 
     // ─── Phase 7D: Badge count methods ───────────────────────────────────────

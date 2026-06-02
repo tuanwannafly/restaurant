@@ -2,8 +2,9 @@ package com.restaurant.ui.dialog;
 
 import java.text.NumberFormat;
 import java.util.List;
-import java.util.Locale;       // ← session, không phải model
+import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.restaurant.dao.OrderDAO;
 import com.restaurant.model.Order;
@@ -125,12 +126,22 @@ public class OrderDetailController {
                              ? order.getCreatedTime() : "—");
         lblNote.setText("—");                                     // ← Order không có getNote()
 
-        List<Order.OrderItem> items = order.getItems();
-        tableItems.setItems(FXCollections.observableArrayList(
-                items != null ? items : List.of()));
+        List<Order.OrderItem> allItems = order.getItems();
 
-        double total = items == null ? 0 :
-                items.stream().mapToDouble(Order.OrderItem::getSubtotal).sum();
+        // [FIX] Loại bỏ món CANCELLED khỏi danh sách hiển thị và tổng tiền
+        // Chỉ hiển thị + tính tiền những món chưa bị hủy
+        List<Order.OrderItem> activeItems = allItems == null
+                ? List.of()
+                : allItems.stream()
+                        .filter(i -> i.getItemStatus() != Order.OrderItem.ItemStatus.CANCELLED)
+                        .collect(Collectors.toList());
+
+        tableItems.setItems(FXCollections.observableArrayList(activeItems));
+
+        // [FIX] Chỉ cộng tổng những món không bị hủy
+        double total = activeItems.stream()
+                .mapToDouble(Order.OrderItem::getSubtotal)
+                .sum();
         lblTotal.setText(CURRENCY_FMT.format(total));
 
         // ── [THÊM MỚI] Visibility btnCancelOrder ─────────────────────────────

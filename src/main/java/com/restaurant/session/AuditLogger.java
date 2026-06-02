@@ -265,6 +265,19 @@ public final class AuditLogger {
                 + " | " + itemCount + " món | round=" + round);
     }
 
+    /** Ghi log phục hồi đơn hàng từ CANCELLED → PENDING. */
+    public void logRecovery(String orderId, String note) {
+        log("RECOVER_ORDER", parseLong(orderId), "SUCCESS",
+            "Phục hồi order_id=" + orderId + " (CANCELLED→PENDING) | ghi chú: " + note);
+    }
+
+    /** Ghi log phục hồi đơn hàng thất bại. */
+    public void logRecoveryFailed(String orderId, String reason) {
+        log("RECOVER_ORDER", parseLong(orderId), "FAIL",
+            "Phục hồi order_id=" + orderId + " thất bại | lý do: " + reason);
+    }
+
+
     private static long parseLong(String s) {
         try { return Long.parseLong(s); } catch (Exception e) { return 0L; }
     }

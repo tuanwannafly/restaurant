@@ -1,0 +1,36 @@
+# ── Maven build output ────────────────────────────────────────────
+# target/ rất nặng (~200-500 MB), Dockerfile tự build bên trong container
+target/
+*.class
+
+# ── Credentials — KHÔNG được copy vào image ──────────────────────
+# Trong Docker, config được inject qua env vars (DB_URL, DB_USERNAME...)
+src/main/resources/db.properties
+src/main/resources/email.properties
+
+# ── IDE & editor ──────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+.project
+.classpath
+.settings/
+
+# ── OS artifacts ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Git ───────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Docker config (không cần trong build context) ─────────────────
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ── Local env file ────────────────────────────────────────────────
+.env
+.env.local

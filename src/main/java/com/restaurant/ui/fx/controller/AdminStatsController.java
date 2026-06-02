@@ -2,8 +2,12 @@ package com.restaurant.ui.fx.controller;
 
 // 📁 VỊ TRÍ: src/main/java/com/restaurant/ui/fx/controller/AdminStatsController.java
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
 
@@ -17,11 +21,15 @@ import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
+import javafx.stage.FileChooser;
+import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.util.StringConverter;
 
 /**
@@ -59,6 +67,9 @@ public class AdminStatsController {
     @FXML private NumberAxis                yAxis;
     @FXML private StackPane                 chartHint;
 
+    // Export
+    @FXML private Button btnExport;
+
     // ── DAO ───────────────────────────────────────────────────────────────────
 
     private final StatsDAO dao = new StatsDAO();
@@ -67,6 +78,9 @@ public class AdminStatsController {
 
     private static final NumberFormat VND_FMT =
             NumberFormat.getNumberInstance(new Locale("vi", "VN"));
+
+    private static final DateTimeFormatter CSV_DATE =
+            DateTimeFormatter.ofPattern("yyyyMMdd");
 
     // ═════════════════════════════════════════════════════════════════════════
     // Khởi tạo
@@ -300,5 +314,125 @@ public class AdminStatsController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // CSV Export
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /** Được gọi từ nút "⬇ Xuất CSV" trên FXML. */
+    @FXML
+    private void onExportCsv() {
+        exportCsv();
+    }
+
+    /**
+     * Mở FileChooser rồi xuất dữ liệu thống kê admin ra CSV UTF-8 BOM.
+     *
+     * <p>File gồm 2 section:
+     * <ol>
+     *   <li>Tóm tắt (tổng nhà hàng, doanh thu, số đơn) theo khoảng ngày đang lọc.</li>
+     *   <li>Dữ liệu biểu đồ tháng đang chọn (cột tháng + giá trị doanh thu hoặc đơn hàng).</li>
+     * </ol>
+     */
+    private void exportCsv() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Lưu Thống kê Admin CSV");
+        chooser.getExtensionFilters().add(new ExtensionFilter("CSV Files", "*.csv"));
+        chooser.setInitialFileName("thong_ke_admin_" + LocalDate.now().format(CSV_DATE) + ".csv");
+
+        File file = chooser.showSaveDialog(btnFilter.getScene().getWindow());
+        if (file == null) return;
+
+        final File finalFile = file.getName().toLowerCase().endsWith(".csv")
+                ? file : new File(file.getPath() + ".csv");
+
+        if (btnExport != null) btnExport.setDisable(true);
+
+        // Snapshot bộ lọc summary
+        LocalDate sumFrom = dpFrom.getValue();
+        LocalDate sumTo   = dpTo.getValue();
+        if (sumFrom == null) sumFrom = LocalDate.now().withDayOfMonth(1);
+        if (sumTo   == null) sumTo   = LocalDate.now();
+        final LocalDate fSumFrom = sumFrom;
+        final LocalDate fSumTo   = sumTo;
+
+        // Snapshot bộ lọc biểu đồ
+        String type    = cboType.getValue();
+        String fromStr = cboChartFrom.getValue();
+        String toStr   = cboChartTo.getValue();
+        int[] fromP = parseMonthLabel(fromStr);
+        int[] toP   = parseMonthLabel(toStr);
+        final boolean isRevenue = "Doanh thu".equals(type);
+
+        // Nếu chưa chọn range biểu đồ thì vẫn export summary
+        final int chartFromMonth = (fromP != null) ? fromP[0] : 1;
+        final int chartToMonth   = (toP   != null) ? toP[0]   :
+                                    (fromP != null) ? fromP[0] : 12;
+        final int chartYear      = (fromP != null) ? fromP[1] : LocalDate.now().getYear();
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                Map<String, Long> summary = dao.getSuperAdminStats(fSumFrom, fSumTo);
+                Map<String, Long> chartData = isRevenue
+                        ? dao.getMonthlyRevenue(chartYear, chartFromMonth, chartToMonth)
+                        : dao.getMonthlyOrders (chartYear, chartFromMonth, chartToMonth);
+
+                try (PrintWriter pw = new PrintWriter(
+                        new FileWriter(finalFile, java.nio.charset.StandardCharsets.UTF_8))) {
+
+                    pw.print('\uFEFF');  // UTF-8 BOM
+
+                    // ── Section 1: Tóm tắt ───────────────────────────────
+                    pw.println("=== TÓM TẮT THỐNG KÊ ADMIN ===");
+                    pw.println("Từ ngày,Đến ngày,Tổng nhà hàng,Tổng doanh thu (₫),Tổng đơn hàng");
+                    pw.printf("%s,%s,%d,%d,%d%n",
+                            fSumFrom, fSumTo,
+                            summary.getOrDefault("total_restaurants", 0L),
+                            summary.getOrDefault("total_revenue",     0L),
+                            summary.getOrDefault("total_orders",      0L));
+                    pw.println();
+
+                    // ── Section 2: Biểu đồ tháng ─────────────────────────
+                    String chartLabel = isRevenue ? "Doanh thu (₫)" : "Số đơn hàng";
+                    pw.println("=== BIỂU ĐỒ THEO THÁNG: " + chartLabel.toUpperCase() + " ===");
+                    pw.println("Tháng," + chartLabel);
+                    for (int m = chartFromMonth; m <= chartToMonth; m++) {
+                        String key = "T" + m + "/" + chartYear;
+                        pw.printf("%s,%d%n", key, chartData.getOrDefault(key, 0L));
+                    }
+                }
+                return null;
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            if (btnExport != null) btnExport.setDisable(false);
+            Alert a = new Alert(AlertType.INFORMATION,
+                    "Xuất CSV thành công:\n" + finalFile.getAbsolutePath());
+            a.setHeaderText("Thành công");
+            a.showAndWait();
+        });
+
+        task.setOnFailed(e -> {
+            if (btnExport != null) btnExport.setDisable(false);
+            Alert a = new Alert(AlertType.ERROR,
+                    "Lỗi xuất CSV: " + task.getException().getMessage());
+            a.setHeaderText("Lỗi");
+            a.showAndWait();
+        });
+
+        Thread t = new Thread(task);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Escape CSV field. */
+    private static String csvEscape(String s) {
+        if (s == null) return "";
+        if (s.contains(",") || s.contains("\"") || s.contains("\n"))
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        return s;
     }
 }

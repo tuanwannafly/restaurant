@@ -33,6 +33,13 @@
                            -fx-font-weight: bold; -fx-background-color: #3B82F6;
                            -fx-text-fill: white; -fx-background-radius: 8;
                            -fx-padding: 8 18 8 18; -fx-cursor: hand;"/>
+            <Button fx:id="btnExport"
+                    text="⬇ Xuất CSV"
+                    onAction="#onExportCsv"
+                    style="-fx-font-family: 'Segoe UI'; -fx-font-size: 13px;
+                           -fx-font-weight: bold; -fx-background-color: #10B981;
+                           -fx-text-fill: white; -fx-background-radius: 8;
+                           -fx-padding: 8 18 8 18; -fx-cursor: hand;"/>
         </HBox>
     </top>
 

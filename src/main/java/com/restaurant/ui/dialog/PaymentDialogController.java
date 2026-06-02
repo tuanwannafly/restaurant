@@ -38,7 +38,8 @@ import javafx.stage.Stage;
  *
  * <p><b>Khi xác nhận thanh toán:</b>
  * <ol>
- *   <li>{@link OrderDAO#completeOrder(String)} — đánh dấu order COMPLETED.</li>
+ *   <li>{@link OrderDAO#completeOrderViaPLSQL(String, String)} — đánh dấu order COMPLETED
+ *       qua PL/SQL {@code pkg_order.complete_order_safe} (2-layer lock: Redis + Oracle FOR UPDATE).</li>
  *   <li>{@link TableDAO#updateStatus(String, TableItem.Status)} — bàn → DIRTY.</li>
  *   <li>Set {@code paymentCompleted = true}, đóng Stage.</li>
  * </ol>
@@ -282,10 +283,16 @@ public class PaymentDialogController implements Initializable {
         btnConfirm.setDisable(true);
         btnConfirm.setText("⏳  Đang xử lý…");
 
+        // Lấy phương thức thanh toán từ RadioButton trước khi chuyển sang thread khác
+        String selectedPaymentMethod = rboTransfer.isSelected() ? "TRANSFER" : "CASH";
+
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() {
-                boolean ok1 = orderDAO.completeOrder(orderId);
+                // ── Thanh toán qua PL/SQL pkg_order.complete_order_safe ──────────
+                // 2-layer lock: Layer 1 Redis (application) + Layer 2 Oracle FOR UPDATE (DB)
+                // Xử lý Phantom Read và ORA-00060 deadlock tự động.
+                boolean ok1 = orderDAO.completeOrderViaPLSQL(orderId, selectedPaymentMethod);
                 boolean ok2 = true;
                 try {
                     ok2 = tableDAO.updateStatus(tableId, TableItem.Status.DIRTY);

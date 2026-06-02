@@ -290,6 +290,7 @@ public class KitchenController implements Initializable {
      */
     private void doPoll() {
         long restaurantId = AppSession.getInstance().getRestaurantId();
+        long employeeId   = AppSession.getInstance().getUserId();
 
         // Hiện spinner
         if (spinner != null) spinner.start();
@@ -297,24 +298,10 @@ public class KitchenController implements Initializable {
         Task<KitchenData> task = new Task<>() {
             @Override
             protected KitchenData call() {
-                List<KitchenTicket> all = dao.getActiveTickets(restaurantId);
-
-                List<KitchenTicket> pending = new ArrayList<>();
-                List<KitchenTicket> cooking = new ArrayList<>();
-
-                for (KitchenTicket ticket : all) {
-                    switch (ticket.itemStatus) {
-                        case PENDING:
-                        case ACCEPTED:
-                            pending.add(ticket);
-                            break;
-                        case COOKING:
-                            cooking.add(ticket);
-                            break;
-                        default:
-                            break;
-                    }
-                }
+                // Cột PENDING: chỉ món chưa ai nhận (assigned_to IS NULL)
+                List<KitchenTicket> pending = dao.getPendingUnassigned(restaurantId);
+                // Cột COOKING: chỉ món đầu bếp này đang nấu (assigned_to = employeeId)
+                List<KitchenTicket> cooking = dao.getCookingByChef(restaurantId, employeeId);
                 return new KitchenData(pending, cooking);
             }
         };
@@ -433,12 +420,17 @@ public class KitchenController implements Initializable {
     /**
      * Broadcast WS events sau khi bếp cập nhật trạng thái món.
      *
-     * <p>Gửi {@link WsTopic#ORDERS} và topic riêng của từng bàn bị ảnh hưởng
-     * để {@code TableOrderStage} (tablet) tự động refresh trạng thái món ăn.</p>
+     * <h4>Hai chế độ hoạt động:</h4>
+     * <ul>
+     *   <li><b>Instance 1 — sở hữu WS Server</b> ({@link RestaurantEventServer#isRunning()}
+     *       == true): gọi {@link RestaurantEventServer#broadcast} trực tiếp.</li>
+     *   <li><b>Instance 2+ — chỉ có WS Client</b>: relay qua frame
+     *       {@code "PUB:<json>"} đến WS Server của Instance 1, rồi Instance 1
+     *       broadcast đến mọi subscriber.</li>
+     * </ul>
      *
-     * <p>Vì {@code KitchenController} luôn chạy trên Instance 1 (instance sở hữu
-     * WS server), có thể gọi {@link RestaurantEventServer#broadcast} trực tiếp
-     * mà không cần relay qua {@code publishToServer}.</p>
+     * <p>Trước đây method này giả định "luôn chạy trên Instance 1" — gây lỗi
+     * khi đầu bếp B (Instance 2) trả món về: event không bao giờ đến đầu bếp A.</p>
      *
      * @param tickets danh sách ticket vừa được cập nhật trạng thái
      */
@@ -446,21 +438,36 @@ public class KitchenController implements Initializable {
         long restaurantId = AppSession.getInstance().getRestaurantId();
         RestaurantEventServer srv = RestaurantEventServer.getInstance();
 
-        // Broadcast ORDERS — TableOrderStage subscribe topic này để refresh
-        srv.broadcast(WsEvent.of(WsTopic.ORDERS, restaurantId));
-        srv.broadcast(WsEvent.of(WsTopic.BADGE,  restaurantId));
+        List<WsEvent> events = new ArrayList<>();
 
-        // Broadcast topic riêng từng bàn bị ảnh hưởng để refresh nhanh hơn
+        // KITCHEN — tất cả màn hình bếp refresh (cột chờ cập nhật khi trả món)
+        events.add(WsEvent.of(WsTopic.KITCHEN, restaurantId));
+        // ORDERS — tablet refresh trạng thái món
+        events.add(WsEvent.of(WsTopic.ORDERS, restaurantId));
+        // BADGE — badge số đỏ trên nav
+        events.add(WsEvent.of(WsTopic.BADGE, restaurantId));
+
+        // Topic riêng từng bàn bị ảnh hưởng
         if (tickets != null) {
             tickets.stream()
                    .map(t -> t.tableId)
+                   .filter(tid -> tid != null)
                    .distinct()
                    .forEach(tid -> {
                        try {
-                           int tableIdInt = Integer.parseInt(tid);
-                           srv.broadcast(WsEvent.of(WsTopic.forTable(tableIdInt), restaurantId));
+                           events.add(WsEvent.of(
+                               WsTopic.forTable(Integer.parseInt(tid)), restaurantId));
                        } catch (NumberFormatException ignored) {}
                    });
+        }
+
+        if (srv.isRunning()) {
+            // Instance 1: có WS Server — broadcast trực tiếp đến tất cả subscriber
+            for (WsEvent e : events) srv.broadcast(e);
+        } else {
+            // Instance 2+: chỉ có WS Client — relay qua PUB frame đến Instance 1
+            RestaurantEventClient client = RestaurantEventClient.getInstance();
+            for (WsEvent e : events) client.publishToServer(e);
         }
     }
 
